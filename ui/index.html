@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<title>Benchly</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/theme-icloud.css">
+</head>
+<body>
+
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7V5z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3zM14 3v4h4"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+    <symbol id="i-bang" viewBox="0 0 24 24"><path d="M12 7v6M12 16.8v.4"/></symbol>
+    <symbol id="i-q" viewBox="0 0 24 24"><path d="M9 9a3 3 0 1 1 4.6 2.5c-1 .7-1.6 1.2-1.6 2.5M12 17.5v.4"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13l3-8h10l3 8v6H4v-6zM4 13h5l1.5 2.5h3L15 13h5"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M10 5H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-5"/></symbol>
+    <symbol id="i-drive" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="16.5" cy="12" r="1"/><path d="M6.5 12h5"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 6.5a4.5 4.5 0 0 0-6.1 5.3L3 17.2V21h3.8l5.4-5.4a4.5 4.5 0 0 0 5.3-6.1L14 13l-3-3 3.5-3.5z"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24"><path d="M7 8V3h10v5"/><rect x="4" y="8" width="16" height="8" rx="2"/><path d="M7 13h10v8H7v-8z"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4.5 13.5h6L11 22l8.5-11.5h-6L13 2z"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+    <symbol id="i-cpu2" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+    <symbol id="i-fleet" viewBox="0 0 24 24"><rect x="2.5" y="4" width="12" height="9" rx="1.5"/><path d="M6 20h5M8.5 13v7"/><rect x="16.5" y="9" width="5" height="8" rx="1"/><path d="M19 20v-3"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18 4 4 0 0 1 0-8 3 3 0 0 0 0-6 2.5 2.5 0 0 1 0-4z"/></symbol>
+    <symbol id="i-broom" viewBox="0 0 24 24"><path d="M19 4l-7 7M11 8l5 5M9.5 10.5L4 16l4 4 5.5-5.5M5 20l3-1M7 22l1-3"/></symbol>
+    <symbol id="i-aid" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M12 9v6M9 12h6"/></symbol>
+    <symbol id="i-usb" viewBox="0 0 24 24"><circle cx="12" cy="20" r="1.5"/><path d="M12 18.5V4M12 4l-2.5 3.5M12 4l2.5 3.5M12 11l3-2.5V11M12 14l-3-2v-1.5"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v3.5h3.5M12 8v4.5l3 1.5"/></symbol>
+    <symbol id="i-bug" viewBox="0 0 24 24"><rect x="8" y="7" width="8" height="12" rx="4"/><path d="M8 11H4M8 15H4M16 11h4M16 15h4M9 7l-1.5-2M15 7l1.5-2M12 19v2"/></symbol>
+  </defs>
+</svg>
+
+<div id="app">
+
+  <!-- ======== sidebar ======== -->
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0a1f1b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12h4l2.5-7 4 14 2.5-7h5"/>
+        </svg>
+      </div>
+      <h1>Benchly</h1>
+    </div>
+
+    <nav id="nav">
+      <button class="nav-item active" data-page="dashboard">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="10" rx="2"/><rect x="13" y="3" width="8" height="6" rx="2"/><rect x="13" y="11" width="8" height="10" rx="2"/><rect x="3" y="15" width="8" height="6" rx="2"/></svg>
+        Dashboard <span class="key">1</span>
+      </button>
+      <button class="nav-item" data-page="system">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>
+        System <span class="key">2</span>
+      </button>
+      <button class="nav-item" data-page="storage">
+        <svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="8" ry="2.8"/><path d="M4 5.5v6c0 1.5 3.6 2.8 8 2.8s8-1.3 8-2.8v-6"/><path d="M4 11.5v6c0 1.5 3.6 2.8 8 2.8s8-1.3 8-2.8v-6"/></svg>
+        Storage <span class="key">3</span>
+      </button>
+      <button class="nav-item" data-page="network">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="18" r="1.6"/><path d="M5.5 12.2a9 9 0 0 1 13 0M2.5 8.5a14 14 0 0 1 19 0M8.6 15.4a4.5 4.5 0 0 1 6.8 0"/></svg>
+        Network <span class="key">4</span>
+      </button>
+      <button class="nav-item" data-page="processes">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l3.5-4 3 2.5L18 8"/></svg>
+        Processes <span class="key">5</span>
+      </button>
+      <button class="nav-item" data-page="software">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+        Software <span class="key">6</span>
+      </button>
+      <button class="nav-item" data-page="devices">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-cpu2"/></svg>
+        Devices <span class="key">7</span>
+      </button>
+      <button class="nav-item" data-page="security">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-shield"/></svg>
+        Security
+      </button>
+      <button class="nav-item" data-page="health">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.5-9.4C1 7.5 3.5 4 7 4c2.2 0 3.8 1.2 5 3 1.2-1.8 2.8-3 5-3 3.5 0 6 3.5 4.5 7.6C19.5 16.4 12 21 12 21z"/></svg>
+        Health audit <span class="key">8</span>
+      </button>
+      <button class="nav-item" data-page="events">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 16.5v.5"/><path d="M10.3 4.2L2.8 17.5A2 2 0 0 0 4.5 20.5h15a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/></svg>
+        Event log <span class="key">9</span>
+      </button>
+      <button class="nav-item" data-page="toolbox">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-wrench"/></svg>
+        Toolbox <span class="key">0</span>
+      </button>
+      <button class="nav-item" data-page="fixit">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-aid"/></svg>
+        Fix-It
+      </button>
+      <button class="nav-item" data-page="cleanup">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-broom"/></svg>
+        Cleanup
+      </button>
+      <button class="nav-item" data-page="fleet">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-fleet"/></svg>
+        Fleet
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <span id="appVersion">—</span>
+      <span id="footClock"></span>
+    </div>
+  </aside>
+
+  <!-- ======== main ======== -->
+  <div id="main">
+    <header id="topbar">
+      <div>
+        <div class="host" id="tbHost">—</div>
+        <div class="sub" id="tbSub"></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="tb-meta">
+        <div class="meta-item" id="tbBattery" style="display:none">
+          <span class="m-l">Battery</span><span class="m-v" id="tbBatteryVal"></span>
+        </div>
+        <div class="meta-item" title="Time since last boot">
+          <span class="m-l">Uptime</span><span class="m-v" id="tbUptimeVal">—</span>
+        </div>
+        <div class="meta-item" title="Process privilege level">
+          <span class="m-l">Session</span><span class="m-v" id="tbPriv">—</span>
+        </div>
+      </div>
+      <button class="btn ghost" id="btnTheme" title="Switch appearance">
+        <svg class="ic"><use href="#i-theme"/></svg>
+      </button>
+      <button class="btn ghost" id="btnElevate" style="display:none" title="Relaunch elevated to unlock SMART, BitLocker, TPM and Secure Boot checks">
+        <svg class="ic"><use href="#i-shield"/></svg>Run as admin
+      </button>
+      <button class="btn primary" id="btnReport" title="Save a standalone HTML + PDF health report">
+        <svg class="ic"><use href="#i-download"/></svg>Export report
+      </button>
+    </header>
+
+    <div id="content">
+
+      <!-- ==================== DASHBOARD ==================== -->
+      <section class="page active" id="page-dashboard">
+        <div id="vitals"></div>
+
+        <div class="grid cols-4">
+          <div class="card stat">
+            <div class="label"><span class="swatch" style="background:var(--cpu)"></span>CPU</div>
+            <div class="value" id="stCpu">—<small>%</small></div>
+            <div class="meta" id="stCpuMeta">&nbsp;</div>
+            <canvas id="chCpu"></canvas>
+          </div>
+          <div class="card stat">
+            <div class="label"><span class="swatch" style="background:var(--ram)"></span>Memory</div>
+            <div class="value" id="stRam">—<small>%</small></div>
+            <div class="meta" id="stRamMeta">&nbsp;</div>
+            <canvas id="chRam"></canvas>
+          </div>
+          <div class="card stat">
+            <div class="label"><span class="swatch" style="background:var(--dsk)"></span>Disk I/O</div>
+            <div class="value" id="stDisk">—</div>
+            <div class="meta" id="stDiskMeta">&nbsp;</div>
+            <canvas id="chDisk"></canvas>
+          </div>
+          <div class="card stat">
+            <div class="label"><span class="swatch" style="background:var(--net)"></span>Network</div>
+            <div class="value" id="stNet">—</div>
+            <div class="meta" id="stNetMeta">&nbsp;</div>
+            <canvas id="chNet"></canvas>
+          </div>
+        </div>
+
+        <div class="grid dash-mid mt">
+          <div class="card">
+            <h3>Health score <span class="right"><button class="btn ghost small" id="dashAuditLink">Details<svg class="ic sm"><use href="#i-chev"/></svg></button></span></h3>
+            <div class="ring-wrap">
+              <div class="ring" id="dashRing">
+                <svg width="130" height="130" viewBox="0 0 130 130">
+                  <circle class="track" cx="65" cy="65" r="56" fill="none" stroke-width="10"/>
+                  <circle class="arc" cx="65" cy="65" r="56" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="352" stroke-dashoffset="352"/>
+                </svg>
+                <div class="center"><div><div class="num">…</div><div class="cap">scanning</div></div></div>
+              </div>
+              <div id="dashHealthSummary" class="skel-block" style="flex:1">
+                <div class="skel" style="width:85%"></div><div class="skel" style="width:70%"></div><div class="skel" style="width:78%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Logical cores <span class="right muted" id="coreCount"></span></h3>
+            <div id="coreGrid"></div>
+          </div>
+          <div class="card">
+            <h3>Top processes <span class="right"><button class="btn ghost small" id="dashProcLink">All<svg class="ic sm"><use href="#i-chev"/></svg></button></span></h3>
+            <div id="dashTopProcs" class="skel-block">
+              <div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid cols-2 mt">
+          <div class="card">
+            <h3>At a glance</h3>
+            <dl class="kv" id="dashGlance"></dl>
+          </div>
+          <div class="card">
+            <h3>Volumes <span class="right muted">click to analyze</span></h3>
+            <div id="dashVolumes" class="skel-block"><div class="skel"></div><div class="skel"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== SYSTEM ==================== -->
+      <section class="page" id="page-system">
+        <div class="page-head">
+          <div><h2>System</h2><div class="desc">Hardware, firmware and OS inventory</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnSysRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Live sensors <span class="right muted" id="sensorsNote"></span></h3>
+          <div id="sensorsBody"><div class="skel-block"><div class="skel" style="width:60%"></div></div></div>
+        </div>
+        <div class="card" id="batteryCard" style="margin-bottom:12px; display:none">
+          <h3>Battery health trend <span class="right muted" id="batteryNote"></span></h3>
+          <div id="batteryBody"></div>
+        </div>
+        <div id="systemBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:60%"></div></div></div></div>
+      </section>
+
+      <!-- ==================== STORAGE ==================== -->
+      <section class="page" id="page-storage">
+        <div class="page-head">
+          <div><h2>Storage</h2><div class="desc">Physical disks, SMART health, volumes and space analysis</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnStorRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div id="storageBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:75%"></div></div></div></div>
+
+        <div class="card mt">
+          <h3>Space analyzer <span class="right muted" id="anStatus"></span></h3>
+          <div class="row wrap">
+            <div class="drive-chips" id="anDrives"></div>
+            <input class="input" id="anPath" placeholder="C:\" style="flex:1; min-width:220px" spellcheck="false">
+            <button class="btn primary" id="btnAnalyze">Analyze</button>
+          </div>
+          <div class="crumbs mt" id="anCrumbs"></div>
+          <div id="anResult" class="mt"></div>
+        </div>
+      </section>
+
+      <!-- ==================== NETWORK ==================== -->
+      <section class="page" id="page-network">
+        <div class="page-head">
+          <div><h2>Network</h2><div class="desc">Adapters, Wi-Fi and diagnostic tools</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnPublicIp">Show public IP</button>
+          <button class="btn" id="btnNetRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div id="netAdapters" class="grid cols-2"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div></div>
+
+        <div class="card mt">
+          <h3>LAN toolkit</h3>
+          <div class="tabs" id="lanTabs">
+            <button class="tab active" data-lan="scan">Subnet scan</button>
+            <button class="tab" data-lan="wol">Wake-on-LAN</button>
+            <button class="tab" data-lan="dhcp">DHCP &amp; DNS</button>
+          </div>
+
+          <div id="lanTabScan">
+            <div class="row wrap">
+              <div class="drive-chips" id="scanSubnets"></div>
+              <input class="input" id="scanNetwork" placeholder="Subnet, e.g. 192.168.1.0/24" style="flex:1; min-width:220px" spellcheck="false">
+              <button class="btn primary" id="btnScanStart">Scan</button>
+              <span class="muted" id="scanStatus"></span>
+            </div>
+            <div class="bar mt" id="scanBar" style="display:none"><div class="fill" id="scanBarFill" style="width:0%"></div></div>
+            <div id="scanResult" class="mt"></div>
+          </div>
+
+          <div id="lanTabWol" style="display:none">
+            <div class="row wrap" style="margin-bottom:10px">
+              <input class="input" id="wolName" placeholder="Name (e.g. Reception PC)" style="width:200px" spellcheck="false">
+              <input class="input" id="wolMac" placeholder="MAC — AA:BB:CC:DD:EE:FF" style="width:220px" spellcheck="false">
+              <button class="btn" id="btnWolAdd">Save machine</button>
+              <span class="muted" style="font-size:11.5px">Magic packets broadcast on UDP 9 and 7 — the target needs WoL enabled in firmware and NIC.</span>
+            </div>
+            <div id="wolList"></div>
+          </div>
+
+          <div id="lanTabDhcp" style="display:none">
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn primary" id="btnDhcpCheck">Check DHCP &amp; DNS health</button>
+              <span class="muted" id="dhcpStatus"></span>
+            </div>
+            <div id="dhcpResult"></div>
+          </div>
+        </div>
+
+        <div class="card mt">
+          <h3>Diagnostic tools</h3>
+          <div class="tabs" id="netTabs">
+            <button class="tab active" data-tool="ping">Ping</button>
+            <button class="tab" data-tool="trace">Traceroute</button>
+            <button class="tab" data-tool="dns">DNS lookup</button>
+            <button class="tab" data-tool="port">Port test</button>
+            <button class="tab" data-tool="conns">Connections</button>
+            <button class="tab" data-tool="speed">Speed test</button>
+          </div>
+          <div class="row wrap">
+            <div class="drive-chips" id="netTargets"></div>
+            <input class="input" id="netHost" placeholder="Hostname or IP" style="flex:1; min-width:220px" spellcheck="false">
+            <input class="input" id="netPort" placeholder="Port" style="width:80px; display:none">
+            <button class="btn primary" id="btnNetRun">Run</button>
+            <button class="btn" id="btnPortProfile" style="display:none" title="TCP-connect scan of 25 common service ports">Profile scan</button>
+            <button class="btn" id="btnFlushDns" title="ipconfig /flushdns">Flush DNS</button>
+            <button class="btn ghost" id="btnNetCopy" title="Copy session log"><svg class="ic"><use href="#i-copy"/></svg></button>
+            <button class="btn ghost" id="btnNetClear" title="Clear session log"><svg class="ic"><use href="#i-x"/></svg></button>
+          </div>
+          <div class="console mt" id="netConsole"><span class="console-empty">Enter a target and press Run. The session log accumulates here.</span></div>
+        </div>
+      </section>
+
+      <!-- ==================== PROCESSES ==================== -->
+      <section class="page" id="page-processes">
+        <div class="page-head">
+          <div><h2>Processes</h2><div class="desc">Hover a row to end a task · click a column to sort</div></div>
+          <div class="spacer"></div>
+          <input class="input search" id="procSearch" placeholder="Filter by name, user or PID" spellcheck="false">
+          <button class="btn" id="btnProcPause"><svg class="ic"><use href="#i-pause"/></svg><span>Pause</span></button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th class="sortable" data-k="name">Process<span class="arr"></span></th>
+              <th class="sortable num" data-k="pid">PID<span class="arr"></span></th>
+              <th class="sortable" data-k="user">User<span class="arr"></span></th>
+              <th class="sortable num" data-k="cpu">CPU %<span class="arr"></span></th>
+              <th class="sortable num" data-k="mem">Memory<span class="arr"></span></th>
+              <th class="sortable" data-k="status">Status<span class="arr"></span></th>
+              <th></th>
+            </tr></thead>
+            <tbody id="procBody"><tr><td colspan="7"><div class="skel"></div></td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ==================== SOFTWARE ==================== -->
+      <section class="page" id="page-software">
+        <div class="page-head">
+          <div><h2>Software</h2><div class="desc">Installed applications, startup entries, services and hotfixes</div></div>
+          <div class="spacer"></div>
+          <input class="input search" id="swSearch" placeholder="Filter" spellcheck="false">
+        </div>
+        <div class="tabs" id="swTabs">
+          <button class="tab active" data-sw="installed">Installed <span class="count" id="cntInstalled"></span></button>
+          <button class="tab" data-sw="startup">Startup <span class="count" id="cntStartup"></span></button>
+          <button class="tab" data-sw="services">Services <span class="count" id="cntServices"></span></button>
+          <button class="tab" data-sw="hotfixes">Hotfixes <span class="count" id="cntHotfixes"></span></button>
+          <button class="tab" data-sw="tasks">Scheduled tasks <span class="count" id="cntTasks"></span></button>
+          <button class="tab" data-sw="extensions">Browser extensions <span class="count" id="cntExtensions"></span></button>
+          <button class="tab" data-sw="updates">Pending updates <span class="count" id="cntUpdates"></span></button>
+        </div>
+        <div id="swBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div></div>
+      </section>
+
+      <!-- ==================== HEALTH ==================== -->
+      <section class="page" id="page-health">
+        <div class="page-head">
+          <div><h2>Health audit</h2><div class="desc">Weighted checks across security, maintenance and resources</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnHealthRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div class="grid" style="grid-template-columns: 320px 1fr;">
+          <div>
+            <div class="card">
+              <h3>Score</h3>
+              <div class="ring-wrap col">
+                <div class="ring" id="healthRing">
+                  <svg width="130" height="130" viewBox="0 0 130 130">
+                    <circle class="track" cx="65" cy="65" r="56" fill="none" stroke-width="10"/>
+                    <circle class="arc" cx="65" cy="65" r="56" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="352" stroke-dashoffset="352"/>
+                  </svg>
+                  <div class="center"><div><div class="num">…</div><div class="cap">scanning</div></div></div>
+                </div>
+                <div class="muted" id="healthMeta" style="font-size:12px"></div>
+              </div>
+            </div>
+            <div class="card mt">
+              <h3>Scoring</h3>
+              <p class="muted" style="font-size:12px; line-height:1.6">
+                Each check carries a weight. A pass earns full weight, a warning earns half,
+                a failure earns none. Checks that can't run are excluded rather than penalised.
+              </p>
+            </div>
+          </div>
+          <div id="healthChecks"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:85%"></div><div class="skel" style="width:70%"></div></div></div></div>
+        </div>
+      </section>
+
+      <!-- ==================== EVENTS ==================== -->
+      <section class="page" id="page-events">
+        <div class="page-head">
+          <div><h2>Event log</h2><div class="desc">Errors, warnings and crash history</div></div>
+          <div class="spacer"></div>
+          <select class="input" id="evDays">
+            <option value="1">Last 24 hours</option>
+            <option value="3">Last 3 days</option>
+            <option value="7" selected>Last 7 days</option>
+            <option value="14">Last 14 days</option>
+          </select>
+          <button class="btn" id="btnEvRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div class="tabs" id="evTabs">
+          <button class="tab active" data-ev="summary">Triage summary</button>
+          <button class="tab" data-ev="log">Raw log</button>
+          <button class="tab" data-ev="crashes">Crashes &amp; BSODs</button>
+          <button class="tab" data-ev="timeline">Reliability timeline</button>
+        </div>
+        <div id="evTabTimeline" style="display:none">
+          <div id="timelineBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:75%"></div></div></div></div>
+        </div>
+        <div id="evTabSummary">
+          <div id="evSummaryBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div></div>
+        </div>
+        <div id="evTabLog" style="display:none">
+          <div class="row" style="margin-bottom:12px">
+            <div class="seg" id="evFilters">
+              <button class="on" data-lv="critical">Critical <span class="n crit" id="evcCrit">0</span></button>
+              <button class="on" data-lv="error">Errors <span class="n crit" id="evcErr">0</span></button>
+              <button class="on" data-lv="warning">Warnings <span class="n warn" id="evcWarn">0</span></button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>Level</th><th>Log</th><th>Source</th><th class="num">ID</th><th>Message</th></tr></thead>
+              <tbody id="evBody"><tr><td colspan="6"><div class="skel"></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="evTabCrashes" style="display:none">
+          <div id="crashBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:75%"></div></div></div></div>
+        </div>
+      </section>
+
+      <!-- ==================== DEVICES ==================== -->
+      <section class="page" id="page-devices">
+        <div class="page-head">
+          <div><h2>Devices</h2><div class="desc">Driver problems and printer triage</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnDevRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div id="devBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div></div>
+        <div id="prnBody" class="mt"><div class="card"><div class="skel-block"><div class="skel"></div></div></div></div>
+        <div id="drvBody" class="mt"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:65%"></div></div></div></div>
+        <div id="usbBody" class="mt"></div>
+      </section>
+
+      <!-- ==================== SECURITY ==================== -->
+      <section class="page" id="page-security">
+        <div class="page-head">
+          <div><h2>Security</h2><div class="desc">Protection, persistence triage and file reputation</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnSecRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div class="tabs" id="secTabs">
+          <button class="tab active" data-sec="overview">Overview</button>
+          <button class="tab" data-sec="autoruns">Autoruns <span class="count" id="cntAutoruns"></span></button>
+          <button class="tab" data-sec="hijack">Browser hijack</button>
+          <button class="tab" data-sec="remote">Remote access</button>
+          <button class="tab" data-sec="vt">VirusTotal</button>
+        </div>
+
+        <div id="secTabOverview">
+          <div class="grid cols-2">
+            <div id="secAv" class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div>
+            <div id="secDefenses" class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:60%"></div></div></div>
+          </div>
+        </div>
+
+        <div id="secTabAutoruns" style="display:none">
+          <div class="card">
+            <h3>Autostart persistence map
+              <span class="right muted" style="font-size:11px">signature-checked; suspicious entries first. Click an entry to check it on VirusTotal.</span>
+            </h3>
+            <div id="autorunsBody"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div>
+          </div>
+        </div>
+
+        <div id="secTabHijack" style="display:none">
+          <div class="card">
+            <h3>Browser hijack &amp; redirect scan <span class="right"><button class="btn small" id="btnHijackScan">Re-scan</button></span></h3>
+            <div id="hijackBody"><div class="muted" style="font-size:12.5px">Checks hosts file, system proxy, and each browser's homepage &amp; default search engine for hijacks.</div></div>
+          </div>
+        </div>
+
+        <div id="secTabRemote" style="display:none">
+          <div class="card">
+            <h3>Remote access &amp; recent changes <span class="right"><button class="btn small" id="btnRemoteScan">Re-scan</button></span></h3>
+            <p class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px">
+              After a tech-support scam, an attacker often leaves a remote-access tool and an extra admin account behind.
+              Review anything here you didn't set up yourself.
+            </p>
+            <div id="remoteBody"></div>
+          </div>
+        </div>
+
+        <div id="secTabVt" style="display:none">
+          <div class="card">
+            <h3>VirusTotal file check
+              <span class="right muted" style="font-size:11px">only the SHA-256 hash leaves this machine — files are never uploaded</span>
+            </h3>
+            <div class="row wrap" style="margin-bottom:10px">
+              <input class="input" id="vtKey" type="password" placeholder="VirusTotal API key (free at virustotal.com → profile → API key)" style="flex:1; min-width:300px" spellcheck="false">
+              <button class="btn" id="btnVtSaveKey">Save key</button>
+            </div>
+            <div class="row wrap">
+              <button class="btn" id="btnVtBrowse"><svg class="ic"><use href="#i-file"/></svg>Choose file</button>
+              <input class="input" id="vtHash" placeholder="…or paste an MD5 / SHA-1 / SHA-256 hash" style="flex:1; min-width:280px" spellcheck="false">
+              <button class="btn primary" id="btnVtCheck">Check reputation</button>
+            </div>
+            <div id="vtResult" class="mt"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TOOLBOX ==================== -->
+      <section class="page" id="page-toolbox">
+        <div class="page-head">
+          <div><h2>Toolbox</h2><div class="desc">Repair tools and configuration baseline — all repairs need elevation</div></div>
+          <div class="spacer"></div>
+        </div>
+        <div class="grid cols-2" style="margin-bottom:12px">
+          <div class="card">
+            <h3>Restore point — safety net <span class="right muted" id="rpStatus"></span></h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+              Create a system restore point before making changes — a one-click rollback if something goes wrong.
+            </p>
+            <div class="row">
+              <button class="btn primary" id="btnRpCreate"><svg class="ic"><use href="#i-shield"/></svg>Create restore point</button>
+              <button class="btn" id="btnRpOpen">Open System Restore</button>
+            </div>
+            <div id="rpList" class="mt"></div>
+          </div>
+          <div class="card">
+            <h3>Backup posture <span class="right" id="bpOverall"></span></h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+              If this drive died today, what would be lost? Benchly audits backups — it doesn't make them.
+            </p>
+            <div id="bpBody"><button class="btn" id="btnBpCheck">Check backup posture</button></div>
+          </div>
+        </div>
+        <div class="tool-grid" id="toolGrid"></div>
+        <div class="card mt" id="repairConsoleCard" style="display:none">
+          <h3><span id="repairTitle">Output</span>
+            <span class="right"><button class="btn danger small" id="btnRepairCancel">Cancel</button></span>
+          </h3>
+          <div class="console" id="repairConsole" style="max-height:300px"></div>
+        </div>
+        <div class="card mt">
+          <h3>Configuration baseline
+            <span class="right muted" id="blStatus"></span>
+          </h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.55; margin-bottom:12px">
+            Save a snapshot of installed software, services and startup entries while the machine is
+            healthy. When something breaks later, compare to see exactly what changed.
+          </p>
+          <div class="row">
+            <button class="btn primary" id="btnBlSave"><svg class="ic"><use href="#i-layers"/></svg>Save baseline</button>
+            <button class="btn" id="btnBlCompare">Compare with now</button>
+          </div>
+          <div id="blResult" class="mt"></div>
+        </div>
+
+        <div class="grid cols-2 mt">
+          <div class="card">
+            <h3>Memory diagnostic</h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.55; margin-bottom:12px">
+              Schedules the built-in Windows Memory Diagnostic — the machine reboots into the test
+              (about 10 minutes) and logs the verdict on the way back up. Past results appear below.
+            </p>
+            <button class="btn primary" id="btnMemDiag">Schedule memory test</button>
+            <div id="memResults" class="mt"></div>
+          </div>
+          <div class="card">
+            <h3>Ticket summary
+              <span class="right"><button class="btn small" id="btnTicketCopy"><svg class="ic sm"><use href="#i-copy"/></svg>Copy</button></span>
+            </h3>
+            <div class="console" id="ticketText" style="max-height:260px"><span class="console-empty">Building…</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== FIX-IT ==================== -->
+      <section class="page" id="page-fixit">
+        <div class="page-head">
+          <div><h2>Fix-It</h2><div class="desc">Guided runbooks for the most common problems</div></div>
+          <div class="spacer"></div>
+          <button class="btn ghost" id="btnFixitBack" style="display:none">← All problems</button>
+        </div>
+        <div id="runbookList" class="grid cols-3"></div>
+        <div id="runbookDetail" style="display:none"></div>
+      </section>
+
+      <!-- ==================== CLEANUP ==================== -->
+      <section class="page" id="page-cleanup">
+        <div class="page-head">
+          <div><h2>Cleanup</h2><div class="desc">Free space and trim what runs — safe and reversible</div></div>
+          <div class="spacer"></div>
+        </div>
+        <div class="tabs" id="cleanTabs">
+          <button class="tab active" data-clean="junk">Junk files</button>
+          <button class="tab" data-clean="large">Large &amp; duplicate</button>
+          <button class="tab" data-clean="debloat">Debloat apps</button>
+          <button class="tab" data-clean="tweaks">Tweaks</button>
+        </div>
+
+        <div id="cleanTabJunk">
+          <div class="card">
+            <h3>Reclaimable space <span class="right" id="junkTotal"></span></h3>
+            <p class="muted" style="font-size:12px; margin-bottom:10px">Temp files and caches only — never your documents. Frees space; won't speed up the CPU.</p>
+            <div id="junkBody"><button class="btn" id="btnJunkScan">Scan for junk</button></div>
+          </div>
+        </div>
+
+        <div id="cleanTabLarge" style="display:none">
+          <div class="card">
+            <h3>Large &amp; duplicate files <span class="right muted" style="font-size:11px">deletions go to the Recycle Bin</span></h3>
+            <div class="row wrap" style="margin-bottom:10px">
+              <input class="input" id="bigPath" placeholder="Folder to scan, e.g. C:\Users\you" style="flex:1; min-width:240px" spellcheck="false">
+              <button class="btn primary" id="btnBigScan">Find large files</button>
+              <button class="btn" id="btnDupScan">Find duplicates</button>
+              <span class="muted" id="bigStatus"></span>
+            </div>
+            <div id="bigResult"></div>
+          </div>
+        </div>
+
+        <div id="cleanTabDebloat" style="display:none">
+          <div class="card">
+            <h3>Remove pre-installed apps <span class="right muted" style="font-size:11px">per-user only · re-installable from the Store</span></h3>
+            <p class="muted" style="font-size:12px; margin-bottom:10px">Tip: create a restore point in the Toolbox first. Recommended-bloat is pre-ticked; review before removing.</p>
+            <div id="debloatBody"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div>
+          </div>
+        </div>
+
+        <div id="cleanTabTweaks" style="display:none">
+          <div class="card" style="margin-bottom:12px">
+            <div class="row" style="gap:10px">
+              <svg class="ic" style="color:var(--accent-text)"><use href="#i-shield"/></svg>
+              <span class="muted" style="font-size:12px; flex:1">Every tweak is reversible and shows exactly where it writes in Windows. Toggle on to apply; toggle off to restore the Windows default.</span>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <h3>Power plan</h3>
+            <div class="row wrap">
+              <button class="btn" data-plan="balanced">Balanced</button>
+              <button class="btn" data-plan="high">High performance</button>
+              <button class="btn" data-plan="ultimate">Ultimate performance</button>
+              <span class="muted" id="planStatus" style="font-size:12px"></span>
+            </div>
+            <p class="muted" style="font-size:11.5px; margin-top:8px">Switches the active Windows power scheme (powercfg). Ultimate is created on first use; not all machines expose it.</p>
+          </div>
+          <div id="tweaksBody"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div>
+          <div class="row mt" id="explorerRow" style="display:none">
+            <button class="btn" id="btnRestartExplorer">Restart Explorer to apply</button>
+            <span class="muted" style="font-size:12px">Some interface tweaks need Explorer to restart (the taskbar will briefly disappear).</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== FLEET ==================== -->
+      <section class="page" id="page-fleet">
+        <div class="page-head">
+          <div><h2>Fleet</h2><div class="desc">Remote snapshots over WinRM and cross-machine report comparison</div></div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="card">
+          <h3>Remote snapshot <span class="right muted" style="font-size:11px">target needs Enable-PSRemoting · credentials are used once and never stored</span></h3>
+          <div class="row wrap">
+            <input class="input" id="rmHost" placeholder="Computer name or IP" style="width:220px" spellcheck="false">
+            <input class="input" id="rmUser" placeholder="Username (optional, e.g. DOMAIN\tech)" style="width:240px" spellcheck="false">
+            <input class="input" id="rmPass" type="password" placeholder="Password" style="width:170px">
+            <button class="btn primary" id="btnRemote">Take snapshot</button>
+            <span class="muted" id="rmStatus"></span>
+          </div>
+          <div id="rmResult" class="mt"></div>
+        </div>
+
+        <div class="card mt">
+          <h3>Compare two report exports <span class="right muted" style="font-size:11px">uses the .json files saved next to every exported report</span></h3>
+          <div class="row wrap">
+            <button class="btn" id="btnCmpA"><svg class="ic"><use href="#i-file"/></svg>Report A</button>
+            <span class="muted" id="cmpAName">—</span>
+            <button class="btn" id="btnCmpB"><svg class="ic"><use href="#i-file"/></svg>Report B</button>
+            <span class="muted" id="cmpBName">—</span>
+            <button class="btn primary" id="btnCmpRun" disabled>Compare</button>
+          </div>
+          <div id="cmpResult" class="mt"></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div id="changelog-veil" hidden>
+  <div id="changelog">
+    <div class="cl-head">
+      <div class="logo" style="width:26px; height:26px; border-radius:6px; background:var(--brand-grad); display:grid; place-items:center">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#3a1808" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M3 12h4l2.5-7 4 14 2.5-7h5"/></svg>
+      </div>
+      <span style="flex:1">What's new in Benchly</span>
+      <button class="btn ghost small" id="clClose"><svg class="ic sm"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="clBody"></div>
+  </div>
+</div>
+
+<div id="appearance-pop" hidden>
+  <div class="pop-title">Appearance</div>
+  <div class="seg" id="themeSeg" style="width:100%; margin-bottom:4px">
+    <button data-theme-choice="graphite" style="flex:1; justify-content:center">Graphite</button>
+    <button data-theme-choice="icloud" style="flex:1; justify-content:center">iCloud</button>
+  </div>
+  <div id="bgPicker" style="display:none">
+    <div class="pop-label">Background</div>
+    <div class="swatches" id="bgSwatches"></div>
+    <div class="pop-label">Custom gradient</div>
+    <div class="row" style="gap:8px">
+      <input type="color" id="bgC1" class="color-input" value="#6a3df0" title="Top colour">
+      <input type="color" id="bgC2" class="color-input" value="#29184f" title="Bottom colour">
+      <button class="btn small" id="bgApplyCustom" style="flex:1">Apply custom</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<div id="palette-veil">
+  <div id="palette">
+    <input id="paletteInput" placeholder="Search pages and actions…" spellcheck="false" autocomplete="off">
+    <div id="paletteList"></div>
+  </div>
+</div>
+
+<div id="drawer-veil" hidden>
+  <aside id="proc-drawer">
+    <div class="drawer-head">
+      <span id="procDrawerTitle">Process</span>
+      <button class="btn ghost small" id="procDrawerClose"><svg class="ic sm"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="procDrawerBody"></div>
+  </aside>
+</div>
+
+<div id="modal-veil">
+  <div class="modal">
+    <h4 id="modalTitle"></h4>
+    <p id="modalBody"></p>
+    <div id="modalDetails" style="display:none; font-family:var(--mono); font-size:11px; color:var(--text-3); background:var(--canvas); border:1px solid var(--border-1); border-radius:var(--r1); padding:8px 10px; margin-bottom:16px; white-space:pre-wrap; word-break:break-word"></div>
+    <div class="actions">
+      <button class="btn" id="modalCancel">Cancel</button>
+      <button class="btn danger solid" id="modalOk"></button>
+    </div>
+  </div>
+</div>
+
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

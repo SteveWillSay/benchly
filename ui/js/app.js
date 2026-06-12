@@ -1,0 +1,2291 @@
+/* Benchly — frontend application logic. */
+"use strict";
+
+/* ================= API bridge ================= */
+const api = new Proxy({}, {
+  get: (_t, method) => (...args) =>
+    apiReady.then(() => window.pywebview.api[method](...args)),
+});
+const apiReady = new Promise(resolve => {
+  if (window.pywebview && window.pywebview.api) resolve();
+  else window.addEventListener("pywebviewready", () => resolve());
+});
+
+/* ================= helpers ================= */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => [...document.querySelectorAll(sel)];
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+const ico = (name, cls = "ic") => `<svg class="${cls}"><use href="#i-${name}"/></svg>`;
+
+function fmtBytes(n, dp = 1) {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0; n = Number(n);
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n >= 100 || i === 0 ? 0 : dp)} ${units[i]}`;
+}
+const fmtRate = n => n === undefined ? "—" : fmtBytes(n) + "/s";
+function fmtDur(secs) {
+  const d = Math.floor(secs / 86400), h = Math.floor(secs % 86400 / 3600), m = Math.floor(secs % 3600 / 60);
+  return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function toast(msg, kind = "info", ms = 3800) {
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.innerHTML = `<span class="t-dot"></span><span>${esc(msg)}</span>`;
+  $("#toasts").appendChild(el);
+  setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 180); }, ms);
+}
+function confirmModal(title, body, verb = "Confirm", details = null) {
+  if ($("#modal-veil").classList.contains("open")) return Promise.resolve(false);
+  return new Promise(resolve => {
+    $("#modalTitle").textContent = title;
+    $("#modalBody").textContent = body;
+    $("#modalOk").textContent = verb;
+    const det = $("#modalDetails");
+    if (details) { det.textContent = details; det.style.display = ""; }
+    else det.style.display = "none";
+    const veil = $("#modal-veil");
+    veil.classList.add("open");
+    const done = val => { veil.classList.remove("open"); resolve(val); };
+    $("#modalOk").onclick = () => done(true);
+    $("#modalCancel").onclick = () => done(false);
+    veil.onclick = e => { if (e.target === veil) done(false); };
+  });
+}
+const pill = (status, text) => `<span class="pill ${status}">${esc(text)}</span>`;
+const emptyState = (icon, title, hint = "") => `
+  <div class="empty">${ico(icon)}<div>${esc(title)}</div>${hint ? `<div class="hint">${esc(hint)}</div>` : ""}</div>`;
+
+/* click-to-copy for identifiers */
+document.addEventListener("click", e => {
+  const el = e.target.closest(".copy");
+  if (!el || window.getSelection().toString()) return;
+  navigator.clipboard.writeText(el.textContent.trim()).then(() =>
+    toast(`Copied "${el.textContent.trim().slice(0, 50)}"`, "info", 1800));
+});
+
+/* ================= navigation ================= */
+const loadedPages = new Set(["dashboard"]);
+let currentPage = "dashboard";
+function showPage(name) {
+  if (!$(`#page-${name}`)) return;
+  currentPage = name;
+  $$(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.page === name));
+  $$(".page").forEach(p => p.classList.toggle("active", p.id === `page-${name}`));
+  if (!loadedPages.has(name)) {
+    loadedPages.add(name);
+    const loader = { system: loadSystem, storage: loadStorage, network: loadNetwork,
+                     software: loadSoftware, health: loadHealth, events: loadEvents,
+                     devices: loadDevices, toolbox: loadToolbox, security: loadSecurity,
+                     fleet: loadFleet, fixit: loadFixit, cleanup: loadCleanup }[name];
+    if (loader) Promise.resolve(loader()).catch(err => {
+      loadedPages.delete(name);   // allow retry by re-navigating
+      toast(`Failed to load ${name}: ${err}`, "bad", 6000);
+    });
+  }
+  if (name === "processes") startProcLoop(); else stopProcLoop();
+}
+$$(".nav-item").forEach(b => b.addEventListener("click", () => showPage(b.dataset.page)));
+
+const PAGES = ["dashboard", "system", "storage", "network", "processes", "software",
+               "devices", "health", "events", "toolbox", "security", "fleet", "fixit", "cleanup"];
+document.addEventListener("keydown", e => {
+  if (e.key === "k" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); openPalette(); return; }
+  if (e.key === "Escape" && e.target.tagName === "INPUT") {
+    e.target.value = ""; e.target.dispatchEvent(new Event("input")); return;
+  }
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if ($("#modal-veil").classList.contains("open") || $("#palette-veil").classList.contains("open")) return;
+  if (e.key === "/") {
+    const search = $(`#page-${currentPage} input.search, #page-${currentPage} input.input`);
+    if (search) { e.preventDefault(); search.focus(); }
+    return;
+  }
+  if (e.key === "0") { showPage("toolbox"); return; }
+  const idx = parseInt(e.key, 10) - 1;
+  if (idx >= 0 && idx < 9) showPage(PAGES[idx]);
+});
+$("#dashAuditLink").onclick = () => showPage("health");
+$("#dashProcLink").onclick = () => showPage("processes");
+
+/* ================= theme & appearance ================= */
+const BG_PRESETS = [
+  { name: "Indigo", c: ["#6a3df0", "#2e1c66", "#29184f"] },
+  { name: "Ocean", c: ["#0a84ff", "#1b3a6e", "#0a1f3a"] },
+  { name: "Sunset", c: ["#ff6f61", "#b5277d", "#3a1b5e"] },
+  { name: "Forest", c: ["#1aa64b", "#0f5e3a", "#0a2e22"] },
+  { name: "Rose", c: ["#ff5a8a", "#a83a7a", "#3a1b3e"] },
+  { name: "Slate", c: ["#3a4a6e", "#222a40", "#14161f"] },
+];
+const hexRgb = h => {
+  const n = parseInt(h.replace("#", ""), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+const mixHex = (a, b, t) => {
+  const [r1, g1, b1] = hexRgb(a), [r2, g2, b2] = hexRgb(b);
+  const m = (x, y) => Math.round(x + (y - x) * t);
+  return `#${[m(r1, r2), m(g1, g2), m(b1, b2)].map(v => v.toString(16).padStart(2, "0")).join("")}`;
+};
+function applyTheme(name) {
+  if (name === "icloud") document.documentElement.dataset.theme = "icloud";
+  else delete document.documentElement.dataset.theme;
+}
+function applyBackground(c) {
+  const root = document.documentElement.style;
+  root.setProperty("--ic-bg1", c[0]);
+  root.setProperty("--ic-bg2", c[1]);
+  root.setProperty("--ic-bg3", c[2]);
+  root.setProperty("--ic-glow", hexRgb(c[0]).join(", "));
+}
+// Synchronous launch-flag theme to avoid a flash (#…,icloud).
+if (location.hash.includes("icloud")) applyTheme("icloud");
+
+function renderSwatches(selected) {
+  $("#bgSwatches").innerHTML = BG_PRESETS.map((p, i) =>
+    `<button class="swatch-btn ${selected === i ? "sel" : ""}" data-bg="${i}" title="${p.name}"
+       style="background:linear-gradient(160deg, ${p.c[0]}, ${p.c[2]})"></button>`).join("");
+}
+function syncAppearanceUI() {
+  const theme = document.documentElement.dataset.theme === "icloud" ? "icloud" : "graphite";
+  $$("#themeSeg button").forEach(b => b.classList.toggle("on", b.dataset.themeChoice === theme));
+  $("#bgPicker").style.display = theme === "icloud" ? "" : "none";
+}
+$("#btnTheme").onclick = () => {
+  const pop = $("#appearance-pop");
+  if (pop.hidden) { syncAppearanceUI(); renderSwatches(loadedBgIndex); }
+  pop.hidden = !pop.hidden;
+};
+document.addEventListener("click", e => {
+  if (!$("#appearance-pop").hidden && !e.target.closest("#appearance-pop") && !e.target.closest("#btnTheme"))
+    $("#appearance-pop").hidden = true;
+});
+$$("#themeSeg button").forEach(b => b.addEventListener("click", async () => {
+  const next = b.dataset.themeChoice;
+  applyTheme(next);
+  syncAppearanceUI();
+  await api.set_setting("theme", next);
+}));
+let loadedBgIndex = 0;
+$("#bgSwatches").addEventListener("click", async e => {
+  const b = e.target.closest("[data-bg]");
+  if (!b) return;
+  const i = +b.dataset.bg;
+  loadedBgIndex = i;
+  applyBackground(BG_PRESETS[i].c);
+  renderSwatches(i);
+  await api.set_setting("icloud_bg", BG_PRESETS[i].c);
+});
+$("#bgApplyCustom").onclick = async () => {
+  const c1 = $("#bgC1").value, c2 = $("#bgC2").value;
+  const c = [c1, mixHex(c1, c2, 0.55), c2];
+  loadedBgIndex = -1;
+  applyBackground(c);
+  renderSwatches(-1);
+  await api.set_setting("icloud_bg", c);
+};
+
+/* ================= boot ================= */
+let isAdmin = false;
+async function boot() {
+  if (!location.hash.includes("icloud")) {           // honour the saved choice
+    try { applyTheme((await api.get_setting("theme")) || "graphite"); } catch { /* default */ }
+  }
+  try {
+    const savedBg = await api.get_setting("icloud_bg");
+    if (Array.isArray(savedBg) && savedBg.length === 3) {
+      applyBackground(savedBg);
+      loadedBgIndex = BG_PRESETS.findIndex(p => p.c[0] === savedBg[0] && p.c[2] === savedBg[2]);
+      $("#bgC1").value = savedBg[0]; $("#bgC2").value = savedBg[2];
+    }
+  } catch { /* default gradient */ }
+  const info = await api.app_info();
+  isAdmin = info.is_admin;
+  const ver = $("#appVersion");
+  ver.textContent = `v${info.version}`;
+  ver.classList.add("clickable");
+  ver.title = "What's new";
+  ver.onclick = openChangelog;
+  api.get_setting("last_seen_version").then(seen => {
+    if (seen !== CHANGELOG[0].v) ver.insertAdjacentHTML("afterend", `<span class="ver-dot" id="verDot" title="New in this version"></span>`);
+  }).catch(() => {});
+  $("#tbHost").textContent = info.hostname;
+  $("#tbSub").textContent = info.os_quick;
+  const priv = $("#tbPriv");
+  priv.textContent = isAdmin ? "Elevated" : "Standard";
+  priv.classList.add(isAdmin ? "ok" : "warn");
+  if (!isAdmin) {
+    const btn = $("#btnElevate");
+    btn.style.display = "";
+    btn.onclick = async () => {
+      const r = await api.relaunch_as_admin(currentPage);
+      if (!r.ok) toast(r.error, "bad");
+    };
+  }
+  startMetricsLoop();
+  loadDashboardStatic();
+  setInterval(() => { $("#footClock").textContent = new Date().toLocaleTimeString(); }, 1000);
+}
+
+/* Self-chaining poll: the next tick is scheduled only AFTER the current one
+   settles, so a slow bridge call can never let ticks overlap and pile up.
+   Skips work while the window is hidden. `#turbo` compresses every interval
+   20× for soak-testing (90 s ≈ 30 min of normal cadence). */
+const TURBO = location.hash.includes("turbo") ? 20 : 1;
+function pollLoop(ms, fn) {
+  const delay = Math.max(20, Math.round(ms / TURBO));
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    if (!document.hidden) {
+      try { await fn(); } catch (e) { console.error("pollLoop", e); }
+    }
+    if (!stopped) setTimeout(tick, delay);
+  };
+  tick();   // first run immediately, then self-chain
+  return () => { stopped = true; };
+}
+/** Write innerHTML only when the content actually changed. */
+function setHTML(el, html) {
+  if (el._last !== html) { el._last = html; el.innerHTML = html; }
+}
+
+/* ================= dashboard: live loop ================= */
+const charts = {};
+let coreEls = null;
+function startMetricsLoop() {
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  charts.cpu = new Sparkline($("#chCpu"), { color: css("--cpu") });
+  charts.ram = new Sparkline($("#chRam"), { color: css("--ram") });
+  charts.disk = new Sparkline($("#chDisk"), { color: css("--dsk"), max: null });
+  charts.net = new Sparkline($("#chNet"), { color: css("--net"), max: null });
+  pollLoop(1000, tickMetrics);
+}
+async function tickMetrics() {
+  let m;
+  try { m = await api.get_metrics(); } catch { return; }
+
+  $("#stCpu").innerHTML = `${m.cpu.toFixed(0)}<small>%</small>`;
+  $("#stCpuMeta").textContent = m.cpu_mhz ? `${(m.cpu_mhz / 1000).toFixed(2)} GHz · ${m.proc_count} processes` : `${m.proc_count} processes`;
+  charts.cpu.push(m.cpu);
+
+  $("#stRam").innerHTML = `${m.ram.percent.toFixed(0)}<small>%</small>`;
+  $("#stRamMeta").textContent = `${fmtBytes(m.ram.used)} of ${fmtBytes(m.ram.total)}`;
+  charts.ram.push(m.ram.percent);
+
+  const dio = m.rates.disk_read + m.rates.disk_write;
+  $("#stDisk").innerHTML = `${fmtBytes(dio)}<small>/s</small>`;
+  $("#stDiskMeta").textContent = `Read ${fmtRate(m.rates.disk_read)} · Write ${fmtRate(m.rates.disk_write)}`;
+  charts.disk.push(dio);
+
+  const nio = m.rates.net_up + m.rates.net_down;
+  $("#stNet").innerHTML = `${fmtBytes(nio)}<small>/s</small>`;
+  $("#stNetMeta").textContent = `Down ${fmtRate(m.rates.net_down)} · Up ${fmtRate(m.rates.net_up)}`;
+  charts.net.push(nio);
+
+  // per-core grid
+  const cores = m.cpu_per_core;
+  if (!coreEls || coreEls.length !== cores.length) {
+    $("#coreGrid").innerHTML = cores.map(() =>
+      `<div class="core"><div class="fill"></div><div class="pct"></div></div>`).join("");
+    $("#coreCount").textContent = `${cores.length} threads`;
+    coreEls = $$("#coreGrid .core");
+  }
+  cores.forEach((v, i) => {
+    coreEls[i].querySelector(".fill").style.height = v >= 1 ? `${v}%` : "0";
+    coreEls[i].querySelector(".pct").textContent = v >= 1 ? Math.round(v) : "";
+  });
+
+  $("#tbUptimeVal").textContent = fmtDur(Date.now() / 1000 - m.boot_time);
+  if (m.battery) {
+    $("#tbBattery").style.display = "";
+    $("#tbBatteryVal").textContent = `${m.battery.percent}%${m.battery.plugged ? " · mains" : ""}`;
+  }
+  updateQuickVitals(m);
+}
+
+/* ---- vitals strip ---- */
+const vitalState = { quick: {}, audit: {} };
+function updateQuickVitals(m) {
+  const up = (Date.now() / 1000 - m.boot_time) / 86400;
+  vitalState.quick.uptime = { cls: up < 14 ? "ok" : "warn", html: `Uptime <b>${fmtDur(Date.now() / 1000 - m.boot_time)}</b>` };
+  if (m.sys_disk) {
+    const freePct = 100 - m.sys_disk.percent;
+    vitalState.quick.disk = {
+      cls: freePct >= 15 ? "ok" : freePct >= 8 ? "warn" : "crit",
+      html: `C: free <b>${fmtBytes(m.sys_disk.total - m.sys_disk.used)}</b>`,
+    };
+  }
+  vitalState.quick.ram = { cls: m.ram.percent < 85 ? "ok" : "warn", html: `Memory <b>${m.ram.percent.toFixed(0)}%</b>` };
+  renderVitals();
+}
+function setAuditVitals(h) {
+  const find = id => h.checks.find(c => c.id === id);
+  const map = [["av_rt", "Antivirus"], ["smart", "Disks"], ["updates", "Updates"], ["reboot", "Reboot"]];
+  for (const [id, label] of map) {
+    const c = find(id);
+    if (!c) continue;
+    const cls = { good: "ok", warn: "warn", bad: "crit", unknown: "unk" }[c.status];
+    const word = { good: "OK", warn: "attention", bad: "action needed", unknown: "unknown" }[c.status];
+    vitalState.audit[id] = { cls, html: `${esc(label)} <b>${word}</b>` };
+  }
+  renderVitals();
+}
+function renderVitals() {
+  const items = [...Object.values(vitalState.quick), ...Object.values(vitalState.audit)];
+  setHTML($("#vitals"), items.map(v =>
+    `<span class="vital ${v.cls}"><span class="dot"></span>${v.html}</span>`).join(""));
+}
+
+/* dashboard top processes */
+async function refreshDashProcs() {
+  if (!$("#page-dashboard").classList.contains("active")) return;
+  try {
+    const procs = await api.get_processes();
+    $("#dashTopProcs").className = "";
+    setHTML($("#dashTopProcs"), `<table class="mini-table"><tbody>` + procs.slice(0, 6).map(p => `
+      <tr><td class="strong">${esc(p.name)}</td>
+      <td class="num" style="width:64px">${p.cpu.toFixed(1)}%</td>
+      <td class="num" style="width:84px">${fmtBytes(p.mem)}</td></tr>`).join("") + `</tbody></table>`);
+  } catch { /* window closing */ }
+}
+
+/* dashboard static cards */
+async function loadDashboardStatic() {
+  pollLoop(3000, refreshDashProcs);
+
+  api.get_health().then(h => {
+    setRing($("#dashRing"), h.score, h.grade);
+    setAuditVitals(h);
+    const worst = h.checks.filter(c => c.status === "bad").concat(h.checks.filter(c => c.status === "warn")).slice(0, 3);
+    $("#dashHealthSummary").className = "";
+    $("#dashHealthSummary").innerHTML = worst.length
+      ? worst.map(c => `<div style="margin-bottom:8px">${pill(c.status === "bad" ? "bad" : "warn", c.status === "bad" ? "Fail" : "Warn")} <span style="font-size:12px">${esc(c.label)}</span></div>`).join("")
+      : `<div>${pill("good", "All clear")} <span style="font-size:12px">No failed checks</span></div>`;
+  }).catch(() => { $("#dashHealthSummary").className = ""; $("#dashHealthSummary").innerHTML = emptyState("bang", "Couldn't load health"); });
+
+  api.get_inventory().then(inv => {
+    $("#tbSub").textContent = `${inv.os.name ?? "Windows"} · build ${inv.os.build ?? "?"} · ${inv.system.manufacturer ?? ""} ${inv.system.model ?? ""}`;
+    const cpu = inv.cpus[0] || {};
+    const gpus = inv.gpus.filter(g => g.name && !/virtual|basic/i.test(g.name));
+    $("#dashGlance").innerHTML = [
+      ["Machine", `${inv.system.manufacturer ?? "—"} ${inv.system.model ?? ""}`],
+      ["OS", `${inv.os.name ?? "—"} (${inv.os.arch ?? "?"})`],
+      ["CPU", cpu.name ? `${cpu.name} — ${cpu.cores}C/${cpu.threads}T` : "—"],
+      ["Memory", `${fmtBytes(inv.ram_total)} · ${inv.ram_modules.length} module(s)`],
+      ["GPU", gpus.map(g => g.name).join(", ") || (inv.gpus[0]?.name ?? "—")],
+      ["BIOS", `${inv.bios.vendor ?? "—"} ${inv.bios.version ?? ""} (${inv.bios.date ?? "?"})`],
+      ["Domain", inv.system.domain ?? "—"],
+    ].map(([k, v]) => `<dt>${k}</dt><dd class="copy">${esc(v)}</dd>`).join("");
+  }).catch(() => { $("#dashGlance").innerHTML = `<dt class="muted">Couldn't load inventory</dt><dd></dd>`; });
+
+  api.get_storage().then(st => {
+    $("#dashVolumes").className = "";
+    $("#dashVolumes").innerHTML = st.volumes.map(v => volBar(v, true)).join("")
+      || emptyState("drive", "No volumes found");
+  }).catch(() => { $("#dashVolumes").className = ""; $("#dashVolumes").innerHTML = emptyState("drive", "Couldn't load volumes"); });
+}
+
+function volBar(v, clickable = false) {
+  const cls = v.percent >= 92 ? "bad" : v.percent >= 80 ? "warn" : "";
+  const attrs = clickable ? ` class="vol-link" data-drive="${esc(v.letter)}" style="cursor:pointer"` : "";
+  return `<div${attrs} style="margin-bottom:12px${clickable ? ";cursor:pointer" : ""}">
+    <div class="row" style="justify-content:space-between; margin-bottom:5px; font-size:12px">
+      <span class="strong" style="color:var(--text-1)">${esc(v.letter)}: ${esc(v.label || "")}</span>
+      <span class="muted">${fmtBytes(v.free)} free of ${fmtBytes(v.size)}</span>
+    </div>
+    <div class="bar"><div class="fill ${cls}" style="width:${v.percent}%"></div></div>
+  </div>`;
+}
+$("#dashVolumes").addEventListener("click", e => {
+  const link = e.target.closest(".vol-link");
+  if (!link) return;
+  showPage("storage");
+  analyzePath(`${link.dataset.drive}:\\`);
+});
+
+/* ================= SYSTEM page ================= */
+async function loadSystem(refresh = false) {
+  startSensorsLoop();
+  loadBatteryTrend();
+  const body = $("#systemBody");
+  if (refresh) body.innerHTML = `<div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div>`;
+  const inv = await api.get_inventory(refresh);
+  const cpu = inv.cpus[0] || {};
+  const kv = rows => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd class="copy">${esc(v ?? "—")}</dd>`).join("")}</dl>`;
+
+  body.innerHTML = `
+  <div class="grid cols-2">
+    <div class="card"><h3>Machine</h3>${kv([
+      ["Manufacturer", inv.system.manufacturer], ["Model", inv.system.model],
+      ["Family", inv.system.family], ["Chassis type", inv.system.type],
+      ["Domain / Workgroup", inv.system.domain],
+      ["Domain joined", inv.system.domain_joined === true ? "Yes" : inv.system.domain_joined === false ? "No" : "—"],
+    ])}</div>
+    <div class="card"><h3>Operating system</h3>${kv([
+      ["Edition", inv.os.name], ["Version / Build", `${inv.os.version ?? "?"} (build ${inv.os.build ?? "?"})`],
+      ["Architecture", inv.os.arch], ["Installed", inv.os.installed], ["Product serial", inv.os.serial],
+    ])}</div>
+    <div class="card"><h3>Processor</h3>${kv([
+      ["Model", cpu.name], ["Cores / Threads", cpu.cores ? `${cpu.cores} cores / ${cpu.threads} threads` : null],
+      ["Max clock", cpu.max_mhz ? `${(cpu.max_mhz / 1000).toFixed(2)} GHz` : null],
+      ["L2 / L3 cache", cpu.l2_kb ? `${cpu.l2_kb / 1024} MB / ${(cpu.l3_kb / 1024).toFixed(0)} MB` : null],
+      ["Socket", cpu.socket],
+      ["Virtualization (fw)", cpu.virtualization === true ? "Enabled" : cpu.virtualization === false ? "Disabled" : "—"],
+    ])}</div>
+    <div class="card"><h3>Board &amp; firmware</h3>${kv([
+      ["Motherboard", `${inv.board.manufacturer ?? "—"} ${inv.board.product ?? ""}`],
+      ["Board serial", inv.board.serial],
+      ["BIOS / UEFI", `${inv.bios.vendor ?? "—"} ${inv.bios.version ?? ""}`],
+      ["BIOS date", inv.bios.date], ["System serial", inv.bios.serial],
+      ["Secure Boot", inv.secure_boot === true ? "Enabled" : inv.secure_boot === false ? "Disabled" : "Unknown (needs admin)"],
+      ["TPM", inv.tpm ? `${inv.tpm.enabled ? "Enabled" : "Present, disabled"} — spec ${esc(String(inv.tpm.spec ?? "?")).split(",")[0]}` : "Unknown (needs admin)"],
+    ])}</div>
+  </div>
+
+  <div class="card mt"><h3>Memory — ${fmtBytes(inv.ram_total)} in ${inv.ram_modules.length} module(s)</h3>
+    <div class="table-wrap" style="max-height:none"><table>
+      <thead><tr><th>Slot</th><th class="num">Capacity</th><th>Type</th><th class="num">Speed</th><th>Manufacturer</th><th>Part number</th></tr></thead>
+      <tbody>${inv.ram_modules.map(m => `<tr>
+        <td class="strong">${esc(m.slot)}</td><td class="num">${fmtBytes(m.capacity)}</td>
+        <td>${esc(m.type ?? "—")}</td><td class="num">${m.speed ?? "—"} MT/s</td>
+        <td>${esc(m.manufacturer || "—")}</td><td class="mono copy">${esc(m.part || "—")}</td></tr>`).join("")}
+      </tbody></table></div>
+  </div>
+
+  <div class="grid cols-2 mt">
+    <div class="card"><h3>Graphics</h3>${inv.gpus.map(g => kv([
+      ["Adapter", g.name], ["Driver", g.driver], ["Driver date", g.driver_date],
+      ["Active mode", g.resolution], ["Status", g.status],
+    ])).join("<hr style='border:none;border-top:1px solid var(--border-1);margin:12px 0'>")}</div>
+    <div class="card"><h3>Monitors</h3>${inv.monitors.length ? inv.monitors.map(m => kv([
+      ["Display", m.name], ["Serial", m.serial || "—"], ["Manufactured", m.year || "—"],
+    ])).join("<hr style='border:none;border-top:1px solid var(--border-1);margin:12px 0'>") : emptyState("q", "No EDID data available")}</div>
+  </div>`;
+}
+$("#btnSysRefresh").onclick = () => loadSystem(true);
+
+/* ================= STORAGE page ================= */
+async function loadStorage(refresh = false) {
+  const body = $("#storageBody");
+  if (refresh) body.innerHTML = `<div class="card"><div class="skel-block"><div class="skel"></div></div></div>`;
+  const st = await api.get_storage(refresh);
+
+  const smartChip = d => {
+    if (!d.health) return pill("unknown", "Unknown");
+    return d.health === "Healthy" ? pill("good", "Healthy") : pill("bad", d.health);
+  };
+  const needsAdmin = `<span class="muted">${isAdmin ? "not reported" : "needs admin"}</span>`;
+
+  body.innerHTML = `
+  <div class="grid cols-2">${st.disks.map(d => `
+    <div class="card disk-card">
+      <div class="head">
+        <div class="dico">${ico("drive")}</div>
+        <div style="flex:1; min-width:0">
+          <div class="name">${esc(d.name)}</div>
+          <div class="sub">${esc(d.media ?? "?")} · ${esc(d.bus ?? "?")} · ${fmtBytes(d.size)}${d.rpm ? ` · ${d.rpm} RPM` : ""}</div>
+        </div>
+        ${smartChip(d)}
+      </div>
+      <dl class="kv tight">
+        <dt>Serial</dt><dd class="mono copy" style="font-size:11px">${esc(d.serial || "—")}</dd>
+        <dt>Firmware</dt><dd class="copy">${esc(d.firmware || "—")}</dd>
+        <dt>Temperature</dt><dd>${d.temp_c ? d.temp_c + " °C" : needsAdmin}</dd>
+        <dt>Wear</dt><dd>${d.wear_pct !== null && d.wear_pct !== undefined ? d.wear_pct + " %" : needsAdmin}</dd>
+        <dt>Power-on hours</dt><dd>${d.power_on_hours ? d.power_on_hours.toLocaleString() + " h" : needsAdmin}</dd>
+      </dl>
+    </div>`).join("")}
+  </div>
+  <div class="card mt"><h3>Volumes</h3>${st.volumes.map(v => volBar(v)).join("")}</div>`;
+}
+$("#btnStorRefresh").onclick = () => loadStorage(true);
+
+/* ---- space analyzer ---- */
+let anBusy = false;
+async function initDriveChips() {
+  const drives = await api.list_drives();
+  $("#anDrives").innerHTML = drives.map(d =>
+    `<button class="btn small" data-drive="${d}">${d}:</button>`).join("");
+  $("#anDrives").addEventListener("click", e => {
+    const b = e.target.closest("[data-drive]");
+    if (b) analyzePath(`${b.dataset.drive}:\\`);
+  });
+}
+function renderCrumbs(path) {
+  const parts = path.replace(/\\+$/, "").split("\\");
+  let acc = "";
+  $("#anCrumbs").innerHTML = parts.map((p, i) => {
+    acc += (i ? "\\" : "") + p;
+    const target = i === 0 ? p + "\\" : acc;
+    return `<button data-path="${esc(target)}">${esc(p || "?")}</button>`;
+  }).join(`<span class="sep">${ico("chev", "ic sm")}</span>`);
+}
+$("#anCrumbs").addEventListener("click", e => {
+  const b = e.target.closest("[data-path]");
+  if (b) analyzePath(b.dataset.path);
+});
+async function analyzePath(path) {
+  if (anBusy) return;
+  anBusy = true;
+  $("#anPath").value = path;
+  $("#anStatus").innerHTML = `<span class="spin"></span>`;
+  $("#btnAnalyze").disabled = true;
+  try {
+    const r = await api.analyze_folder(path);
+    if (!r.ok) { $("#anStatus").textContent = ""; toast(r.error, "bad"); return; }
+    renderCrumbs(r.path);
+    $("#anStatus").textContent = `${fmtBytes(r.total)} total`;
+    const max = r.entries[0]?.size || 1;
+    $("#anResult").innerHTML = r.entries.map(e => `
+      <div class="an-row">
+        ${ico(e.kind === "dir" ? "folder" : "file", "ic sm")}
+        <span class="nm ${e.kind}" ${e.kind === "dir" ? `data-dir="${esc(e.name)}"` : ""} title="${esc(e.name)}">${esc(e.name)}</span>
+        <div class="bar" style="flex:1"><div class="fill" style="width:${Math.max(0.6, e.size / max * 100)}%"></div></div>
+        <span class="sz">${fmtBytes(e.size)}</span>
+        <button class="btn ghost small row-action" data-open="${esc(e.name)}" title="Reveal in Explorer">${ico("open", "ic sm")}</button>
+      </div>`).join("") || emptyState("folder", "Empty folder");
+    $("#anResult").dataset.base = r.path;
+  } finally { anBusy = false; $("#btnAnalyze").disabled = false; }
+}
+$("#anResult").addEventListener("click", e => {
+  const base = $("#anResult").dataset.base || "";
+  const open = e.target.closest("[data-open]");
+  if (open) { api.open_path(base.replace(/\\+$/, "") + "\\" + open.dataset.open); return; }
+  const dir = e.target.closest("[data-dir]");
+  if (dir) analyzePath(base.replace(/\\+$/, "") + "\\" + dir.dataset.dir);
+});
+$("#btnAnalyze").onclick = () => analyzePath($("#anPath").value.trim() || "C:\\");
+$("#anPath").addEventListener("keydown", e => { if (e.key === "Enter") $("#btnAnalyze").click(); });
+
+/* ================= NETWORK page ================= */
+async function loadNetwork() {
+  const wrap = $("#netAdapters");
+  const net = await api.get_network_info();
+  const cards = net.adapters.filter(a => a.status === "Up" || a.ipv4).map(a => `
+    <div class="card">
+      <h3>${esc(a.alias)} <span class="right">${a.status === "Up" ? pill("good", "Up") : pill("unknown", esc(a.status ?? "Down"))}</span></h3>
+      <dl class="kv tight">
+        <dt>Adapter</dt><dd class="copy">${esc(a.desc ?? "—")}</dd>
+        <dt>IPv4</dt><dd class="mono copy" style="font-size:12px">${esc(a.ipv4 || "—")}</dd>
+        <dt>Gateway</dt><dd class="mono copy" style="font-size:12px">${esc(a.gateway || "—")}</dd>
+        <dt>DNS</dt><dd class="mono copy" style="font-size:12px">${esc(a.dns || "—")}</dd>
+        <dt>MAC</dt><dd class="mono copy" style="font-size:12px">${esc(a.mac ?? "—")}</dd>
+        <dt>Link / DHCP</dt><dd>${esc(a.speed ?? "—")} · DHCP ${esc(String(a.dhcp ?? "?"))}</dd>
+      </dl>
+    </div>`);
+  if (net.wifi) {
+    const w = net.wifi;
+    cards.push(`<div class="card"><h3>Wi-Fi <span class="right">${pill("info", esc(w.signal ?? "?"))}</span></h3>
+      <dl class="kv tight">
+        <dt>SSID</dt><dd class="copy">${esc(w.ssid ?? "—")}</dd>
+        <dt>Radio / Band</dt><dd>${esc(w.radio ?? "—")} · ${esc(w.band ?? "—")} · ch ${esc(w.channel ?? "?")}</dd>
+        <dt>Rates</dt><dd>Down ${esc(w.rx_rate ?? "?")} Mbps · Up ${esc(w.tx_rate ?? "?")} Mbps</dd>
+        <dt>Security</dt><dd>${esc(w.auth ?? "—")}</dd>
+      </dl></div>`);
+  }
+  wrap.innerHTML = cards.join("") || `<div class="card">${emptyState("q", "No active adapters")}</div>`;
+  initSubnetChips();
+
+  // quick-target chips from live adapter data
+  const up = net.adapters.find(a => a.status === "Up" && a.gateway);
+  const targets = [];
+  if (up?.gateway) targets.push(["Gateway", up.gateway.split(",")[0].trim()]);
+  if (up?.dns) targets.push(["DNS", up.dns.split(",")[0].trim()]);
+  targets.push(["Cloudflare", "1.1.1.1"], ["Google", "8.8.8.8"]);
+  const seen = new Set();
+  $("#netTargets").innerHTML = targets.filter(([, ip]) => ip && !seen.has(ip) && seen.add(ip))
+    .map(([label, ip]) => `<button class="btn small" data-ip="${esc(ip)}" title="${esc(ip)}">${esc(label)}</button>`).join("");
+}
+$("#netTargets").addEventListener("click", e => {
+  const b = e.target.closest("[data-ip]");
+  if (b) { $("#netHost").value = b.dataset.ip; $("#netHost").focus(); }
+});
+$("#btnNetRefresh").onclick = () => loadNetwork();
+$("#btnPublicIp").onclick = async () => {
+  $("#btnPublicIp").disabled = true;
+  const r = await api.get_public_ip();
+  $("#btnPublicIp").disabled = false;
+  if (r.ok) { $("#btnPublicIp").textContent = r.ip; toast(`Public IP ${r.ip}`, "good"); }
+  else toast(r.error, "bad");
+};
+
+/* tool console */
+let curTool = "ping";
+$$("#netTabs .tab").forEach(t => t.addEventListener("click", () => {
+  curTool = t.dataset.tool;
+  $$("#netTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  $("#netPort").style.display = curTool === "port" ? "" : "none";
+  $("#btnPortProfile").style.display = curTool === "port" ? "" : "none";
+  $("#netHost").style.display = (curTool === "conns" || curTool === "speed") ? "none" : "";
+  $("#netTargets").style.display = (curTool === "conns" || curTool === "speed") ? "none" : "";
+  $("#netHost").placeholder = {
+    ping: "Hostname or IP", trace: "Destination host or IP",
+    dns: "Name to resolve", port: "Host",
+  }[curTool] || "";
+}));
+function consoleLog(html) {
+  const c = $("#netConsole");
+  if (c.dataset.used !== "1") { c.textContent = ""; c.dataset.used = "1"; }
+  c.innerHTML += (c.innerHTML ? "\n\n" : "") + html;
+  c.scrollTop = c.scrollHeight;
+}
+const padCol = (s, n) => esc((String(s ?? "") + " ".repeat(n)).slice(0, n));
+$("#btnNetRun").onclick = async () => {
+  const host = $("#netHost").value.trim();
+  const btn = $("#btnNetRun");
+  btn.disabled = true;
+  const stamp = new Date().toLocaleTimeString();
+  try {
+    if (curTool === "ping") {
+      consoleLog(`<span class="ok">[${stamp}] ping ${esc(host)}</span>`);
+      const r = await api.run_ping(host, 4);
+      consoleLog(r.ok ? esc(r.output) : `<span class="err">${esc(r.error)}</span>`);
+      if (r.ok && r.summary && r.summary.loss_pct !== null)
+        toast(`Ping ${host}: ${r.summary.loss_pct}% loss, avg ${r.summary.avg_ms ?? "?"} ms`,
+              r.summary.loss_pct === 0 ? "good" : "bad");
+    } else if (curTool === "trace") {
+      consoleLog(`<span class="ok">[${stamp}] tracert ${esc(host)} (up to ~60 s)</span>`);
+      const r = await api.run_traceroute(host);
+      consoleLog(r.ok ? esc(r.output) : `<span class="err">${esc(r.error)}</span>`);
+    } else if (curTool === "dns") {
+      consoleLog(`<span class="ok">[${stamp}] resolve ${esc(host)}</span>`);
+      const r = await api.dns_lookup(host);
+      consoleLog(r.ok
+        ? r.records.map(x => `${padCol(x.type, 6)} ${padCol(x.name, 42)} ${esc(x.value)}   (ttl ${x.ttl})`).join("\n")
+        : `<span class="err">${esc(r.error)}</span>`);
+    } else if (curTool === "port") {
+      const port = $("#netPort").value.trim();
+      consoleLog(`<span class="ok">[${stamp}] test ${esc(host)}:${esc(port)}</span>`);
+      const r = await api.port_test(host, port);
+      if (!r.ok) consoleLog(`<span class="err">${esc(r.error)}</span>`);
+      else consoleLog(r.open
+        ? `<span class="ok">OPEN</span> — TCP connect in ${r.ms} ms`
+        : `<span class="err">CLOSED</span> — ${esc(r.reason)}`);
+    } else if (curTool === "conns") {
+      consoleLog(`<span class="ok">[${stamp}] active connections</span>`);
+      const r = await api.get_connections();
+      if (!r.ok) consoleLog(`<span class="err">${esc(r.error)}</span>`);
+      else consoleLog(r.connections.map(x =>
+        `${x.proto}  ${padCol(x.laddr, 28)} → ${padCol(x.raddr, 28)} ${padCol(x.status, 13)} ${esc(x.process)}`).join("\n")
+        + `\n(${r.total} total, showing ${r.connections.length})`);
+    } else if (curTool === "speed") {
+      consoleLog(`<span class="ok">[${stamp}] speed test via speed.cloudflare.com</span>\nMeasuring latency, then ~40 MB of transfer — 15–30 s on most links…`);
+      const r = await api.run_speedtest();
+      if (!r.ok) consoleLog(`<span class="err">${esc(r.error)}</span>`);
+      else {
+        consoleLog(`<div class="speed-row">
+          <div class="speed-kpi"><div class="v">${r.down_mbps}<small> Mbps</small></div><div class="l">Download</div></div>
+          <div class="speed-kpi"><div class="v">${r.up_mbps}<small> Mbps</small></div><div class="l">Upload</div></div>
+          <div class="speed-kpi"><div class="v">${r.latency_ms}<small> ms</small></div><div class="l">Latency</div></div>
+        </div>`);
+        toast(`Speed test: ${r.down_mbps} down / ${r.up_mbps} up Mbps`, "good");
+      }
+    }
+  } finally { btn.disabled = false; }
+};
+$("#netHost").addEventListener("keydown", e => { if (e.key === "Enter") $("#btnNetRun").click(); });
+async function flushDns() {
+  const r = await api.flush_dns();
+  toast(r.ok ? "DNS resolver cache flushed" : "Flush failed: " + (r.error || ""), r.ok ? "good" : "bad");
+}
+$("#btnFlushDns").onclick = flushDns;
+$("#btnNetCopy").onclick = () => {
+  navigator.clipboard.writeText($("#netConsole").innerText).then(() => toast("Session log copied", "info", 1800));
+};
+$("#btnNetClear").onclick = () => {
+  const c = $("#netConsole");
+  c.dataset.used = "";
+  c.innerHTML = `<span class="console-empty">Enter a target and press Run. The session log accumulates here.</span>`;
+};
+
+/* ================= PROCESSES page ================= */
+let procStop = null, procPaused = false, procData = [];
+let procSort = { key: "cpu", dir: -1 };
+function startProcLoop() {
+  if (procStop) return;   // re-selecting the page must not stack loops
+  procStop = pollLoop(3000, async () => { if (!procPaused) await refreshProcs(); });
+}
+function stopProcLoop() { if (procStop) { procStop(); procStop = null; } }
+async function refreshProcs() {
+  try { procData = await api.get_processes(); renderProcs(); } catch { /* closing */ }
+}
+function renderProcs() {
+  const q = $("#procSearch").value.trim().toLowerCase();
+  const { key, dir } = procSort;
+  const rows = procData
+    .filter(p => !q || p.name.toLowerCase().includes(q) || p.user.toLowerCase().includes(q) || String(p.pid).includes(q))
+    .sort((a, b) => {
+      const av = a[key], bv = b[key];
+      return (typeof av === "string" ? av.localeCompare(bv) : av - bv) * dir;
+    });
+  $$("#page-processes th.sortable").forEach(th => {
+    th.querySelector(".arr").textContent = th.dataset.k === key ? (dir === 1 ? "↑" : "↓") : "";
+  });
+  $("#procBody").innerHTML = rows.slice(0, 120).map(p => `
+    <tr data-pid="${p.pid}" class="proc-row" style="cursor:pointer">
+      <td class="strong">${esc(p.name)}</td><td class="mono num">${p.pid}</td>
+      <td>${esc(p.user || "—")}</td>
+      <td class="num" style="color:${p.cpu > 25 ? "var(--warn)" : "inherit"}">${p.cpu.toFixed(1)}</td>
+      <td class="num">${fmtBytes(p.mem)}</td><td>${esc(p.status)}</td>
+      <td style="width:40px"><button class="btn ghost small row-action kill" title="End task">${ico("x", "ic sm")}</button></td>
+    </tr>`).join("") || `<tr><td colspan="7">${emptyState("inbox", q ? `No results for "${q}"` : "No processes", q ? "Press Esc to clear the filter" : "")}</td></tr>`;
+}
+$$("#page-processes th.sortable").forEach(th => th.addEventListener("click", () => {
+  const k = th.dataset.k;
+  if (procSort.key === k) procSort.dir *= -1;
+  else procSort = { key: k, dir: k === "name" || k === "user" || k === "status" ? 1 : -1 };
+  renderProcs();
+}));
+$("#procSearch").addEventListener("input", renderProcs);
+$("#btnProcPause").onclick = () => {
+  procPaused = !procPaused;
+  $("#btnProcPause").innerHTML = procPaused
+    ? `${ico("play")}<span>Resume</span>` : `${ico("pause")}<span>Pause</span>`;
+};
+$("#procBody").addEventListener("click", async e => {
+  const tr = e.target.closest("tr.proc-row");
+  if (!tr) return;
+  const pid = +tr.dataset.pid;
+  if (!e.target.closest(".kill")) { openProcDrawer(pid); return; }
+  const name = tr.querySelector("td").textContent;
+  if (!await confirmModal("End task?", `Terminate "${name}" (PID ${pid})? Unsaved data in that program will be lost.`, "End process")) return;
+  const r = await api.kill_process(pid);
+  toast(r.ok ? `Ended ${r.name} (${pid})` : r.error, r.ok ? "good" : "bad");
+  refreshProcs();
+});
+
+/* ================= SOFTWARE page ================= */
+const swCache = {};
+let curSw = "installed";
+async function loadSoftware() {
+  await switchSw("installed");
+  api.get_startup().then(d => { swCache.startup = d; $("#cntStartup").textContent = d.length; });
+  api.get_services().then(d => { swCache.services = d; $("#cntServices").textContent = d.length; });
+  api.get_hotfixes().then(d => { swCache.hotfixes = d; $("#cntHotfixes").textContent = d.length; });
+  api.get_scheduled_tasks().then(d => { swCache.tasks = d; $("#cntTasks").textContent = d.length; });
+  api.get_extensions().then(d => { swCache.extensions = d; $("#cntExtensions").textContent = d.length; });
+}
+async function switchSw(kind) {
+  curSw = kind;
+  $$("#swTabs .tab").forEach(t => t.classList.toggle("active", t.dataset.sw === kind));
+  if (kind === "updates" && !swCache.updates) { renderSw(); return; }   // on-demand, it's slow
+  if (!swCache[kind]) {
+    $("#swBody").innerHTML = `<div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div>`;
+    swCache[kind] = await { installed: api.get_installed, startup: api.get_startup,
+                            services: api.get_services, hotfixes: api.get_hotfixes,
+                            tasks: api.get_scheduled_tasks, extensions: api.get_extensions }[kind]();
+    if (kind === "installed") $("#cntInstalled").textContent = swCache[kind].length;
+  }
+  renderSw();
+}
+async function checkUpdates() {
+  $("#swBody").innerHTML = `<div class="card"><div class="row"><span class="spin"></span>
+    <span class="muted">Querying the Windows Update service — this can take up to a minute…</span></div></div>`;
+  const r = await api.get_pending_updates();
+  if (!r.ok) {
+    $("#swBody").innerHTML = `<div class="card">${emptyState("bang", "Update search failed", r.error)}</div>`;
+    return;
+  }
+  swCache.updates = r.updates;
+  $("#cntUpdates").textContent = r.updates.length;
+  renderSw();
+}
+$$("#swTabs .tab").forEach(t => t.addEventListener("click", () => switchSw(t.dataset.sw)));
+$("#swSearch").addEventListener("input", renderSw);
+function renderSw() {
+  const q = $("#swSearch").value.trim().toLowerCase();
+  const data = (swCache[curSw] || []).filter(x => !q || JSON.stringify(x).toLowerCase().includes(q));
+  const empty = `<tr><td colspan="6">${emptyState("inbox", q ? `No results for "${q}"` : "Nothing here")}</td></tr>`;
+  const tbl = (head, rows) => `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows || empty}</tbody></table></div>`;
+  if (curSw === "installed") {
+    $("#swBody").innerHTML = tbl(`<th>Application</th><th>Version</th><th>Publisher</th><th>Installed</th><th class="num">Size</th>`,
+      data.map(a => `<tr><td class="strong copy">${esc(a.name)}</td><td class="mono">${esc(a.version)}</td>
+        <td>${esc(a.publisher)}</td><td>${esc(a.installed)}</td><td class="num">${a.size ? fmtBytes(a.size) : "—"}</td></tr>`).join(""));
+  } else if (curSw === "startup") {
+    const impactPill = i => i === "High" ? pill("warn", "High") : i === "Medium" ? pill("info", "Medium") : `<span class="muted" style="font-size:11px">Low</span>`;
+    $("#swBody").innerHTML = tbl(`<th>Name</th><th>State</th><th>Impact (est.)</th><th>Command</th><th>Source</th>`,
+      data.map(s => `<tr><td class="strong copy">${esc(s.name)}</td>
+        <td>${s.enabled === false ? pill("unknown", "Disabled") : pill("good", "Enabled")}</td>
+        <td>${impactPill(s.impact)}</td>
+        <td class="mono copy" style="max-width:440px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${esc(s.command)}">${esc(s.command)}</td>
+        <td>${esc(s.source)}</td></tr>`).join(""));
+  } else if (curSw === "services") {
+    $("#swBody").innerHTML = tbl(`<th>Service</th><th>Name</th><th>Status</th><th>Start type</th><th class="num">PID</th>`,
+      data.map(s => `<tr><td class="strong copy">${esc(s.display)}</td><td class="mono copy">${esc(s.name)}</td>
+        <td>${s.status === "running" ? pill("good", "Running") : s.start === "automatic" ? pill("warn", "Stopped") : pill("unknown", esc(s.status))}</td>
+        <td>${esc(s.start)}</td><td class="num">${s.pid ?? ""}</td></tr>`).join(""));
+  } else if (curSw === "hotfixes") {
+    $("#swBody").innerHTML = tbl(`<th>Hotfix</th><th>Type</th><th>Installed</th>`,
+      data.map(h => `<tr><td class="strong mono copy">${esc(h.id)}</td><td>${esc(h.desc)}</td><td>${esc(h.installed ?? "—")}</td></tr>`).join(""));
+  } else if (curSw === "tasks") {
+    $("#swBody").innerHTML = tbl(`<th>Task</th><th>State</th><th>Last result</th><th>Last run</th><th>Action</th><th>Author</th>`,
+      data.map(t => `<tr>
+        <td class="strong copy">${esc(t.path === "\\" ? t.name : t.path + t.name)}</td>
+        <td>${t.state === "Running" ? pill("info", "Running") : t.state === "Disabled" ? pill("unknown", "Disabled") : esc(t.state)}</td>
+        <td>${t.result_ok === false ? pill("bad", t.result) : t.result_ok === true ? pill("good", t.result) : `<span class="muted">${esc(t.result)}</span>`}</td>
+        <td class="mono">${esc(t.last_run ?? "—")}</td>
+        <td class="mono copy" style="max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${esc(t.action)}">${esc(t.action)}</td>
+        <td class="muted">${esc(t.author)}</td></tr>`).join(""));
+  } else if (curSw === "extensions") {
+    $("#swBody").innerHTML = tbl(`<th>Extension</th><th>Browser</th><th>Profile</th><th>Version</th><th>State</th><th>Permissions</th>`,
+      data.map(x => `<tr>
+        <td class="strong copy">${esc(x.name)}</td><td>${esc(x.browser)}</td><td>${esc(x.profile)}</td>
+        <td class="mono">${esc(x.version)}</td>
+        <td>${x.enabled === true ? pill("good", "Enabled") : x.enabled === false ? pill("unknown", "Disabled") : `<span class="muted">—</span>`}</td>
+        <td class="muted" style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${esc(x.permissions)}">${esc(x.permissions)}</td></tr>`).join(""));
+  } else if (curSw === "updates") {
+    if (!swCache.updates) {
+      $("#swBody").innerHTML = `<div class="card">
+        <p class="muted" style="font-size:12.5px; margin-bottom:12px">Lists pending updates from the Windows Update
+        service. Benchly doesn't install them — use the deep link to finish in Settings.</p>
+        <div class="row">
+          <button class="btn primary" id="btnCheckUpdates">Check for updates</button>
+          <button class="btn" id="btnOpenWU">Open Windows Update${ico("open", "ic sm")}</button>
+        </div></div>`;
+      $("#btnCheckUpdates").onclick = checkUpdates;
+      $("#btnOpenWU").onclick = () => api.open_settings("ms-settings:windowsupdate");
+      return;
+    }
+    const sevPill = s => s === "Critical" ? pill("bad", s) : s === "Important" ? pill("warn", s) : s ? pill("info", s) : `<span class="muted">—</span>`;
+    $("#swBody").innerHTML = (data.length ? tbl(`<th>Update</th><th>Severity</th><th>Downloaded</th><th class="num">Size</th><th>Category</th>`,
+      data.map(u => `<tr>
+        <td class="strong copy" style="max-width:520px">${esc(u.title)}</td>
+        <td>${sevPill(u.severity)}</td>
+        <td>${u.downloaded ? pill("good", "Yes") : `<span class="muted">No</span>`}</td>
+        <td class="num">${u.size_mb ? u.size_mb + " MB" : "—"}</td>
+        <td class="muted">${esc(u.categories.split(",")[0] || "")}</td></tr>`).join(""))
+      : `<div class="card">${emptyState("check", "No pending updates", "This machine is fully patched.")}</div>`)
+      + `<div class="row mt"><button class="btn" id="btnOpenWU2">Install via Windows Update${ico("open", "ic sm")}</button>
+         <button class="btn ghost" id="btnRecheckUpdates">Re-check</button></div>`;
+    $("#btnOpenWU2").onclick = () => api.open_settings("ms-settings:windowsupdate");
+    $("#btnRecheckUpdates").onclick = () => { swCache.updates = null; checkUpdates(); };
+  }
+}
+
+/* ================= HEALTH page ================= */
+const FIX_ACTIONS = {
+  av_rt: { label: "Open Windows Security", uri: "ms-settings:windowsdefender" },
+  av_sig: { label: "Open Windows Security", uri: "ms-settings:windowsdefender" },
+  fw: { label: "Open firewall settings", uri: "ms-settings:windowsdefender" },
+  bitlocker: { label: "Open device encryption", uri: "ms-settings:deviceencryption" },
+  updates: { label: "Open Windows Update", uri: "ms-settings:windowsupdate" },
+  battery: { label: "Open power settings", uri: "ms-settings:powersleep" },
+  diskfree: { label: "Analyze disk space", page: "storage" },
+};
+async function loadHealth(refresh = false) {
+  if (refresh) $("#healthChecks").innerHTML = `<div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:85%"></div></div></div>`;
+  const h = await api.get_health(refresh);
+  setRing($("#healthRing"), h.score, h.grade);
+  setRing($("#dashRing"), h.score, h.grade);
+  setAuditVitals(h);
+  $("#healthMeta").textContent = `Audited ${h.generated}${h.is_admin ? " · elevated" : " · standard user"}`;
+
+  const iconFor = { good: "check", warn: "bang", bad: "x", unknown: "q" };
+  const cats = ["Security", "Maintenance", "Resources"];
+  $("#healthChecks").innerHTML = cats.map(cat => {
+    const checks = h.checks.filter(c => (c.category || "Security") === cat);
+    if (!checks.length) return "";
+    return `<div class="card" style="margin-bottom:12px"><h3>${cat}</h3>` + checks.map(c => {
+      const fix = c.status !== "good" && c.status !== "unknown" ? FIX_ACTIONS[c.id] : null;
+      return `
+      <div class="check ${c.status}" title="Weight in overall score: ${c.weight}">
+        <div class="icon">${ico(iconFor[c.status], "ic")}</div>
+        <div class="body">
+          <div class="title">${esc(c.label)} ${c.status !== "good" ? pill(c.status === "bad" ? "bad" : c.status === "warn" ? "warn" : "unknown", { warn: "Warn", bad: "Fail", unknown: "N/A" }[c.status]) : ""}</div>
+          <div class="detail">${esc(c.detail)}</div>
+          ${fix ? `<div class="fix"><button class="btn small" data-fix="${esc(c.id)}">${esc(fix.label)}${ico("chev", "ic sm")}</button></div>` : ""}
+        </div>
+      </div>`;
+    }).join("") + `</div>`;
+  }).join("") + (!h.is_admin ? `<div class="card" style="border-color:rgba(232,179,57,.25)">
+      <div class="row">${ico("shield")}
+      <div style="flex:1; font-size:12.5px" class="muted">Checks marked N/A need elevation (BitLocker, TPM, Secure Boot, SMART counters). Use <b>Run as admin</b> in the title bar.</div></div></div>` : "");
+}
+$("#healthChecks").addEventListener("click", e => {
+  const b = e.target.closest("[data-fix]");
+  if (!b) return;
+  const fix = FIX_ACTIONS[b.dataset.fix];
+  if (!fix) return;
+  if (fix.uri) api.open_settings(fix.uri);
+  else if (fix.page) { showPage(fix.page); if (fix.page === "storage") analyzePath("C:\\"); }
+});
+$("#btnHealthRefresh").onclick = () => loadHealth(true);
+
+/* ================= EVENTS page ================= */
+const evHidden = new Set();
+let evData = null;
+async function loadEvents() {
+  $("#evBody").innerHTML = `<tr><td colspan="6"><div class="skel"></div></td></tr>`;
+  $("#evSummaryBody").innerHTML = `<div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div>`;
+  evData = await api.get_events(+$("#evDays").value);
+  $("#evcCrit").textContent = evData.counts.critical ?? 0;
+  $("#evcErr").textContent = evData.counts.error ?? 0;
+  $("#evcWarn").textContent = evData.counts.warning ?? 0;
+  renderEvents();
+  renderEventSummary();
+}
+function renderEvents() {
+  if (!evData) return;
+  const note = evData.truncated
+    ? `<tr><td colspan="6" class="muted" style="font-size:11.5px">Showing the newest ${evData.events.length} events — the busiest sources may go back further than ${esc(evData.oldest ?? "")}.</td></tr>`
+    : "";
+  const rows = evData.events.filter(e => !evHidden.has(e.level));
+  $("#evBody").innerHTML = note + rows.map(e => `
+    <tr><td class="mono" style="white-space:nowrap">${esc(e.time)}</td>
+    <td>${pill(e.level === "warning" ? "warn" : "bad", e.level)}</td>
+    <td>${esc(e.log)}</td><td class="copy">${esc(e.source)}</td><td class="num mono">${e.id}</td>
+    <td class="copy" style="max-width:520px">${esc(e.message)}</td></tr>`).join("")
+    || `<tr><td colspan="6">${emptyState("check", "No events in range")}</td></tr>`;
+}
+function refreshEventsPage() {
+  loadEvents();
+  if (crashesLoaded) loadCrashes();   // crash data shares the page's Refresh
+}
+$("#btnEvRefresh").onclick = refreshEventsPage;
+$("#evDays").addEventListener("change", loadEvents);
+$$("#evFilters button").forEach(b => b.addEventListener("click", () => {
+  const lv = b.dataset.lv;
+  evHidden.has(lv) ? evHidden.delete(lv) : evHidden.add(lv);
+  b.classList.toggle("on", !evHidden.has(lv));
+  renderEvents();
+}));
+
+/* ---- events: tab switching ---- */
+let crashesLoaded = false;
+$$("#evTabs .tab").forEach(t => t.addEventListener("click", () => {
+  $$("#evTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  const which = t.dataset.ev;
+  $("#evTabSummary").style.display = which === "summary" ? "" : "none";
+  $("#evTabLog").style.display = which === "log" ? "" : "none";
+  $("#evTabCrashes").style.display = which === "crashes" ? "" : "none";
+  $("#evTabTimeline").style.display = which === "timeline" ? "" : "none";
+  if (which === "crashes" && !crashesLoaded) { crashesLoaded = true; loadCrashes(); }
+  if (which === "timeline" && !timelineLoaded) { timelineLoaded = true; loadTimeline(); }
+}));
+
+/* ---- events: triage knowledge base ----
+   Curated explanations for the sources a bench tech meets constantly.
+   match(source, id) → true selects the entry. */
+const EVENT_KNOWLEDGE = [
+  { match: (s, id) => /DistributedCOM/i.test(s) && (id === 10016 || id === 10010),
+    title: "Component permission noise",
+    advice: "DCOM permission warnings between Windows components. Microsoft ships these misconfigured; they are safe to ignore.", benign: true },
+  { match: (s, id) => /Application Hang/i.test(s) || id === 1002 && /Application/i.test(s),
+    title: "A program stopped responding",
+    advice: "Windows recorded an app hang. If it repeats for the same program, check the Crashes tab and update or reinstall that application.",
+    action: { label: "Open Crashes", run: () => { $(`#evTabs [data-ev="crashes"]`).click(); } } },
+  { match: s => /Application Error|Windows Error Reporting|\.NET Runtime/i.test(s),
+    title: "Application crash",
+    advice: "A program crashed. The Crashes tab groups these by application and faulting module.",
+    action: { label: "Open Crashes", run: () => { $(`#evTabs [data-ev="crashes"]`).click(); } } },
+  { match: s => /Service Control Manager/i.test(s),
+    title: "A service failed or crashed",
+    advice: "A Windows service terminated or failed to start. Find the service named in the message under Software → Services; if third-party, update or reinstall its application.",
+    action: { label: "Open Services", run: () => { showPage("software"); switchSw("services"); } } },
+  { match: s => /^disk$|^Ntfs$|volsnap|storahci|stornvme|iaStor/i.test(s),
+    title: "Storage subsystem errors",
+    advice: "Disk or filesystem errors — the classic early warning of a failing drive or loose cable. Check SMART health under Storage and back up the machine before anything else.",
+    action: { label: "Check disks", run: () => showPage("storage") } },
+  { match: s => /WHEA-Logger/i.test(s),
+    title: "Hardware machine-check",
+    advice: "The CPU reported a hardware error (WHEA). Common causes: unstable overclock/XMP, failing RAM, power delivery. Test memory and revert overclocks.", },
+  { match: (s, id) => /Kernel-Power/i.test(s) && id === 41,
+    title: "Unexpected power loss",
+    advice: "The machine lost power or hard-hung without a clean shutdown. If not a forced power-off, suspect PSU, sleep/firmware bugs or overheating.",
+    action: { label: "Open Crashes", run: () => { $(`#evTabs [data-ev="crashes"]`).click(); } } },
+  { match: s => /BugCheck/i.test(s),
+    title: "Blue screen",
+    advice: "Windows crashed with a bugcheck. The Crashes tab lists codes and minidumps.",
+    action: { label: "Open Crashes", run: () => { $(`#evTabs [data-ev="crashes"]`).click(); } } },
+  { match: s => /DNS Client/i.test(s),
+    title: "Name resolution problems",
+    advice: "DNS lookups are timing out. Often transient; if frequent, test the DNS server under Network and try flushing the resolver cache.",
+    action: { label: "Open Network", run: () => showPage("network") } },
+  { match: s => /Time-Service/i.test(s),
+    title: "Clock synchronisation",
+    advice: "Windows had trouble syncing time. Usually self-heals; persistent drift on a domain suggests DC connectivity issues.", benign: true },
+  { match: s => /Schannel/i.test(s),
+    title: "TLS handshake noise",
+    advice: "A TLS connection was rejected or downgraded. Almost always harmless background noise from apps probing protocols.", benign: true },
+  { match: s => /WindowsUpdateClient/i.test(s),
+    title: "Windows Update failure",
+    advice: "An update failed to download or install. Check Software → Pending updates; the Toolbox can reset the update cache.",
+    action: { label: "Open Toolbox", run: () => showPage("toolbox") } },
+  { match: s => /nvlddmkm|amdkmdag|igfx|Display/i.test(s),
+    title: "Graphics driver reset",
+    advice: "The GPU driver stopped responding and was recovered (TDR). Update the graphics driver; if it persists under load, check GPU temperatures.", },
+  { match: s => /PrintService|Print/i.test(s),
+    title: "Printing problems",
+    advice: "Print subsystem errors. The Devices page shows queue state and can purge stuck jobs.",
+    action: { label: "Open Devices", run: () => showPage("devices") } },
+  { match: s => /Kernel-PnP/i.test(s),
+    title: "Device configuration",
+    advice: "A device failed to start or was misconfigured. Check Devices for anything flagged with an error code.",
+    action: { label: "Open Devices", run: () => showPage("devices") } },
+];
+
+function renderEventSummary() {
+  if (!evData) return;
+  const groups = new Map();
+  for (const e of evData.events) {
+    const key = `${e.source}|${e.id}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { source: e.source, id: e.id, count: 0, level: e.level,
+            sample: e.message, last: e.time };
+      groups.set(key, g);
+    }
+    g.count++;
+    if (e.level === "critical" || (e.level === "error" && g.level === "warning")) g.level = e.level;
+    if (e.time > g.last) { g.last = e.time; g.sample = e.message; }
+  }
+  const rows = [...groups.values()].map(g => {
+    const kb = EVENT_KNOWLEDGE.find(k => { try { return k.match(g.source || "", g.id); } catch { return false; } });
+    return { ...g, kb };
+  }).sort((a, b) =>
+    (a.kb?.benign === true) - (b.kb?.benign === true) ||
+    ({ critical: 0, error: 1, warning: 2 }[a.level] - { critical: 0, error: 1, warning: 2 }[b.level]) ||
+    b.count - a.count);
+
+  window._evSummaryActions = rows.map(r => r.kb?.action?.run || null);
+  $("#evSummaryBody").innerHTML = rows.length ? `<div class="card">` + rows.map((g, i) => `
+    <div class="check ${g.level === "warning" ? "warn" : "bad"}${g.kb?.benign ? " unknown" : ""}">
+      <div class="icon">${ico(g.kb?.benign ? "check" : g.level === "warning" ? "bang" : "x")}</div>
+      <div class="body">
+        <div class="title">${esc(g.kb?.title || g.source)}
+          <span class="muted" style="font-weight:400; font-size:11.5px">${esc(g.source)} · ID ${g.id}</span>
+          ${pill(g.kb?.benign ? "unknown" : g.level === "warning" ? "warn" : "bad", `×${g.count}`)}
+        </div>
+        <div class="detail">${esc(g.kb?.advice || "No specific guidance for this source — review the raw log entry below.")}</div>
+        <div class="detail muted" style="font-size:11.5px; margin-top:3px">Last ${esc(g.last)} — ${esc((g.sample || "").slice(0, 140))}</div>
+        ${g.kb?.action ? `<div class="fix"><button class="btn small" data-evact="${i}">${esc(g.kb.action.label)}${ico("chev", "ic sm")}</button></div>` : ""}
+      </div>
+    </div>`).join("") + `</div>`
+    : `<div class="card">${emptyState("check", "No errors or warnings in this period")}</div>`;
+}
+$("#evSummaryBody").addEventListener("click", e => {
+  const b = e.target.closest("[data-evact]");
+  const run = b && window._evSummaryActions[+b.dataset.evact];
+  if (run) run();
+});
+async function loadCrashes() {
+  const c = await api.get_crashes();
+  const bsod = c.bugchecks.length
+    ? `<div class="table-wrap" style="max-height:240px"><table>
+        <thead><tr><th>Time</th><th>Bugcheck</th><th>Dump</th></tr></thead><tbody>
+        ${c.bugchecks.map(b => `<tr><td class="mono">${esc(b.time)}</td>
+          <td class="mono copy">${esc(b.code)}</td><td class="mono copy">${esc(b.dump)}</td></tr>`).join("")}
+        </tbody></table></div>`
+    : emptyState("check", "No blue screens in the last 90 days");
+  const dumps = c.minidumps.length
+    ? `<div class="mt">${c.minidumps.map(d => `<div class="an-row">${ico("file", "ic sm")}
+        <span class="nm">${esc(d.file)}</span><span class="muted">${esc(d.date)}</span>
+        <span class="sz">${fmtBytes(d.size)}</span></div>`).join("")}
+      <button class="btn small mt" id="btnOpenDumps">Open minidump folder${ico("open", "ic sm")}</button></div>`
+    : "";
+  const apps = c.app_crashes.length
+    ? `<div class="table-wrap" style="max-height:320px"><table>
+        <thead><tr><th>Application</th><th class="num">Crashes</th><th>Faulting module</th><th>Most recent</th></tr></thead><tbody>
+        ${c.app_crashes.map(g => `<tr><td class="strong copy">${esc(g.app)}</td>
+          <td class="num" style="color:${g.count >= 10 ? "var(--crit)" : "inherit"}">${g.count}</td>
+          <td class="mono copy">${esc(g.module)}</td><td class="mono">${esc(g.last)}</td></tr>`).join("")}
+        </tbody></table></div>`
+    : emptyState("check", "No application crashes in the last 90 days");
+  $("#crashBody").innerHTML = `
+    <div class="grid cols-2">
+      <div class="card"><h3>Blue screens (90 days) <span class="right">${c.bugchecks.length ? pill("bad", c.bugchecks.length + " bugcheck(s)") : pill("good", "None")}</span></h3>${bsod}${dumps}</div>
+      <div class="card"><h3>Unexpected power loss <span class="right">${c.dirty_shutdowns ? pill("warn", c.dirty_shutdowns + " event(s)") : pill("good", "None")}</span></h3>
+        <p class="muted" style="font-size:12.5px; line-height:1.5">Kernel-Power 41 events — the machine lost power or hung without a clean shutdown. Frequent occurrences point at PSU, sleep/firmware or forced power-offs.</p></div>
+    </div>
+    <div class="card mt"><h3>Application crashes, grouped (90 days)</h3>${apps}</div>`;
+  const openDumps = $("#btnOpenDumps");
+  if (openDumps) openDumps.onclick = () => api.open_path(c.dump_dir);
+}
+
+/* ================= DEVICES page ================= */
+async function loadDevices() {
+  api.get_problem_devices().then(d => {
+    const list = d.problems.length
+      ? d.problems.map(p => `
+        <div class="check bad">
+          <div class="icon">${ico("bang")}</div>
+          <div class="body">
+            <div class="title">${esc(p.name)} ${pill("bad", "Code " + p.code)}</div>
+            <div class="detail">${esc(p.meaning)} · class ${esc(p.class)}</div>
+            <div class="detail mono copy" style="font-size:11px">${esc(p.device_id)}</div>
+          </div>
+        </div>`).join("")
+      : emptyState("check", "Every device reports healthy", `${d.total_devices ?? "?"} devices enumerated`);
+    $("#devBody").innerHTML = `<div class="card">
+      <h3>Problem devices <span class="right">${d.problems.length ? pill("bad", d.problems.length + " issue(s)") : pill("good", "All clear")}</span></h3>${list}</div>`;
+  }).catch(() => { $("#devBody").innerHTML = `<div class="card">${emptyState("bang", "Couldn't load devices")}</div>`; });
+  api.get_printers().then(p => {
+    const spoolerOk = p.spooler === "Running";
+    const printers = p.printers.length ? `<div class="table-wrap" style="max-height:none"><table>
+      <thead><tr><th>Printer</th><th>Status</th><th>Port</th><th>Driver</th><th></th></tr></thead><tbody>
+      ${p.printers.map(x => `<tr>
+        <td class="strong copy">${esc(x.name)}${x.default ? ` <span class="muted" style="font-size:11px">· default</span>` : ""}</td>
+        <td>${x.offline ? pill("bad", "Offline") : x.status === "Idle" ? pill("good", "Idle") : pill("info", esc(x.status))}</td>
+        <td class="mono">${esc(x.port)}</td><td class="muted">${esc(x.driver)}</td><td></td></tr>`).join("")}
+      </tbody></table></div>` : emptyState("printer", "No printers installed");
+    const jobs = p.jobs.length ? `<div class="table-wrap mt" style="max-height:200px"><table>
+      <thead><tr><th>Document</th><th>Printer</th><th>Owner</th><th>Status</th><th class="num">Pages</th><th>Submitted</th></tr></thead><tbody>
+      ${p.jobs.map(j => `<tr><td class="strong">${esc(j.document)}</td><td>${esc(j.printer)}</td>
+        <td>${esc(j.owner)}</td><td>${esc(j.status)}</td><td class="num">${j.pages ?? "—"}</td><td class="mono">${esc(j.submitted ?? "")}</td></tr>`).join("")}
+      </tbody></table></div>` : "";
+    $("#prnBody").innerHTML = `<div class="card">
+      <h3>Printers
+        <span class="right row" style="gap:8px">
+          ${spoolerOk ? pill("good", "Spooler running") : pill("bad", "Spooler " + esc(p.spooler))}
+          <button class="btn small danger" id="btnPurgeQueue" title="Stop spooler, delete stuck jobs, restart">Purge queue</button>
+        </span>
+      </h3>${printers}${jobs}</div>`;
+    $("#btnPurgeQueue").onclick = async () => {
+      if (!await confirmModal("Purge print queue?",
+          "Stops the spooler, deletes every queued job on all printers, and restarts it.", "Purge",
+          "Stops the Spooler service, deletes all files in\nC:\\Windows\\System32\\spool\\PRINTERS, then restarts it.")) return;
+      const r = await api.purge_print_queue();
+      toast(r.ok ? "Print queue purged" : r.error, r.ok ? "good" : "bad", 5000);
+      if (r.ok) loadDevices();
+    };
+  }).catch(() => { $("#prnBody").innerHTML = `<div class="card">${emptyState("printer", "Couldn't load printers")}</div>`; });
+  api.get_driver_audit().then(d => {
+    const flag = x => x.duplicate ? pill("warn", "Duplicate") : x.old ? pill("warn", "Old") : "";
+    $("#drvBody").innerHTML = `<div class="card">
+      <h3>Third-party drivers (${d.drivers.length})
+        <span class="right">${d.dup_count ? pill("warn", `${d.dup_count} duplicate`) : ""}
+        ${d.old_count ? pill("warn", `${d.old_count} older than ${d.old_years} yrs`) : ""}
+        ${!d.dup_count && !d.old_count ? pill("good", "Tidy") : ""}</span>
+      </h3>
+      ${d.drivers.length ? `<div class="table-wrap" style="max-height:340px"><table>
+        <thead><tr><th>Device</th><th>Provider</th><th>Version</th><th>Date</th><th></th><th>INF</th></tr></thead><tbody>
+        ${d.drivers.map(x => `<tr>
+          <td class="strong copy">${esc(x.device)}</td><td>${esc(x.provider)}</td>
+          <td class="mono copy">${esc(x.version)}</td><td class="mono">${esc(x.date ?? "—")}</td>
+          <td>${flag(x)}</td><td class="mono copy" style="font-size:11px">${esc(x.inf)}</td></tr>`).join("")}
+        </tbody></table></div>
+        <p class="muted" style="font-size:11.5px; margin-top:8px">Duplicates mean a device has more than one
+        driver version staged. To remove a stale one: <span class="mono copy">pnputil /delete-driver &lt;inf&gt;</span>
+        from an elevated prompt — only after confirming the newer version works.</p>`
+      : emptyState("check", "No third-party drivers found")}
+    </div>`;
+  }).catch(() => { $("#drvBody").innerHTML = `<div class="card">${emptyState("bang", "Couldn't load drivers")}</div>`; });
+  api.get_usb_history().then(u => {
+    $("#usbBody").innerHTML = `<div class="card">
+      <h3>USB device history (${u.count}) <span class="right muted" style="font-size:11px">every USB device ever connected</span></h3>
+      ${u.devices.length ? `<div class="table-wrap" style="max-height:300px"><table>
+        <thead><tr><th>Device</th><th>Type</th><th>Serial</th></tr></thead><tbody>
+        ${u.devices.map(d => `<tr><td class="strong copy">${esc(d.name)}</td><td>${esc(d.kind)}</td>
+          <td class="mono copy">${esc(d.serial)}</td></tr>`).join("")}</tbody></table></div>`
+      : emptyState("usb", "No USB history found")}</div>`;
+  }).catch(() => { $("#usbBody").innerHTML = `<div class="card">${emptyState("usb", "Couldn't load USB history")}</div>`; });
+}
+$("#btnDevRefresh").onclick = () => loadDevices();
+
+/* ================= TOOLBOX page ================= */
+let repairJob = null, repairOffset = 0, repairTimer = null;
+async function loadToolbox() {
+  const tools = await api.list_repair_tools();
+  $("#toolGrid").innerHTML = tools.map(t => `
+    <div class="tool-card" data-tool="${t.id}">
+      <div class="t-name">${ico("wrench", "ic sm")}${esc(t.label)}</div>
+      <div class="t-note">${esc(t.note)}</div>
+      <div class="t-note" style="font-size:11px; opacity:0.8; min-height:0; margin-top:-4px">
+        <span class="muted" title="${esc(t.where)}">${esc(t.where)}</span>
+      </div>
+      <button class="btn small" data-run="${t.id}" data-where="${esc(t.where)}">Run</button>
+    </div>`).join("");
+  refreshBaselineInfo();
+  loadTicketSummary();
+  loadMemResults();
+  loadRestoreCard();
+}
+async function loadRestoreCard() {
+  const s = await api.restore_status();
+  $("#rpStatus").textContent = s.protection_on === false ? "protection off" : `${s.points.length} point(s)`;
+  $("#rpList").innerHTML = s.points.length ? `<div class="table-wrap" style="max-height:170px"><table>
+    <thead><tr><th>Created</th><th>Description</th><th>Type</th></tr></thead><tbody>
+    ${s.points.slice(0, 12).map(p => `<tr><td class="mono">${esc(p.created || "—")}</td>
+      <td class="strong">${esc(p.description)}</td><td class="muted">${esc(p.type)}</td></tr>`).join("")}
+    </tbody></table></div>` : `<p class="muted" style="font-size:12px">No restore points yet.</p>`;
+}
+$("#btnRpCreate").onclick = async () => {
+  if (!isAdmin) { toast("Creating a restore point needs elevation — use Run as admin.", "bad", 5000); return; }
+  const btn = $("#btnRpCreate"); btn.disabled = true; const old = btn.innerHTML;
+  btn.innerHTML = `<span class="spin"></span> Creating…`;
+  const r = await api.create_restore_point("Benchly manual checkpoint");
+  btn.disabled = false; btn.innerHTML = old;
+  toast(r.ok ? "Restore point created" : r.error, r.ok ? "good" : "bad", 5000);
+  if (r.ok) loadRestoreCard();
+};
+$("#btnRpOpen").onclick = () => api.open_restore_ui();
+$("#btnBpCheck").onclick = async () => {
+  $("#bpBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Auditing backups…</span></div>`;
+  const r = await api.get_backup_posture();
+  $("#bpOverall").innerHTML = pill(r.overall === "good" ? "good" : r.overall === "warn" ? "warn" : "bad",
+    r.overall === "good" ? "Protected" : r.overall === "warn" ? "Gaps" : "At risk");
+  $("#bpBody").innerHTML = r.checks.map(c => `<div class="check ${c.status}">
+    <div class="icon">${ico(c.status === "good" ? "check" : c.status === "warn" ? "bang" : "x")}</div>
+    <div class="body"><div class="title">${esc(c.label)}</div><div class="detail">${esc(c.detail)}</div></div></div>`).join("");
+};
+$("#toolGrid").addEventListener("click", async e => {
+  const b = e.target.closest("[data-run]");
+  if (!b) return;
+  if (!isAdmin) { toast("Repair tools need elevation — use Run as admin in the title bar.", "bad", 5000); return; }
+  const toolId = b.dataset.run;
+  const needsConfirm = ["dism_restore", "winsock", "wu_reset"].includes(toolId);
+  if (needsConfirm && !await confirmModal("Run this tool?",
+      "This makes changes to the system (it can be re-run safely, but a reboot may be needed afterwards).", "Run",
+      b.dataset.where)) return;
+  const r = await api.start_repair(toolId);
+  if (!r.ok) { toast(r.error, "bad", 5000); return; }
+  repairJob = r.job; repairOffset = 0;
+  $$(".tool-card").forEach(c => c.classList.toggle("running", c.dataset.tool === toolId));
+  $$("#toolGrid [data-run]").forEach(x => x.disabled = true);
+  $("#repairConsoleCard").style.display = "";
+  $("#repairTitle").textContent = r.label;
+  const rc = $("#repairConsole");
+  rc.textContent = "";
+  rc.dataset.committed = "";
+  pollRepair();
+});
+let repairFails = 0;
+async function pollRepair() {
+  // self-chaining: the next poll is only scheduled after this one resolves,
+  // so slow bridge calls can never interleave and double-append lines
+  if (!repairJob) return;
+  let r;
+  try { r = await api.get_repair_job(repairJob, repairOffset); repairFails = 0; }
+  catch {
+    if (++repairFails > 8) { repairJob = null; $$("#toolGrid [data-run]").forEach(x => x.disabled = false); return; }
+    repairTimer = setTimeout(pollRepair, 1500); return;
+  }
+  if (!r.ok) { repairJob = null; return; }
+  const c = $("#repairConsole");
+  if (r.lines.length) {
+    repairOffset = r.total;
+    c.dataset.committed = (c.dataset.committed ? c.dataset.committed + "\n" : "") + r.lines.join("\n");
+  }
+  // committed lines + the live progress line (e.g. "Verification 42% complete")
+  const base = c.dataset.committed || "";
+  c.textContent = r.current ? (base ? base + "\n" : "") + r.current : base;
+  c.scrollTop = c.scrollHeight;
+  if (r.done) {
+    repairJob = null;
+    $$(".tool-card").forEach(x => x.classList.remove("running"));
+    $$("#toolGrid [data-run]").forEach(x => x.disabled = false);
+    toast(r.rc === 0 ? "Tool finished successfully" : `Tool finished with exit code ${r.rc}`,
+          r.rc === 0 ? "good" : "bad", 5000);
+    return;
+  }
+  repairTimer = setTimeout(pollRepair, 700);
+}
+$("#btnRepairCancel").onclick = async () => {
+  if (!repairJob) return;
+  const r = await api.cancel_repair(repairJob);
+  toast(r.ok ? "Job cancelled" : r.error, r.ok ? "info" : "bad");
+};
+
+/* ---- baseline ---- */
+async function refreshBaselineInfo() {
+  const info = await api.get_baseline_info();
+  $("#blStatus").textContent = info.exists
+    ? `saved ${info.time} · ${info.counts.apps} apps · ${info.counts.services} services · score ${info.score}`
+    : "no baseline saved yet";
+  $("#btnBlCompare").disabled = !info.exists;
+}
+$("#btnBlSave").onclick = async () => {
+  const info = await api.get_baseline_info();
+  if (info.exists && !await confirmModal("Overwrite baseline?",
+      `A baseline from ${info.time} exists. Replace it with the current state?`, "Overwrite")) return;
+  const r = await api.save_baseline();
+  toast(r.ok ? "Baseline saved" : r.error, r.ok ? "good" : "bad");
+  $("#blResult").innerHTML = "";
+  refreshBaselineInfo();
+};
+$("#btnBlCompare").onclick = async () => {
+  $("#blResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Comparing…</span></div>`;
+  const r = await api.compare_baseline();
+  if (!r.ok) { $("#blResult").innerHTML = ""; toast(r.error, "bad"); return; }
+  if (r.clean) {
+    $("#blResult").innerHTML = emptyState("check", "No drift detected",
+      `Nothing changed since the baseline of ${r.baseline_time}.`);
+    return;
+  }
+  const section = (title, diff) => {
+    const rows = [
+      ...diff.added.map(x => ({ tag: "add", t: "+", name: x.name, val: x.value })),
+      ...diff.removed.map(x => ({ tag: "del", t: "−", name: x.name, val: x.value })),
+      ...diff.changed.map(x => ({ tag: "chg", t: "~", name: x.name, val: `${x.old} → ${x.new}` })),
+    ];
+    if (!rows.length) return "";
+    return `<div class="diff-section"><h3 style="margin-bottom:6px">${esc(title)} <span class="right muted">${rows.length} change(s)</span></h3>
+      ${rows.map(x => `<div class="diff-row"><span class="tag ${x.tag}">${x.t}</span>
+        <span class="d-name">${esc(x.name)}</span>
+        <span class="d-val" style="flex:1" title="${esc(x.val)}">${esc(x.val)}</span></div>`).join("")}</div>`;
+  };
+  const score = r.score.old !== r.score.new
+    ? `<div class="diff-section"><h3 style="margin-bottom:6px">Health score</h3>
+       <div class="diff-row"><span class="tag chg">~</span><span class="d-name">${r.score.old} → ${r.score.new}</span></div></div>` : "";
+  const build = r.os_build.old !== r.os_build.new
+    ? `<div class="diff-section"><h3 style="margin-bottom:6px">OS build</h3>
+       <div class="diff-row"><span class="tag chg">~</span><span class="d-name">${esc(r.os_build.old)} → ${esc(r.os_build.new)}</span></div></div>` : "";
+  $("#blResult").innerHTML = `<p class="muted" style="font-size:12px; margin-bottom:10px">
+    Baseline ${esc(r.baseline_time)} → now ${esc(r.now_time)}</p>` + score + build +
+    section("Applications", r.apps) + section("Services", r.services) + section("Startup entries", r.startup);
+};
+
+/* ================= SECURITY page ================= */
+async function loadSecurity(refresh = false) {
+  api.get_setting("vt_api_key").then(k => { if (k) $("#vtKey").value = k; });
+  const [h, inv] = await Promise.all([api.get_health(refresh), api.get_inventory()]);
+
+  const products = h.av_products || [];
+  $("#secAv").innerHTML = `<h3>Antivirus products</h3>` + (products.length ? products.map(p => `
+    <div class="check ${p.enabled ? "good" : "unknown"}">
+      <div class="icon">${ico(p.enabled ? "check" : "q")}</div>
+      <div class="body">
+        <div class="title">${esc(p.name)}
+          ${p.enabled ? pill("good", "Active") : pill("unknown", "Inactive")}
+          ${p.outdated ? pill("warn", "Definitions stale") : ""}
+        </div>
+        <div class="detail">${p.enabled ? "Real-time protection on" : "Registered but not the active scanner"}${p.timestamp ? ` · last reported ${esc(p.timestamp)}` : ""}</div>
+      </div>
+    </div>`).join("") : emptyState("q", "No products registered with Security Center"));
+
+  const fw = (h.firewall_profiles || []).map(f =>
+    `<dt>${esc(f.name)} firewall</dt><dd>${f.enabled ? "Enabled" : `<span style="color:var(--crit)">Disabled</span>`}</dd>`).join("");
+  const bl = (h.bitlocker_volumes || []).map(v =>
+    `<dt>BitLocker ${esc(v.mount)}</dt><dd>${esc(v.protection)} (${esc(String(v.status ?? ""))})</dd>`).join("")
+    || `<dt>BitLocker</dt><dd class="muted">${h.is_admin ? "No volumes reported" : "Needs elevation"}</dd>`;
+  const checkById = id => h.checks.find(c => c.id === id);
+  const fmtCheck = id => {
+    const c = checkById(id);
+    return c ? `${c.status === "good" ? "" : c.status === "unknown" ? "Unknown — " : "⚠ "}${esc(c.detail)}` : "—";
+  };
+  $("#secDefenses").innerHTML = `<h3>Defenses</h3><dl class="kv">
+    ${fw}${bl}
+    <dt>UAC</dt><dd>${fmtCheck("uac")}</dd>
+    <dt>Secure Boot</dt><dd>${inv.secure_boot === true ? "Enabled" : inv.secure_boot === false ? `<span style="color:var(--warn)">Disabled</span>` : "Unknown (needs admin)"}</dd>
+    <dt>TPM</dt><dd>${inv.tpm ? (inv.tpm.enabled ? "Enabled" : "Present, disabled") : "Unknown (needs admin)"}</dd>
+  </dl>`;
+}
+$("#btnSecRefresh").onclick = () => loadSecurity(true);
+
+$("#btnVtSaveKey").onclick = async () => {
+  const r = await api.set_setting("vt_api_key", $("#vtKey").value.trim());
+  toast(r.ok ? "API key saved" : r.error, r.ok ? "good" : "bad");
+};
+$("#btnVtBrowse").onclick = async () => {
+  const f = await api.pick_file();
+  if (!f.ok) { if (f.error !== "cancelled") toast(f.error, "bad"); return; }
+  $("#vtResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Hashing ${esc(f.path)}…</span></div>`;
+  const h = await api.vt_hash_file(f.path);
+  if (!h.ok) { $("#vtResult").innerHTML = ""; toast(h.error, "bad"); return; }
+  $("#vtHash").value = h.sha256;
+  vtCheck(`${h.name} (${fmtBytes(h.size)})`);
+};
+$("#btnVtCheck").onclick = () => vtCheck();
+$("#vtHash").addEventListener("keydown", e => { if (e.key === "Enter") vtCheck(); });
+
+async function vtCheck(fileLabel = null) {
+  const hash = $("#vtHash").value.trim();
+  if (!hash) { toast("Choose a file or paste a hash first.", "bad"); return; }
+  $("#vtResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Asking VirusTotal…</span></div>`;
+  const r = await api.vt_check_hash(hash);
+  if (!r.ok) {
+    $("#vtResult").innerHTML = r.error === "no_key"
+      ? emptyState("q", "No API key saved", "Paste your free VirusTotal API key above and save it first.")
+      : emptyState("bang", "Lookup failed", r.error);
+    return;
+  }
+  if (!r.found) {
+    $("#vtResult").innerHTML = emptyState("q", "Unknown to VirusTotal",
+      "No engine has analysed this hash. That is common for fresh or private files — it is not a verdict either way.");
+    return;
+  }
+  const bad = r.malicious + r.suspicious;
+  const verdictColor = r.malicious > 3 ? "var(--crit)" : bad > 0 ? "var(--warn)" : "var(--ok)";
+  const verdictText = r.malicious > 3 ? "Malicious" : bad > 0 ? "Suspicious" : "Clean";
+  $("#vtResult").innerHTML = `
+    <div class="speed-row" style="align-items:center">
+      <div class="speed-kpi"><div class="v" style="color:${verdictColor}">${bad}<small> / ${r.total}</small></div>
+        <div class="l">Engines flagging</div></div>
+      <div>
+        <div style="font-weight:600; color:${verdictColor}">${verdictText}</div>
+        <div class="muted" style="font-size:12px">${esc(fileLabel || r.names[0] || r.hash.slice(0, 16) + "…")}${r.type ? " · " + esc(r.type) : ""}</div>
+      </div>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" id="btnVtOpen">Full report on VirusTotal${ico("open", "ic sm")}</button>
+    </div>
+    ${r.flagged.length ? `<div class="table-wrap mt" style="max-height:200px"><table>
+      <thead><tr><th>Engine</th><th>Verdict</th><th>Detection name</th></tr></thead><tbody>
+      ${r.flagged.map(f => `<tr><td class="strong">${esc(f.engine)}</td>
+        <td>${pill(f.verdict === "malicious" ? "bad" : "warn", f.verdict)}</td>
+        <td class="mono copy">${esc(f.label || "—")}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
+  $("#btnVtOpen").onclick = () => api.open_in_browser(r.link);
+}
+
+/* ================= LAN toolkit ================= */
+$$("#lanTabs .tab").forEach(t => t.addEventListener("click", () => {
+  $$("#lanTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  for (const [key, id] of [["scan", "lanTabScan"], ["wol", "lanTabWol"], ["dhcp", "lanTabDhcp"]])
+    $("#" + id).style.display = t.dataset.lan === key ? "" : "none";
+  if (t.dataset.lan === "wol") renderWol();
+}));
+
+/* ---- subnet scan ---- */
+let scanRunning = false;
+async function initSubnetChips() {
+  const subs = await api.list_subnets();
+  $("#scanSubnets").innerHTML = subs.map(s =>
+    `<button class="btn small" data-net="${esc(s.network)}" title="${esc(s.adapter)} — ~${s.hosts} hosts${s.capped ? " (capped to /24)" : ""}">${esc(s.network)}</button>`).join("");
+  if (subs[0]) $("#scanNetwork").value = subs[0].network;
+}
+$("#scanSubnets").addEventListener("click", e => {
+  const b = e.target.closest("[data-net]");
+  if (b) $("#scanNetwork").value = b.dataset.net;
+});
+$("#btnScanStart").onclick = async () => {
+  if (scanRunning) return;
+  const network = $("#scanNetwork").value.trim();
+  const r = await api.start_subnet_scan(network);
+  if (!r.ok) { toast(r.error, "bad"); return; }
+  scanRunning = true;
+  $("#btnScanStart").disabled = true;
+  $("#scanBar").style.display = "";
+  $("#scanResult").innerHTML = "";
+  let scanFails = 0;
+  const poll = async () => {
+    let j;
+    try { j = await api.get_scan_job(r.job); scanFails = 0; }
+    catch { if (++scanFails > 8) { scanRunning = false; $("#btnScanStart").disabled = false; return; } setTimeout(poll, 1500); return; }
+    if (!j.ok) { scanRunning = false; $("#btnScanStart").disabled = false; return; }
+    $("#scanBarFill").style.width = `${j.done_count / j.total * 100}%`;
+    $("#scanStatus").textContent = j.done
+      ? `${j.found.length} device(s) on ${esc(network)}`
+      : `probing ${j.done_count}/${j.total}…`;
+    if (!j.done) { setTimeout(poll, 800); return; }
+    scanRunning = false;
+    $("#btnScanStart").disabled = false;
+    $("#scanBar").style.display = "none";
+    $("#scanResult").innerHTML = j.found.length ? `<div class="table-wrap" style="max-height:340px"><table>
+      <thead><tr><th>IP</th><th>Hostname</th><th>MAC</th><th>Vendor</th><th></th></tr></thead><tbody>
+      ${j.found.map(h => `<tr>
+        <td class="mono copy">${esc(h.ip)}</td>
+        <td class="strong copy">${esc(h.name || "—")}${h.self ? ` <span class="muted" style="font-size:11px">· this machine</span>` : ""}</td>
+        <td class="mono copy">${esc(h.mac || "—")}</td>
+        <td>${esc(h.vendor || "—")}</td>
+        <td style="width:120px">${h.self ? "" : `<button class="btn ghost small row-action" data-profile="${esc(h.ip)}">Profile</button>${h.mac ? `<button class="btn ghost small row-action" data-wake="${esc(h.mac)}" title="Send magic packet">Wake</button>` : ""}`}</td>
+      </tr>`).join("")}</tbody></table></div>`
+      : emptyState("inbox", "No devices responded", "Hosts with firewalled ICMP won't appear in a ping sweep.");
+  };
+  poll();
+};
+$("#scanResult").addEventListener("click", async e => {
+  const prof = e.target.closest("[data-profile]");
+  if (prof) {
+    showToolConsole("port");
+    $("#netHost").value = prof.dataset.profile;
+    runPortProfile();
+    return;
+  }
+  const wake = e.target.closest("[data-wake]");
+  if (wake) {
+    const r = await api.wol_send(wake.dataset.wake);
+    toast(r.ok ? `Magic packet sent to ${wake.dataset.wake}` : r.error, r.ok ? "good" : "bad");
+  }
+});
+function showToolConsole(tool) {
+  const tab = $(`#netTabs [data-tool="${tool}"]`);
+  if (tab) tab.click();
+  $("#netConsole").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* ---- port profile ---- */
+async function runPortProfile() {
+  const host = $("#netHost").value.trim();
+  if (!host) { toast("Enter a host first.", "bad"); return; }
+  const btn = $("#btnPortProfile");
+  btn.disabled = true;
+  consoleLog(`<span class="ok">[${new Date().toLocaleTimeString()}] port profile ${esc(host)} (25 common ports)</span>`);
+  try {
+    const r = await api.port_profile(host);
+    if (!r.ok) { consoleLog(`<span class="err">${esc(r.error)}</span>`); return; }
+    consoleLog(r.open.length
+      ? r.open.map(p => `${padCol(p.port, 6)} <span class="ok">open</span>  ${padCol(p.service, 16)} ${esc(p.banner)}`).join("\n")
+        + `\n(${r.open.length} open of ${r.scanned} scanned on ${esc(r.ip)})`
+      : `No common ports open on ${esc(r.ip)} (${r.scanned} scanned).`);
+  } finally { btn.disabled = false; }
+}
+$("#btnPortProfile").onclick = runPortProfile;
+
+/* ---- Wake-on-LAN ---- */
+async function renderWol() {
+  const machines = await api.wol_machines();
+  $("#wolList").innerHTML = machines.length ? `<div class="table-wrap" style="max-height:260px"><table>
+    <thead><tr><th>Machine</th><th>MAC</th><th></th></tr></thead><tbody>
+    ${machines.map((m, i) => `<tr>
+      <td class="strong">${esc(m.name)}</td><td class="mono copy">${esc(m.mac)}</td>
+      <td style="width:120px"><button class="btn small" data-wolsend="${i}">Wake</button>
+      <button class="btn ghost small row-action" data-woldel="${i}" title="Remove">${ico("x", "ic sm")}</button></td>
+    </tr>`).join("")}</tbody></table></div>`
+    : emptyState("inbox", "No saved machines", "Save a name and MAC above — or use Wake straight from a subnet scan.");
+}
+$("#btnWolAdd").onclick = async () => {
+  const name = $("#wolName").value.trim() || "Unnamed";
+  const mac = $("#wolMac").value.trim().toUpperCase();
+  if (!/^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/.test(mac)) { toast("MAC must look like AA:BB:CC:DD:EE:FF", "bad"); return; }
+  const machines = await api.wol_machines();
+  machines.push({ name, mac });
+  await api.wol_save(machines);
+  $("#wolName").value = ""; $("#wolMac").value = "";
+  toast(`Saved ${name}`, "good");
+  renderWol();
+};
+$("#wolList").addEventListener("click", async e => {
+  const send = e.target.closest("[data-wolsend]");
+  if (send) {
+    const machines = await api.wol_machines();
+    const m = machines[+send.dataset.wolsend];
+    const r = await api.wol_send(m.mac);
+    toast(r.ok ? `Magic packet sent to ${m.name}` : r.error, r.ok ? "good" : "bad");
+    return;
+  }
+  const del = e.target.closest("[data-woldel]");
+  if (del) {
+    const machines = await api.wol_machines();
+    machines.splice(+del.dataset.woldel, 1);
+    await api.wol_save(machines);
+    renderWol();
+  }
+});
+
+/* ---- DHCP & DNS ---- */
+$("#btnDhcpCheck").onclick = async () => {
+  $("#dhcpStatus").innerHTML = `<span class="spin"></span>`;
+  $("#btnDhcpCheck").disabled = true;
+  try {
+    const d = await api.dhcp_dns_health();
+    $("#dhcpStatus").textContent = "";
+    const leaseRows = d.leases.map(l => `
+      <tr><td class="strong">${esc(l.adapter)}</td>
+      <td class="mono copy">${esc(l.ip)}</td>
+      <td>${l.dhcp ? pill("info", "DHCP") : pill("unknown", "Static")}</td>
+      <td class="mono copy">${esc(l.server || "—")}</td>
+      <td class="mono">${esc(l.obtained || "—")} → ${esc(l.expires || "—")}</td></tr>`).join("");
+    const dnsRows = d.dns_tests.map(t => `
+      <tr><td class="mono copy">${esc(t.server)}</td>
+      <td>${t.ok ? pill("good", "Responding") : pill("bad", "Failed")}</td>
+      <td class="num">${t.ms !== null && t.ms !== undefined ? t.ms + " ms" : "—"}</td></tr>`).join("");
+    $("#dhcpResult").innerHTML = `
+      ${d.multiple_dhcp ? `<div class="check warn" style="border:none; padding-bottom:12px">
+        <div class="icon">${ico("bang")}</div><div class="body">
+        <div class="title">Multiple DHCP servers seen ${pill("warn", "Check")}</div>
+        <div class="detail">${esc(d.dhcp_servers.join(", "))} — more than one DHCP server on a flat network usually means a rogue device or a misconfigured router.</div></div></div>` : ""}
+      <div class="table-wrap" style="max-height:200px"><table>
+        <thead><tr><th>Adapter</th><th>IP</th><th>Mode</th><th>DHCP server</th><th>Lease</th></tr></thead>
+        <tbody>${leaseRows}</tbody></table></div>
+      <div class="table-wrap mt" style="max-height:160px"><table>
+        <thead><tr><th>DNS server</th><th>Status</th><th class="num">Lookup time</th></tr></thead>
+        <tbody>${dnsRows || `<tr><td colspan="3" class="muted">No DNS servers configured</td></tr>`}</tbody></table></div>
+      <p class="muted" style="font-size:11.5px; margin-top:8px">True rogue-DHCP detection needs a dedicated
+      DHCPDISCOVER probe listening on port 68 — this view reports what each adapter actually leased.</p>`;
+  } finally { $("#btnDhcpCheck").disabled = false; }
+};
+
+/* ================= SENSORS (System page) ================= */
+let sensorsStarted = false;
+function startSensorsLoop() {
+  if (sensorsStarted) return;
+  sensorsStarted = true;
+  pollLoop(4000, async () => {
+    if (currentPage !== "system") return;
+    let s;
+    try { s = await api.get_sensors(); } catch { return; }
+    const rows = [];
+    for (const g of s.gpus) {
+      rows.push(["GPU — " + g.name,
+        `${g.temp_c ?? "—"} °C · ${g.util_pct ?? 0}% load · ${fmtBytes((g.vram_used_mb ?? 0) * 1048576)} / ${fmtBytes((g.vram_total_mb ?? 0) * 1048576)} VRAM${g.power_w ? ` · ${g.power_w.toFixed(0)} W` : ""}`]);
+    }
+    if (s.cpu_lhm !== null && s.cpu_lhm !== undefined) rows.push(["CPU package (LibreHardwareMonitor)", `${s.cpu_lhm} °C`]);
+    for (const d of s.disks) rows.push(["Disk — " + d.name, `${d.temp_c} °C`]);
+    for (const z of s.acpi) rows.push(["ACPI — " + z.name, `${z.temp_c} °C`]);
+    setHTML($("#sensorsBody"), rows.length
+      ? `<dl class="kv">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`
+      : emptyState("q", "No sensors readable",
+          "CPU core temps need a kernel driver on Windows — run LibreHardwareMonitor's web server and Benchly will pick it up. Disk temps appear when elevated."));
+    $("#sensorsNote").textContent = s.cpu_lhm === null && !s.gpus.length ? "best effort — see note" : "live · 4 s";
+  });
+}
+
+/* ---- battery trend ---- */
+async function loadBatteryTrend() {
+  const b = await api.get_battery_history();
+  if (!b.present) return;
+  $("#batteryCard").style.display = "";
+  const h = b.history;
+  if (!h.length) {
+    $("#batteryBody").innerHTML = `<p class="muted" style="font-size:12px">First reading will be recorded automatically — the trend builds one point per day the app runs.</p>`;
+    return;
+  }
+  const w = 600, ht = 80, min = Math.min(...h.map(x => x.health_pct), 60);
+  const pts = h.map((x, i) => {
+    const px = h.length === 1 ? w : i / (h.length - 1) * w;
+    const py = ht - ((x.health_pct - min) / (100 - min)) * (ht - 8) - 4;
+    return `${px.toFixed(1)},${py.toFixed(1)}`;
+  }).join(" ");
+  const latest = h[h.length - 1];
+  $("#batteryNote").textContent = `${latest.health_pct}% of design capacity · ${h.length} reading(s)`;
+  $("#batteryBody").innerHTML = `
+    <svg viewBox="0 0 ${w} ${ht}" style="width:100%; height:${ht}px" preserveAspectRatio="none">
+      <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+    <div class="row muted" style="justify-content:space-between; font-size:11px">
+      <span>${esc(h[0].date)}</span>
+      <span>${(latest.full_mwh / 1000).toFixed(1)} Wh of ${(latest.design_mwh / 1000).toFixed(1)} Wh design</span>
+      <span>${esc(latest.date)}</span>
+    </div>`;
+}
+
+/* ================= ticket summary + memory diag (Toolbox) ================= */
+async function loadTicketSummary() {
+  try {
+    const t = await api.get_ticket_summary();
+    $("#ticketText").textContent = t.text;
+  } catch {
+    $("#ticketText").innerHTML = `<span class="console-empty">Could not build the summary.</span>`;
+  }
+}
+$("#btnTicketCopy").onclick = () => {
+  navigator.clipboard.writeText($("#ticketText").textContent)
+    .then(() => toast("Ticket summary copied", "good", 2000));
+};
+$("#btnMemDiag").onclick = async () => {
+  if (!await confirmModal("Schedule memory test?",
+      "Windows will offer to restart now or test on the next boot. The test takes ~10 minutes and the machine is unusable during it.", "Open scheduler",
+      "Launches the built-in mdsched.exe. The verdict is written to the System event log (MemoryDiagnostics-Results) after the reboot.")) return;
+  const r = await api.launch_memory_test();
+  toast(r.ok ? "Memory Diagnostic scheduler opened" : r.error, r.ok ? "good" : "bad");
+};
+async function loadMemResults() {
+  const results = await api.get_memory_results();
+  $("#memResults").innerHTML = results.length
+    ? results.map(r => `<div class="check ${r.passed ? "good" : r.passed === false ? "bad" : "unknown"}" style="padding:8px 0">
+        <div class="icon">${ico(r.passed ? "check" : r.passed === false ? "x" : "q")}</div>
+        <div class="body"><div class="title">${esc(r.time)} ${r.passed ? pill("good", "No errors") : r.passed === false ? pill("bad", "Errors") : ""}</div>
+        <div class="detail">${esc(r.message.slice(0, 160))}</div></div></div>`).join("")
+    : `<p class="muted" style="font-size:12px">No past results — the verdict is logged after the machine reboots from a test.</p>`;
+}
+
+/* ================= FLEET page ================= */
+async function loadFleet() { /* static page — handlers below */ }
+
+$("#btnRemote").onclick = async () => {
+  const host = $("#rmHost").value.trim();
+  if (!host) { toast("Enter a computer name or IP.", "bad"); return; }
+  const btn = $("#btnRemote");
+  btn.disabled = true;
+  $("#rmStatus").innerHTML = `<span class="spin"></span> contacting ${esc(host)}…`;
+  try {
+    const r = await api.remote_snapshot(host, $("#rmUser").value.trim(), $("#rmPass").value);
+    $("#rmStatus").textContent = "";
+    if (!r.ok) { $("#rmResult").innerHTML = emptyState("bang", "Snapshot failed", r.error); return; }
+    const s = r.snapshot;
+    const freePct = s.c_total_gb ? Math.round(s.c_free_gb / s.c_total_gb * 100) : null;
+    $("#rmResult").innerHTML = `
+      <div class="row" style="gap:8px; margin-bottom:10px">
+        <span style="font-family:var(--font-display); font-size:16px; font-weight:600">${esc(s.host)}</span>
+        ${s.reboot_pending ? pill("warn", "Reboot pending") : pill("good", "No reboot pending")}
+        ${s.av ? pill("good", esc(s.av)) : pill("warn", "No active AV")}
+        ${s.stopped_count ? pill("warn", `${s.stopped_count} auto service(s) stopped`) : pill("good", "Services healthy")}
+      </div>
+      <dl class="kv">
+        <dt>OS</dt><dd class="copy">${esc(s.os)} (build ${esc(s.build)})</dd>
+        <dt>Model</dt><dd class="copy">${esc(s.model)}</dd>
+        <dt>CPU</dt><dd class="copy">${esc(s.cpu)}</dd>
+        <dt>RAM</dt><dd>${s.ram_gb} GB</dd>
+        <dt>C: free</dt><dd>${s.c_free_gb ?? "—"} GB of ${s.c_total_gb ?? "—"} GB${freePct !== null ? ` (${freePct}%)` : ""}</dd>
+        <dt>Last boot</dt><dd>${esc(s.boot)}</dd>
+        <dt>Logged on</dt><dd class="copy">${esc(s.logged_on || "—")}</dd>
+        <dt>Last hotfix</dt><dd>${esc(s.last_kb || "—")}</dd>
+        ${s.stopped_services.length ? `<dt>Stopped (auto)</dt><dd>${esc(s.stopped_services.join(", "))}${s.stopped_count > s.stopped_services.length ? ` +${s.stopped_count - s.stopped_services.length} more` : ""}</dd>` : ""}
+      </dl>`;
+  } finally { btn.disabled = false; $("#rmPass").value = ""; }
+};
+$("#rmHost").addEventListener("keydown", e => { if (e.key === "Enter") $("#btnRemote").click(); });
+
+/* ---- report compare ---- */
+const cmpPaths = { a: null, b: null };
+async function pickReport(which) {
+  const f = await api.pick_file();
+  if (!f.ok) return;
+  if (!f.path.toLowerCase().endsWith(".json")) { toast("Pick the .json saved next to an exported report.", "bad"); return; }
+  cmpPaths[which] = f.path;
+  $(which === "a" ? "#cmpAName" : "#cmpBName").textContent = f.path.split("\\").pop();
+  $("#btnCmpRun").disabled = !(cmpPaths.a && cmpPaths.b);
+}
+$("#btnCmpA").onclick = () => pickReport("a");
+$("#btnCmpB").onclick = () => pickReport("b");
+$("#btnCmpRun").onclick = async () => {
+  $("#cmpResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Comparing…</span></div>`;
+  const r = await api.compare_reports(cmpPaths.a, cmpPaths.b);
+  if (!r.ok) { $("#cmpResult").innerHTML = emptyState("bang", "Comparison failed", r.error); return; }
+  const metaRow = (label, ka, kb) => `<tr><th class="strong">${esc(label)}</th>
+    <td${String(ka) !== String(kb) ? ` style="color:var(--warn)"` : ""}>${esc(ka ?? "—")}</td>
+    <td${String(ka) !== String(kb) ? ` style="color:var(--warn)"` : ""}>${esc(kb ?? "—")}</td></tr>`;
+  const statusPill = st => st === null ? `<span class="muted">—</span>`
+    : pill(st === "good" ? "good" : st === "warn" ? "warn" : st === "bad" ? "bad" : "unknown", st);
+  const diffSection = (title, diff) => {
+    const rows = [
+      ...diff.added.map(x => ({ tag: "add", t: "+", name: x.name, val: x.value })),
+      ...diff.removed.map(x => ({ tag: "del", t: "−", name: x.name, val: x.value })),
+      ...diff.changed.map(x => ({ tag: "chg", t: "~", name: x.name, val: `${x.old} → ${x.new}` })),
+    ];
+    if (!rows.length) return "";
+    return `<div class="diff-section mt"><h3 style="margin-bottom:6px">${esc(title)} <span class="right muted">${rows.length} difference(s) — relative to A</span></h3>
+      ${rows.slice(0, 80).map(x => `<div class="diff-row"><span class="tag ${x.tag}">${x.t}</span>
+        <span class="d-name">${esc(x.name)}</span>
+        <span class="d-val" style="flex:1" title="${esc(x.val)}">${esc(x.val)}</span></div>`).join("")}
+      ${rows.length > 80 ? `<div class="muted" style="font-size:11.5px; padding:4px 0">…and ${rows.length - 80} more</div>` : ""}</div>`;
+  };
+  $("#cmpResult").innerHTML = `
+    <div class="table-wrap" style="max-height:none"><table>
+      <thead><tr><th></th><th>A — ${esc(r.a.host)} (${esc(r.a.generated)})</th><th>B — ${esc(r.b.host)} (${esc(r.b.generated)})</th></tr></thead>
+      <tbody>
+        ${metaRow("OS", `${r.a.os} (${r.a.build})`, `${r.b.os} (${r.b.build})`)}
+        ${metaRow("Model", r.a.model, r.b.model)}
+        ${metaRow("CPU", r.a.cpu, r.b.cpu)}
+        ${metaRow("RAM", fmtBytes(r.a.ram_total), fmtBytes(r.b.ram_total))}
+        ${metaRow("Health score", `${r.a.score} (${r.a.grade})`, `${r.b.score} (${r.b.grade})`)}
+      </tbody></table></div>
+    <div class="table-wrap mt" style="max-height:260px"><table>
+      <thead><tr><th>Check</th><th>A</th><th>B</th></tr></thead>
+      <tbody>${r.checks.map(c => `<tr${c.a !== c.b ? ` style="background:rgba(232,179,57,0.04)"` : ""}>
+        <td class="strong">${esc(c.label)}</td><td>${statusPill(c.a)}</td><td>${statusPill(c.b)}</td></tr>`).join("")}</tbody></table></div>
+    ${diffSection("Applications", r.apps)}
+    ${diffSection("Services (start type)", r.services)}
+    ${diffSection("Startup entries", r.startup)}`;
+};
+
+/* ================= Security tabs (autoruns / hijack / remote) ================= */
+const secLoaded = {};
+$$("#secTabs .tab").forEach(t => t.addEventListener("click", () => {
+  const which = t.dataset.sec;
+  $$("#secTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  for (const [k, id] of [["overview", "secTabOverview"], ["autoruns", "secTabAutoruns"],
+                         ["hijack", "secTabHijack"], ["remote", "secTabRemote"], ["vt", "secTabVt"]])
+    $("#" + id).style.display = which === k ? "" : "none";
+  if (which === "autoruns" && !secLoaded.autoruns) { secLoaded.autoruns = true; loadAutoruns(); }
+  if (which === "hijack" && !secLoaded.hijack) { secLoaded.hijack = true; loadHijack(); }
+  if (which === "remote" && !secLoaded.remote) { secLoaded.remote = true; loadRemote(); }
+}));
+
+let autorunsData = [];
+async function loadAutoruns() {
+  const r = await api.get_autoruns();
+  autorunsData = r.entries;
+  $("#cntAutoruns").textContent = r.flagged ? `${r.flagged}⚠` : r.entries.length;
+  $("#autorunsBody").innerHTML = `<div class="table-wrap" style="max-height:calc(100vh - 320px)"><table>
+    <thead><tr><th></th><th>Name</th><th>Category</th><th>Signer</th><th>Path</th><th></th></tr></thead><tbody>
+    ${r.entries.map(e => `<tr data-ar="${e.id}">
+      <td>${e.suspicion >= 2 ? pill("bad", "Check") : e.suspicion === 1 ? pill("warn", "?") : e.signed ? pill("good", "OK") : pill("unknown", "—")}</td>
+      <td class="strong copy">${esc(e.name)}${e.reasons.length ? `<div class="muted" style="font-size:11px">${esc(e.reasons.join(" · "))}</div>` : ""}</td>
+      <td>${esc(e.category)}</td>
+      <td class="muted">${esc(e.signer || (e.signed ? "signed" : "unsigned"))}</td>
+      <td class="mono copy" style="max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${esc(e.path)}">${esc(e.path || "—")}</td>
+      <td style="width:90px">${e.exists ? `<button class="btn ghost small row-action" data-vtcheck="${e.id}">VirusTotal</button>` : ""}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+$("#autorunsBody").addEventListener("click", async e => {
+  const b = e.target.closest("[data-vtcheck]");
+  if (!b) return;
+  const entry = autorunsData.find(x => x.id === +b.dataset.vtcheck);
+  if (!entry || !entry.path) return;
+  $("#secTabs [data-sec='vt']").click();
+  $("#vtResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Hashing ${esc(entry.name)}…</span></div>`;
+  const h = await api.vt_hash_file(entry.path);
+  if (!h.ok) { $("#vtResult").innerHTML = ""; toast(h.error, "bad"); return; }
+  $("#vtHash").value = h.sha256;
+  vtCheck(`${entry.name} (${fmtBytes(h.size)})`);
+});
+
+async function loadHijack() {
+  $("#hijackBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Scanning…</span></div>`;
+  const r = await api.hijack_scan();
+  $("#hijackBody").innerHTML = r.clean
+    ? emptyState("check", "No hijack indicators found", "Hosts file, proxy, homepages and search engines all look normal.")
+    : r.findings.map(f => `<div class="check ${f.severity === "bad" ? "bad" : "warn"}">
+        <div class="icon">${ico(f.severity === "bad" ? "x" : "bang")}</div>
+        <div class="body"><div class="title">${esc(f.kind)} ${pill(f.severity === "bad" ? "bad" : "warn", f.severity === "bad" ? "Hijack" : "Check")}</div>
+        <div class="detail">${esc(f.detail)}</div>
+        ${f.items.length ? `<div class="detail mono copy" style="font-size:11px; margin-top:3px">${f.items.map(esc).join("<br>")}</div>` : ""}</div></div>`).join("");
+}
+$("#btnHijackScan").onclick = loadHijack;
+
+async function loadRemote() {
+  $("#remoteBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Scanning…</span></div>`;
+  const r = await api.remote_access_audit();
+  const tools = r.tools.length
+    ? r.tools.map(t => `<div class="check ${t.running ? "bad" : "warn"}">
+        <div class="icon">${ico(t.running ? "bang" : "q")}</div>
+        <div class="body"><div class="title">${esc(t.name)} ${t.running ? pill("bad", "Running now") : pill("warn", "Installed")}</div>
+        <div class="detail">Remote-access tool${t.running ? " — currently active. If you didn't start a support session, end it and investigate." : " is installed. Confirm you authorised it."}</div></div></div>`).join("")
+    : `<div class="check good"><div class="icon">${ico("check")}</div><div class="body"><div class="title">No remote-access tools detected ${pill("good", "Clear")}</div><div class="detail">None of the common scam/remote tools are installed or running.</div></div></div>`;
+  $("#remoteBody").innerHTML = tools + `
+    <div class="drawer-sec">Local administrators (${r.admins.length})</div>
+    <div class="mono-list">${r.admins.map(a => esc(a.name + "  (" + a.class + ")")).join("<br>") || "—"}</div>
+    <div class="drawer-sec">Enabled local accounts</div>
+    <div class="mono-list">${r.accounts.map(a => esc(a.name + (a.desc ? "  — " + a.desc : ""))).join("<br>") || "—"}</div>`;
+}
+$("#btnRemoteScan").onclick = loadRemote;
+
+/* ================= process detail drawer ================= */
+$("#procDrawerClose").onclick = () => { $("#drawer-veil").hidden = true; };
+$("#drawer-veil").addEventListener("click", e => { if (e.target.id === "drawer-veil") $("#drawer-veil").hidden = true; });
+async function openProcDrawer(pid) {
+  $("#drawer-veil").hidden = false;
+  $("#procDrawerTitle").textContent = `PID ${pid}`;
+  $("#procDrawerBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Inspecting…</span></div>`;
+  const d = await api.process_detail(pid);
+  if (!d.ok) { $("#procDrawerBody").innerHTML = emptyState("q", d.error || "Gone"); return; }
+  $("#procDrawerTitle").textContent = `${d.name} · ${d.pid}`;
+  const kv = rows => `<dl class="kv tight">${rows.filter(r => r[1]).map(([k, v]) =>
+    `<dt>${k}</dt><dd class="copy">${esc(v)}</dd>`).join("")}</dl>`;
+  $("#procDrawerBody").innerHTML = kv([
+    ["User", d.user], ["Status", d.status], ["Started", d.started], ["Parent", d.parent],
+    ["Threads", d.threads], ["Memory", `${fmtBytes(d.rss)} (private ${fmtBytes(d.vms)})`],
+    ["Path", d.exe], ["Command", d.cmdline], ["Working dir", d.cwd],
+  ]) + `<div class="row mt"><button class="btn small" id="drawerOpenLoc">Open file location</button>
+        <button class="btn small danger" id="drawerKill">End task</button></div>`
+    + (d.connections.length ? `<div class="drawer-sec">Connections (${d.connections.length})</div>
+       <div class="mono-list">${d.connections.map(c => esc(`${c.proto}  ${c.laddr} → ${c.raddr || "*"}  ${c.status}`)).join("<br>")}</div>` : "")
+    + (d.open_files.length ? `<div class="drawer-sec">Open files (${d.open_files.length})</div>
+       <div class="mono-list">${d.open_files.map(f => `<div title="${esc(f)}">${esc(f)}</div>`).join("")}</div>` : "")
+    + (d.modules.length ? `<div class="drawer-sec">Loaded modules (${d.modules.length})</div>
+       <div class="mono-list">${d.modules.map(m => `<div title="${esc(m)}">${esc(m)}</div>`).join("")}</div>` : "");
+  const loc = $("#drawerOpenLoc");
+  if (d.exe) loc.onclick = () => api.open_path(d.exe); else loc.disabled = true;
+  $("#drawerKill").onclick = async () => {
+    if (!await confirmModal("End task?", `Terminate ${d.name} (PID ${d.pid})?`, "End process")) return;
+    const r = await api.kill_process(d.pid);
+    toast(r.ok ? `Ended ${d.name}` : r.error, r.ok ? "good" : "bad");
+    if (r.ok) { $("#drawer-veil").hidden = true; refreshProcs(); }
+  };
+}
+
+/* ================= reliability timeline (Events) ================= */
+let timelineLoaded = false;
+async function loadTimeline() {
+  const r = await api.get_reliability();
+  const sparkW = 600, sparkH = 50;
+  const m = r.metrics;
+  let spark = "";
+  if (m.length > 1) {
+    const pts = m.map((x, i) => `${(i / (m.length - 1) * sparkW).toFixed(0)},${(sparkH - x.index / 10 * (sparkH - 4) - 2).toFixed(1)}`).join(" ");
+    spark = `<svg viewBox="0 0 ${sparkW} ${sparkH}" style="width:100%; height:${sparkH}px" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5"/></svg>`;
+  }
+  const dotLabel = { crash: "Crash", hardware: "Hardware", update: "Update", install: "Install", info: "Info" };
+  $("#timelineBody").innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <h3>Stability index <span class="right">${r.current_index !== null ? pill(r.current_index >= 8 ? "good" : r.current_index >= 5 ? "warn" : "bad", r.current_index + " / 10") : ""}
+        ${r.whea_count ? pill("warn", r.whea_count + " hardware error(s)") : ""}</span></h3>
+      ${spark || `<div class="muted" style="font-size:12px">Not enough reliability history yet.</div>`}
+      <div class="muted" style="font-size:11px; margin-top:4px">Windows' own 1–10 reliability score over recent days. Dips line up with the events below.</div>
+    </div>
+    <div class="card"><h3>Timeline (90 days)</h3>
+      ${r.timeline.length ? r.timeline.map(t => `<div class="tl-row">
+        <div class="tl-marker"><span class="tl-dot ${t.type}"></span></div>
+        <div class="tl-body"><div class="tl-time">${esc(t.time)} · ${dotLabel[t.type] || t.type} · ${esc(t.source)}</div>
+        <div class="tl-msg">${esc(t.message)}</div></div></div>`).join("") : emptyState("check", "No reliability events recorded")}
+    </div>`;
+}
+
+/* ================= FIX-IT page ================= */
+let runbooks = [];
+async function loadFixit() {
+  runbooks = await api.list_runbooks();
+  $("#runbookDetail").style.display = "none";
+  $("#btnFixitBack").style.display = "none";
+  $("#runbookList").style.display = "";
+  $("#runbookList").innerHTML = runbooks.map(rb => `
+    <div class="card lift" data-runbook="${rb.id}" style="cursor:pointer">
+      <h3 style="color:var(--text-1); text-transform:none; letter-spacing:0; font-size:14px; font-weight:600">${esc(rb.title)}</h3>
+      <p class="muted" style="font-size:12.5px; line-height:1.5">${esc(rb.symptom)}</p>
+      <div class="muted" style="font-size:11.5px; margin-top:8px">${rb.steps.length} steps →</div>
+    </div>`).join("");
+}
+$("#runbookList").addEventListener("click", e => {
+  const c = e.target.closest("[data-runbook]");
+  if (c) openRunbook(c.dataset.runbook);
+});
+$("#btnFixitBack").onclick = loadFixit;
+function openRunbook(id) {
+  const rb = runbooks.find(r => r.id === id);
+  if (!rb) return;
+  $("#runbookList").style.display = "none";
+  $("#btnFixitBack").style.display = "";
+  $("#runbookDetail").style.display = "";
+  $("#runbookDetail").innerHTML = `<div class="card">
+    <h3 style="text-transform:none; letter-spacing:0; font-size:15px; color:var(--text-1)">${esc(rb.title)}</h3>
+    <p class="muted" style="font-size:12.5px; margin-bottom:8px">${esc(rb.symptom)}</p>
+    <div id="stepList">${rb.steps.map((s, i) => `
+      <div class="step-row" data-step="${s.id}" id="step-${s.id}">
+        <div class="step-num">${i + 1}</div>
+        <div class="step-body">
+          <div class="row" style="justify-content:space-between">
+            <div><span style="font-weight:500; color:var(--text-1)">${esc(s.label)}</span>
+              ${s.kind === "fix" ? pill("info", "fix") : `<span class="muted" style="font-size:11px">check</span>`}
+              ${s.admin ? `<span class="muted" style="font-size:11px"> · needs admin</span>` : ""}</div>
+            <button class="btn small ${s.kind === "fix" ? "danger" : ""}" data-runstep="${s.id}">${s.kind === "fix" ? "Run fix" : "Check"}</button>
+          </div>
+          ${s.note ? `<div class="muted" style="font-size:11.5px; margin-top:3px">${esc(s.note)}</div>` : ""}
+          <div class="step-out" style="display:none"></div>
+        </div>
+      </div>`).join("")}</div>
+  </div>`;
+  $("#stepList").querySelectorAll("[data-runstep]").forEach(btn => btn.onclick = async () => {
+    const stepId = btn.dataset.runstep;
+    const step = rb.steps.find(s => s.id === stepId);
+    if (step.kind === "fix" && !await confirmModal("Run this fix?",
+        `"${step.label}". ${step.note || "This changes the system."}`, "Run fix")) return;
+    btn.disabled = true; btn.innerHTML = `<span class="spin"></span>`;
+    const r = await api.run_runbook_step(rb.id, stepId);
+    btn.disabled = false; btn.textContent = step.kind === "fix" ? "Run fix" : "Check";
+    const row = $(`#step-${stepId}`), out = row.querySelector(".step-out");
+    out.style.display = "";
+    if (!r.ok) { out.textContent = "⚠ " + (r.error || "failed"); return; }
+    row.classList.add("done");
+    out.textContent = r.output || "Done.";
+    if (r.status === "bad") out.style.color = "var(--crit)";
+    else if (r.status === "warn") out.style.color = "var(--warn)";
+    else out.style.color = "";
+  });
+}
+
+/* ================= CLEANUP page ================= */
+$$("#cleanTabs .tab").forEach(t => t.addEventListener("click", () => {
+  const which = t.dataset.clean;
+  $$("#cleanTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  for (const [k, id] of [["junk", "cleanTabJunk"], ["large", "cleanTabLarge"],
+                         ["debloat", "cleanTabDebloat"], ["tweaks", "cleanTabTweaks"]])
+    $("#" + id).style.display = which === k ? "" : "none";
+  if (which === "debloat" && !cleanLoaded.debloat) { cleanLoaded.debloat = true; loadDebloat(); }
+  if (which === "tweaks" && !cleanLoaded.tweaks) { cleanLoaded.tweaks = true; loadTweaks(); }
+}));
+const cleanLoaded = {};
+function loadCleanup() { /* junk tab is on-demand via button */ }
+
+$("#btnJunkScan").onclick = async () => {
+  $("#junkBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Measuring caches…</span></div>`;
+  const r = await api.scan_junk();
+  $("#junkTotal").textContent = r.total ? pill("info", fmtBytes(r.total) + " reclaimable") : "";
+  if (!r.categories.length) { $("#junkBody").innerHTML = emptyState("check", "Nothing to clean"); return; }
+  $("#junkBody").innerHTML = r.categories.map(c => `
+    <label class="pick-row"><input type="checkbox" checked data-junk="${c.id}" data-path="${esc(c.path)}">
+      <span class="p-name">${esc(c.label)}${c.path ? `<div class="mono" style="font-size:10.5px; color:var(--text-3); opacity:0.8">${esc(c.path)}</div>` : ""}</span>
+      <span class="muted">${fmtBytes(c.size)}</span></label>`).join("")
+    + `<div class="row mt"><button class="btn primary" id="btnJunkClean">Clean selected</button>
+       <span class="muted" id="junkCleanStatus"></span></div>`;
+  $("#btnJunkClean").onclick = async () => {
+    const boxes = [...$("#junkBody").querySelectorAll("[data-junk]:checked")];
+    const ids = boxes.map(c => c.dataset.junk);
+    if (!ids.length) return;
+    const paths = boxes.map(c => c.dataset.path || "Recycle Bin").filter(Boolean).join("\n");
+    if (!await confirmModal("Clean junk?", "Deletes the selected temp files and caches. Your documents are never touched.", "Clean",
+        "Deletes the contents of:\n" + paths)) return;
+    $("#junkCleanStatus").innerHTML = `<span class="spin"></span>`;
+    const res = await api.clean_junk(ids);
+    toast(`Freed ${fmtBytes(res.freed)}`, "good");
+    $("#btnJunkScan").click();
+  };
+};
+
+$("#btnBigScan").onclick = async () => {
+  const path = $("#bigPath").value.trim();
+  if (!path) { toast("Enter a folder.", "bad"); return; }
+  $("#bigStatus").innerHTML = `<span class="spin"></span>`;
+  const r = await api.find_large_files(path, 100);
+  $("#bigStatus").textContent = r.ok ? `${r.count} file(s) over 100 MB` : "";
+  if (!r.ok) { toast(r.error, "bad"); return; }
+  renderFileList(r.files, "Large files");
+};
+let dupRunning = false;
+$("#btnDupScan").onclick = async () => {
+  if (dupRunning) return;
+  const path = $("#bigPath").value.trim();
+  if (!path) { toast("Enter a folder.", "bad"); return; }
+  const r = await api.start_duplicate_scan(path);
+  if (!r.ok) { toast(r.error, "bad"); return; }
+  dupRunning = true;
+  $("#btnDupScan").disabled = true;
+  $("#bigStatus").innerHTML = `<span class="spin"></span> scanning…`;
+  let fails = 0;
+  const stop = () => { dupRunning = false; $("#btnDupScan").disabled = false; };
+  const poll = async () => {
+    let j;
+    try { j = await api.get_duplicate_job(r.job); }
+    catch { if (++fails > 8) { stop(); $("#bigStatus").textContent = ""; return; } setTimeout(poll, 1500); return; }
+    if (!j.ok) { stop(); $("#bigStatus").textContent = ""; toast("Duplicate scan failed", "bad"); return; }
+    $("#bigStatus").textContent = j.done ? `${j.groups.length} duplicate set(s) · ${fmtBytes(j.wasted)} wasted` : `${j.phase}… ${j.scanned} hashed`;
+    if (!j.done) { setTimeout(poll, 700); return; }
+    stop();
+    $("#bigResult").innerHTML = j.groups.length ? j.groups.map(g => `
+      <div class="card" style="margin-bottom:8px; padding:12px">
+        <div class="row" style="justify-content:space-between; margin-bottom:6px">
+          <span class="strong">${g.count} copies · ${fmtBytes(g.size)} each · ${fmtBytes(g.wasted)} wasted</span></div>
+        ${g.files.map((f, i) => `<div class="an-row"><span class="nm copy" title="${esc(f)}">${esc(f)}</span>
+          ${i === 0 ? `<span class="muted" style="font-size:11px">keep</span>` : `<button class="btn ghost small" data-recycle="${esc(f)}">Recycle</button>`}</div>`).join("")}
+      </div>`).join("") : emptyState("check", "No duplicates found");
+  };
+  poll();
+};
+$("#bigResult").addEventListener("click", async e => {
+  const b = e.target.closest("[data-recycle]");
+  if (!b) return;
+  if (!await confirmModal("Recycle file?", "Send this file to the Recycle Bin? It stays recoverable until the bin is emptied.", "Recycle", b.dataset.recycle)) return;
+  const r = await api.recycle_files([b.dataset.recycle]);
+  toast(r.ok ? "Sent to Recycle Bin" : r.error, r.ok ? "good" : "bad");
+  if (r.ok) b.closest(".an-row").remove();
+});
+function renderFileList(files, title) {
+  $("#bigResult").innerHTML = `<div class="card"><h3>${title}</h3>${files.length ? files.map(f => `
+    <div class="an-row"><span class="nm copy" title="${esc(f.path)}">${esc(f.path)}</span>
+      <span class="sz">${fmtBytes(f.size)}</span>
+      <button class="btn ghost small row-action" data-recycle="${esc(f.path)}">Recycle</button>
+      <button class="btn ghost small row-action" data-reveal="${esc(f.path)}">${ico("open", "ic sm")}</button></div>`).join("")
+    : emptyState("check", "No files over the threshold")}</div>`;
+}
+$("#bigResult").addEventListener("click", e => {
+  const r = e.target.closest("[data-reveal]");
+  if (r) api.open_path(r.dataset.reveal);
+});
+
+async function loadDebloat() {
+  const apps = await api.list_appx();
+  const groups = { bloat: "Recommended to remove", optional: "Optional", other: "Other apps" };
+  $("#debloatBody").innerHTML = Object.keys(groups).map(g => {
+    const list = apps.filter(a => a.category === g);
+    if (!list.length) return "";
+    return `<div class="drawer-sec">${groups[g]}</div>` + list.map(a => `
+      <label class="pick-row"><input type="checkbox" ${g === "bloat" ? "checked" : ""} data-appx="${esc(a.full_name)}">
+        <span class="p-name">${esc(a.friendly)} ${g === "bloat" ? `<span class="tag-bloat">bloat</span>` : ""}
+          <span class="muted" style="font-size:11px"> · ${esc(a.publisher)}</span></span></label>`).join("");
+  }).join("") + `<div class="row mt"><button class="btn danger" id="btnDebloat">Remove selected</button>
+    <span class="muted" id="debloatStatus"></span></div>`;
+  $("#btnDebloat").onclick = async () => {
+    const names = [...$("#debloatBody").querySelectorAll("[data-appx]:checked")].map(c => c.dataset.appx);
+    if (!names.length) return;
+    if (!await confirmModal("Remove apps?", `Uninstall ${names.length} app(s) for the current user? They can be reinstalled from the Store.`, "Remove",
+        "Runs Remove-AppxPackage for the current user only. System packages are never touched; nothing is deleted for other users.")) return;
+    $("#debloatStatus").innerHTML = `<span class="spin"></span>`;
+    const r = await api.remove_appx(names);
+    toast(`Removed ${r.removed}${r.errors.length ? `, ${r.errors.length} failed` : ""}`, r.errors.length ? "warn" : "good");
+    cleanLoaded.debloat = false; loadDebloat();
+  };
+}
+
+async function loadTweaks() {
+  const r = await api.get_tweaks();
+  const cats = ["Performance", "Privacy", "Interface"];
+  $("#tweaksBody").innerHTML = cats.map(cat => {
+    const items = r.items.filter(i => i.cat === cat);
+    if (!items.length) return "";
+    return `<div class="card" style="margin-bottom:12px"><h3>${cat}</h3>` + items.map(i => `
+      <div class="toggle-row">
+        <div class="t-info">
+          <div class="t-name">${esc(i.label)}${i.admin ? `<span class="muted" style="font-size:11px"> · admin</span>` : ""}${i.restart === "reboot" ? `<span class="muted" style="font-size:11px"> · needs reboot</span>` : ""}</div>
+          <div class="t-help">${esc(i.help)}</div>
+          <div class="t-help mono copy" style="font-size:10.5px; margin-top:2px; opacity:0.8">${esc(i.where)}</div>
+        </div>
+        <button class="switch ${i.enabled ? "on" : ""}" data-tweak="${i.key}" data-restart="${i.restart || ""}" ${i.admin && !r.is_admin ? "disabled" : ""}></button>
+      </div>`).join("") + `</div>`;
+  }).join("");
+  $("#tweaksBody").querySelectorAll("[data-tweak]").forEach(sw => sw.onclick = async () => {
+    const enable = !sw.classList.contains("on");
+    const res = await api.set_tweak(sw.dataset.tweak, enable);
+    if (!res.ok) { toast(res.error, "bad"); return; }
+    sw.classList.toggle("on", enable);
+    toast(enable ? "Applied" : "Restored Windows default", "good", 1500);
+    if (sw.dataset.restart === "explorer") $("#explorerRow").style.display = "";
+    if (sw.dataset.restart === "reboot") toast("Takes effect after a reboot.", "info", 3000);
+  });
+}
+$("#cleanTabTweaks").addEventListener("click", async e => {
+  const plan = e.target.closest("[data-plan]");
+  if (plan) {
+    const r = await api.set_power_plan(plan.dataset.plan);
+    $("#planStatus").textContent = r.ok ? `Active: ${r.label}` : "";
+    toast(r.ok ? `Power plan: ${r.label}` : r.error, r.ok ? "good" : "bad");
+  }
+});
+$("#btnRestartExplorer").onclick = async () => {
+  const r = await api.restart_explorer();
+  toast(r.ok ? "Explorer restarted" : r.error, r.ok ? "good" : "bad");
+  if (r.ok) $("#explorerRow").style.display = "none";
+};
+
+/* ================= in-app changelog ================= */
+const CHANGELOG = [
+  { v: "1.6.0", name: "Tweaks & transparency", items: [
+    "New Tweaks tab in Cleanup — performance (Game Mode, GPU scheduling, power plans), privacy (Copilot, Recall, web search, location) and Windows interface toggles (taskbar, file extensions, dark mode).",
+    "Every action that changes Windows now shows exactly what it does and where it writes.",
+    "This in-app changelog.",
+    "Security & stability hardening after a full code and security review — content-security-policy, encrypted API-key storage, and safer file cleanup.",
+  ] },
+  { v: "1.5.0", name: "Safety, cleanup & malware triage", items: [
+    "Security hub: autostart persistence map with VirusTotal checks, browser-hijack scan, and a remote-access / scam check.",
+    "New Cleanup page: junk files, large & duplicate finder, app debloat.",
+    "New Fix-It page with guided runbooks for common problems.",
+    "Restore-point safety net and a backup-posture audit in the Toolbox.",
+    "Per-process deep inspect, a reliability timeline, USB device history, and startup-impact ratings.",
+    "iCloud appearance with a customizable glass background.",
+  ] },
+  { v: "1.4.0", name: "Field kit & stability", items: [
+    "LAN toolkit: subnet scanner, Wake-on-LAN, DHCP/DNS health, and a port profiler.",
+    "Fleet: remote machine snapshots over WinRM and cross-machine report comparison.",
+    "Live sensors, third-party driver audit, memory diagnostic, battery health trend, and a paste-ready ticket summary.",
+    "Resolved a rare unresponsiveness when left idle for long periods; added background crash logging.",
+  ] },
+  { v: "1.3.0", name: "Security & reporting", items: [
+    "Correct third-party antivirus detection; HTML + PDF report export.",
+    "Event-log triage with plain-English explanations and one-click fixes, plus a crashes / BSOD view.",
+    "A faster, lighter dashboard.",
+  ] },
+  { v: "1.2.0", name: "Repair power tools", items: [
+    "Repair toolbox: SFC, DISM, chkdsk, Winsock reset and Windows Update cache reset.",
+    "Problem-device audit, printer triage, scheduled tasks, browser extensions and pending updates.",
+    "Configuration baseline snapshot & diff, and a Ctrl+K command palette.",
+  ] },
+  { v: "1.1.0", name: "Refined experience", items: [
+    "Polished interface and faster deep pages, click-to-copy values, and remediation links throughout.",
+  ] },
+  { v: "1.0.0", name: "First release", items: [
+    "Live dashboard, full hardware inventory, SMART storage, network tools, process manager, software audit, health score and event log — with a standalone report.",
+  ] },
+];
+function renderChangelog() {
+  $("#clBody").innerHTML = CHANGELOG.map((r, i) => `<div class="cl-ver">
+    <div class="v"><b>${esc(r.v)}</b><span class="name">${esc(r.name)}</span>${i === 0 ? `<span class="latest">Latest</span>` : ""}</div>
+    <ul>${r.items.map(it => `<li>${esc(it)}</li>`).join("")}</ul></div>`).join("");
+}
+function openChangelog() {
+  renderChangelog();
+  $("#changelog-veil").hidden = false;
+  $("#verDot")?.remove();
+  api.set_setting("last_seen_version", CHANGELOG[0].v);
+}
+$("#clClose").onclick = () => { $("#changelog-veil").hidden = true; };
+$("#changelog-veil").addEventListener("click", e => { if (e.target.id === "changelog-veil") $("#changelog-veil").hidden = true; });
+
+/* ================= command palette ================= */
+const PAGE_LABELS = { dashboard: "Dashboard", system: "System", storage: "Storage",
+  network: "Network", processes: "Processes", software: "Software", devices: "Devices",
+  health: "Health audit", events: "Event log", toolbox: "Toolbox", security: "Security",
+  fleet: "Fleet", fixit: "Fix-It", cleanup: "Cleanup" };
+const PALETTE_ITEMS = [
+  ...PAGES.map((p, i) => ({
+    cat: "Pages", icon: "chev", label: PAGE_LABELS[p] || p,
+    hint: i === 9 ? "0" : i < 9 ? String(i + 1) : "", run: () => showPage(p),
+  })),
+  { cat: "Actions", icon: "shield", label: "Check a file on VirusTotal", run: () => { showPage("security"); $("#btnVtBrowse").click(); } },
+  { cat: "Actions", icon: "wrench", label: "Scan the local subnet", run: () => { showPage("network"); $(`#lanTabs [data-lan="scan"]`).click(); $("#btnScanStart").click(); } },
+  { cat: "Actions", icon: "copy", label: "Copy ticket summary", run: async () => { const t = await api.get_ticket_summary(); navigator.clipboard.writeText(t.text).then(() => toast("Ticket summary copied", "good", 2000)); } },
+  { cat: "Actions", icon: "chev", label: "Remote snapshot…", run: () => { showPage("fleet"); $("#rmHost").focus(); } },
+  { cat: "Actions", icon: "bug", label: "Autostart persistence map", run: () => { showPage("security"); $(`#secTabs [data-sec="autoruns"]`).click(); } },
+  { cat: "Actions", icon: "shield", label: "Browser hijack scan", run: () => { showPage("security"); $(`#secTabs [data-sec="hijack"]`).click(); } },
+  { cat: "Actions", icon: "shield", label: "Remote-access / scam check", run: () => { showPage("security"); $(`#secTabs [data-sec="remote"]`).click(); } },
+  { cat: "Actions", icon: "broom", label: "Scan for junk files", run: () => { showPage("cleanup"); $("#btnJunkScan").click(); } },
+  { cat: "Actions", icon: "shield", label: "Create a restore point", run: () => { showPage("toolbox"); $("#btnRpCreate").click(); } },
+  { cat: "Actions", icon: "aid", label: "Guided Fix-It runbooks", run: () => showPage("fixit") },
+  { cat: "Actions", icon: "history", label: "What's new (changelog)", run: openChangelog },
+  { cat: "Actions", icon: "cpu2", label: "Windows tweaks", run: () => { showPage("cleanup"); $(`#cleanTabs [data-clean="tweaks"]`).click(); } },
+  { cat: "Actions", icon: "download", label: "Export health report", run: () => $("#btnReport").click() },
+  { cat: "Actions", icon: "layers", label: "Save configuration baseline", run: () => { showPage("toolbox"); $("#btnBlSave").click(); } },
+  { cat: "Actions", icon: "layers", label: "Compare with baseline", run: () => { showPage("toolbox"); $("#btnBlCompare").click(); } },
+  { cat: "Actions", icon: "zap", label: "Run speed test", run: () => { showPage("network"); $(`#netTabs [data-tool="speed"]`).click(); $("#btnNetRun").click(); } },
+  { cat: "Actions", icon: "refresh", label: "Flush DNS cache", run: flushDns },
+  { cat: "Actions", icon: "wrench", label: "Run System File Checker", run: () => { showPage("toolbox"); $(`[data-run="sfc"]`)?.click(); } },
+  { cat: "Actions", icon: "folder", label: "Analyze C: drive space", run: () => { showPage("storage"); analyzePath("C:\\"); } },
+  { cat: "Actions", icon: "shield", label: "Re-run health audit", run: () => { showPage("health"); loadHealth(true); } },
+];
+let palSel = 0, palMatches = [];
+function openPalette() {
+  $("#palette-veil").classList.add("open");
+  const input = $("#paletteInput");
+  input.value = ""; palSel = 0;
+  renderPalette();
+  input.focus();
+}
+function closePalette() { $("#palette-veil").classList.remove("open"); }
+function renderPalette() {
+  const q = $("#paletteInput").value.trim().toLowerCase();
+  palMatches = PALETTE_ITEMS.filter(x => !q || x.label.toLowerCase().includes(q));
+  palSel = Math.min(palSel, Math.max(0, palMatches.length - 1));
+  let lastCat = "";
+  $("#paletteList").innerHTML = palMatches.map((x, i) => {
+    const cat = x.cat !== lastCat ? `<div class="pal-cat">${x.cat}</div>` : "";
+    lastCat = x.cat;
+    return cat + `<div class="pal-item ${i === palSel ? "sel-item" : ""}" data-i="${i}">
+      ${ico(x.icon, "ic")}<span>${esc(x.label)}</span>${x.hint ? `<span class="hint">${x.hint}</span>` : ""}</div>`;
+  }).join("") || `<div class="empty" style="padding:20px">No matches</div>`;
+}
+$("#paletteInput").addEventListener("input", () => { palSel = 0; renderPalette(); });
+$("#paletteInput").addEventListener("keydown", e => {
+  if (e.key === "Escape") { closePalette(); return; }
+  if (e.key === "ArrowDown") { e.preventDefault(); palSel = Math.min(palSel + 1, palMatches.length - 1); renderPalette(); }
+  if (e.key === "ArrowUp") { e.preventDefault(); palSel = Math.max(palSel - 1, 0); renderPalette(); }
+  if (e.key === "Enter" && palMatches[palSel]) { closePalette(); palMatches[palSel].run(); }
+});
+$("#paletteList").addEventListener("click", e => {
+  const item = e.target.closest(".pal-item");
+  if (item) { closePalette(); palMatches[+item.dataset.i].run(); }
+});
+$("#palette-veil").addEventListener("click", e => { if (e.target.id === "palette-veil") closePalette(); });
+
+/* ================= report ================= */
+$("#btnReport").onclick = async () => {
+  const btn = $("#btnReport");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const old = btn.innerHTML;
+  const restore = () => { btn.disabled = false; btn.innerHTML = old; };
+  try {
+    const start = await api.start_report();
+    if (!start.ok) { restore(); toast(start.error, "bad"); return; }
+    let reportFails = 0;
+    const poll = async () => {            // self-chaining — no overlapping ticks
+      let j;
+      try { j = await api.get_report_job(start.job); reportFails = 0; }
+      catch { if (++reportFails > 8) { restore(); return; } setTimeout(poll, 1500); return; }
+      if (!j.ok) { restore(); toast(j.error, "bad"); return; }
+      if (!j.done) {
+        btn.innerHTML = `<span class="spin"></span> ${esc(j.stages[j.stage] ?? "Working")}…`;
+        setTimeout(poll, 600);
+        return;
+      }
+      restore();
+      if (j.result_ok) {
+        toast(`Report saved${j.pdf ? " (HTML + PDF)" : ""}: ${j.html}`, "good", 7000);
+        api.open_in_browser(j.pdf || j.html);
+      } else {
+        toast("Report failed: " + (j.error || "unknown error"), "bad", 7000);
+      }
+    };
+    poll();
+  } catch (e) {
+    restore();
+    toast("Report failed to start: " + e, "bad");
+  }
+};
+
+/* ================= go ================= */
+boot();
+initDriveChips();
+const startPage = location.hash.slice(1).split(",")[0];
+if (startPage && PAGES.includes(startPage)) showPage(startPage);
