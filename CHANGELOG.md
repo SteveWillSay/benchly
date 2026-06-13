@@ -3,6 +3,26 @@
 All notable changes to Benchly. Dates are when each release was built.
 Versioning is semantic-ish: minor versions add features, patch versions fix/polish.
 
+## [1.7.0] — 2026-06-13
+
+The "know who you're dealing with" release — domain & website intelligence.
+
+### Added
+- **Domain & website lookup** (Network) — type any domain or URL and get a
+  one-screen trust check, with a plain-English verdict that flags young
+  domains, invalid certificates and poor reputation:
+  - *Registration (WHOIS/RDAP)* — registrar, registration / update / expiry
+    dates, domain age, registry status flags, registrant org and abuse contact.
+  - *DNS* — A / AAAA / NS / MX records, plus SPF and DMARC checks for how
+    spoofable the domain's email is.
+  - *Hosting* — the resolved IP, reverse DNS, and the owning network /
+    organisation and country (via RDAP, no API key needed).
+  - *TLS certificate* — issuer, validity window, an expiry countdown, whether
+    it validates against the hostname, and the names it covers.
+  - *Reputation* — VirusTotal domain verdict when an API key is configured.
+  - Privacy: only the domain name leaves the machine (to rdap.org, and to
+    VirusTotal if enabled), plus a TLS handshake to the host.
+
 ## [1.6.0] — 2026-06-12
 
 Windows tweaks and full change-transparency.

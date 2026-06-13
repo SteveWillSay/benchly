@@ -703,6 +703,132 @@ $("#btnNetClear").onclick = () => {
   c.innerHTML = `<span class="console-empty">Enter a target and press Run. The session log accumulates here.</span>`;
 };
 
+/* ---- Domain & website lookup ---- */
+const domDate = s => s ? esc(String(s).slice(0, 10)) : "—";
+const domRow = (k, v) => (v == null || v === "") ? "" :
+  `<div class="dr"><span class="dk">${esc(k)}</span><span class="dv">${v}</span></div>`;
+
+function renderDomain(r) {
+  const sec = (title, rows) => {
+    const body = rows.filter(Boolean).join("");
+    return body ? `<div class="dom-sec"><h4>${esc(title)}</h4>${body}</div>` : "";
+  };
+
+  // Verdict
+  const flags = (r.flags || []).map(f => {
+    const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q";
+    return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`;
+  }).join("");
+  const verdict = `<div class="dom-verdict">${flags ||
+    `<div class="dom-flag info">${ico("q")}<span>No specific signals — review the details below.</span></div>`}</div>`;
+
+  // Registration (WHOIS/RDAP)
+  const rd = r.rdap;
+  const whois = rd ? sec("Registration · WHOIS", [
+    domRow("Registrar", esc(rd.registrar || "—")),
+    domRow("Registered", domDate(rd.created)),
+    domRow("Updated", domDate(rd.updated)),
+    domRow("Expires", domDate(rd.expires)),
+    domRow("Age", rd.age_days != null ? esc(rd.age_days >= 365
+      ? `${Math.floor(rd.age_days / 365)} yr ${rd.age_days % 365} d` : `${rd.age_days} days`) : ""),
+    domRow("Registrant", rd.registrant_org ? esc(rd.registrant_org) : `<span class="muted">redacted / private</span>`),
+    domRow("Abuse", rd.abuse_email ? `<span class="mono copy">${esc(rd.abuse_email)}</span>` : ""),
+    rd.statuses && rd.statuses.length ? domRow("Status",
+      rd.statuses.map(s => pill("unk", s)).join(" ")) : "",
+    rd.nameservers && rd.nameservers.length ? domRow("Nameservers",
+      `<span class="mono">${esc(rd.nameservers.slice(0, 4).join("\n"))}</span>`) : "",
+  ]) : sec("Registration · WHOIS", [
+    `<div class="muted" style="font-size:12px">${esc(r.rdap_error || "No registration data.")}</div>`]);
+
+  // DNS
+  const d = r.dns || {};
+  const mxView = (d.mx || []).length
+    ? ((d.mx[0].host === ".") ? `<span class="muted">Null MX — accepts no email</span>`
+       : `<span class="mono">${esc(d.mx.slice(0, 4).map(m => `${m.pref ?? ""} ${m.host}`.trim()).join("\n"))}</span>`)
+    : "";
+  const dns = sec("DNS records", [
+    domRow("A", d.a && d.a.length ? `<span class="mono copy">${esc(d.a.slice(0, 4).join("\n"))}</span>` : ""),
+    domRow("AAAA", d.aaaa && d.aaaa.length ? `<span class="mono">${esc(d.aaaa.slice(0, 2).join("\n"))}</span>` : ""),
+    domRow("NS", d.ns && d.ns.length ? `<span class="mono">${esc(d.ns.slice(0, 4).join("\n"))}</span>` : ""),
+    domRow("MX", mxView),
+    domRow("Email auth", `${d.spf ? pill("good", "SPF") : pill("warn", "no SPF")} ${d.dmarc ? pill("good", "DMARC") : pill("warn", "no DMARC")}`),
+  ]);
+
+  // Hosting (IP)
+  const ip = r.ip;
+  const hosting = ip ? sec("Hosting", [
+    domRow("IP address", `<span class="mono copy">${esc(ip.addr || "—")}</span>`),
+    domRow("Reverse DNS", ip.ptr ? `<span class="mono">${esc(ip.ptr)}</span>` : `<span class="muted">none</span>`),
+    domRow("Network / org", esc(ip.org || ip.network || "—")),
+    domRow("Country", esc(ip.country || "—")),
+  ]) : "";
+
+  // TLS certificate
+  const t = r.tls || {};
+  let tls;
+  if (t.ok) {
+    const vpill = t.verified ? pill("good", "Valid & trusted") : pill("warn", "Not validated");
+    const dl = t.days_left;
+    const dlView = dl == null ? "—" : dl < 0 ? pill("bad", `expired ${-dl} d ago`)
+      : dl < 14 ? pill("warn", `${dl} days left`) : esc(`${dl} days left`);
+    tls = sec("TLS certificate", [
+      domRow("Status", vpill + (t.verify_error && !t.verified ? ` <span class="muted">${esc(t.verify_error)}</span>` : "")),
+      domRow("Issuer", esc(t.issuer || "—")),
+      domRow("Subject", t.subject_cn ? `<span class="mono">${esc(t.subject_cn)}</span>` : ""),
+      domRow("Valid until", `${domDate(t.not_after)} · ${dlView}`),
+      domRow("Covers", t.san_count ? esc(`${t.san_count} name(s): ${t.sans.slice(0, 4).join(", ")}${t.san_count > 4 ? "…" : ""}`) : ""),
+    ]);
+  } else {
+    tls = sec("TLS certificate", [
+      `<div class="dom-flag warn">${ico("bang")}<span>No HTTPS on port 443${t.error ? ` — ${esc(t.error)}` : ""}</span></div>`]);
+  }
+
+  // Reputation (VirusTotal)
+  let rep = "";
+  const vt = r.vt;
+  if (vt && vt.found && vt.error == null) {
+    const verdictPill = vt.malicious ? pill("bad", `${vt.malicious} malicious`)
+      : vt.suspicious ? pill("warn", `${vt.suspicious} suspicious`) : pill("good", "clean");
+    rep = sec("Reputation · VirusTotal", [
+      domRow("Verdict", verdictPill),
+      domRow("Detections", esc(`${vt.malicious} malicious · ${vt.suspicious} suspicious · ${vt.harmless} harmless`)),
+      vt.reputation != null ? domRow("Community score", esc(String(vt.reputation))) : "",
+      domRow("Report", `<a href="${esc(vt.link)}" class="lnk" data-ext="1">Open on VirusTotal</a>`),
+    ]);
+  } else if (vt && vt.error) {
+    rep = sec("Reputation · VirusTotal", [`<div class="muted" style="font-size:12px">${esc(vt.error)}</div>`]);
+  } else if (vt == null) {
+    rep = sec("Reputation · VirusTotal", [
+      `<div class="muted" style="font-size:12px">Add a VirusTotal API key in Security → VirusTotal to include domain reputation here.</div>`]);
+  }
+
+  return `${verdict}<div class="dom-grid">${whois}${dns}${hosting}${tls}${rep}</div>`;
+}
+
+async function runDomainLookup() {
+  const q = $("#domHost").value.trim();
+  if (!q) return;
+  const btn = $("#btnDomLookup");
+  btn.disabled = true;
+  $("#domStatus").innerHTML = `<span class="spin"></span> looking up…`;
+  $("#domResult").innerHTML = "";
+  try {
+    const r = await api.lookup_domain(q);
+    if (!r.ok) { $("#domStatus").innerHTML = pill("bad", r.error); return; }
+    $("#domStatus").innerHTML = `<span class="muted mono">${esc(r.domain)}</span>`;
+    $("#domResult").innerHTML = renderDomain(r);
+  } catch (e) {
+    $("#domStatus").innerHTML = pill("bad", "Lookup failed");
+  } finally { btn.disabled = false; }
+}
+$("#btnDomLookup").onclick = runDomainLookup;
+$("#domHost").addEventListener("keydown", e => { if (e.key === "Enter") runDomainLookup(); });
+// open VirusTotal report links externally
+$("#domResult").addEventListener("click", e => {
+  const a = e.target.closest('a[data-ext="1"]');
+  if (a) { e.preventDefault(); api.open_in_browser(a.getAttribute("href")); }
+});
+
 /* ================= PROCESSES page ================= */
 let procStop = null, procPaused = false, procData = [];
 let procSort = { key: "cpu", dir: -1 };
@@ -2132,6 +2258,15 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "1.7.0", name: "Domain & website lookup", items: [
+    "New Domain & website lookup in the Network page — check any domain or URL before you trust it.",
+    "WHOIS / RDAP registration: registrar, registration & expiry dates, domain age, status flags, and abuse contact.",
+    "DNS records (A / AAAA / NS / MX) plus SPF and DMARC email-spoofing checks.",
+    "Hosting intelligence: the resolved IP, reverse DNS, and the owning network / organisation and country.",
+    "Live TLS certificate inspection — issuer, validity window, expiry countdown and the names it covers.",
+    "Optional VirusTotal domain reputation when an API key is configured.",
+    "A plain-English trust verdict that flags young domains, invalid certificates and bad reputation.",
+  ] },
   { v: "1.6.0", name: "Tweaks & transparency", items: [
     "New Tweaks tab in Cleanup — performance (Game Mode, GPU scheduling, power plans), privacy (Copilot, Recall, web search, location) and Windows interface toggles (taskbar, file extensions, dark mode).",
     "Every action that changes Windows now shows exactly what it does and where it writes.",
@@ -2195,6 +2330,7 @@ const PALETTE_ITEMS = [
   })),
   { cat: "Actions", icon: "shield", label: "Check a file on VirusTotal", run: () => { showPage("security"); $("#btnVtBrowse").click(); } },
   { cat: "Actions", icon: "wrench", label: "Scan the local subnet", run: () => { showPage("network"); $(`#lanTabs [data-lan="scan"]`).click(); $("#btnScanStart").click(); } },
+  { cat: "Actions", icon: "shield", label: "Look up a domain / website", run: () => { showPage("network"); $("#domHost").focus(); } },
   { cat: "Actions", icon: "copy", label: "Copy ticket summary", run: async () => { const t = await api.get_ticket_summary(); navigator.clipboard.writeText(t.text).then(() => toast("Ticket summary copied", "good", 2000)); } },
   { cat: "Actions", icon: "chev", label: "Remote snapshot…", run: () => { showPage("fleet"); $("#rmHost").focus(); } },
   { cat: "Actions", icon: "bug", label: "Autostart persistence map", run: () => { showPage("security"); $(`#secTabs [data-sec="autoruns"]`).click(); } },

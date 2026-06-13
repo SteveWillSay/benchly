@@ -617,6 +617,32 @@ tbody tr:hover .row-action, .row-action:focus-visible { opacity: 1; }
 .speed-kpi .v small { font-size: 13px; color: var(--text-2); font-weight: 400; }
 .speed-kpi .l { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-top: 2px; }
 
+/* domain & website lookup */
+.dom-verdict { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.dom-flag { display: flex; align-items: center; gap: 9px; padding: 8px 11px; border-radius: var(--r1);
+  font-size: 12.5px; line-height: 1.35; background: var(--surface); border: 1px solid var(--border-1);
+  border-left-width: 3px; }
+.dom-flag .ic { width: 15px; height: 15px; flex: 0 0 auto; }
+.dom-flag.good { border-left-color: var(--ok); background: var(--ok-bg); }
+.dom-flag.good .ic { color: var(--ok); }
+.dom-flag.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+.dom-flag.warn .ic { color: var(--warn); }
+.dom-flag.info { border-left-color: var(--info); background: var(--info-bg); }
+.dom-flag.info .ic { color: var(--info); }
+.dom-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+.dom-sec { background: var(--surface); border: 1px solid var(--border-1); border-radius: var(--r2); padding: 13px 15px; }
+.dom-sec h4 { margin: 0 0 9px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-3); }
+.dom-sec .dr { display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 4px 0;
+  font-size: 12.5px; align-items: start; border-top: 1px solid var(--border-1); }
+.dom-sec .dr:first-of-type { border-top: 0; }
+.dom-sec .dk { color: var(--text-3); }
+.dom-sec .dv { color: var(--text-1); min-width: 0; word-break: break-word; }
+.dom-sec .dv .mono { white-space: pre-line; }
+.dom-sec .dv .pill { margin: 0 3px 3px 0; }
+.lnk { color: var(--accent); text-decoration: none; }
+.lnk:hover { text-decoration: underline; }
+
 /* baseline diff */
 .diff-section { margin-bottom: 14px; }
 .diff-row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border-1); font-size: 12.5px; }

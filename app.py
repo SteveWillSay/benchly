@@ -16,10 +16,10 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      repair, devices, schedtasks, crashes, baseline, updates, browser_ext,
                      speedtest, settings, vt, netscan, temps, drivers, memdiag, batterytrend,
                      remote, fleet, diag, restore, autoruns, threats, runbooks, debloat,
-                     reliability, cleanup, usbhistory, backupaudit, tweaks)
+                     reliability, cleanup, usbhistory, backupaudit, tweaks, domain)
 
 APP_NAME = "Benchly"
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
 
 
 def resource_path(rel: str) -> str:
@@ -146,6 +146,9 @@ class Api:
 
     def flush_dns(self):
         return network.flush_dns()
+
+    def lookup_domain(self, query):
+        return domain.lookup_domain(query)
 
     # --- audit / software / events ----------------------------------------------
     def get_health(self, refresh=False):

@@ -274,6 +274,18 @@
         <div id="netAdapters" class="grid cols-2"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div></div>
 
         <div class="card mt">
+          <h3>Domain &amp; website lookup</h3>
+          <div class="desc" style="margin:-2px 0 10px">Registration (WHOIS/RDAP), DNS, hosting, TLS certificate and reputation — to help you judge whether a domain is trustworthy before you trust it.</div>
+          <div class="row wrap">
+            <input class="input" id="domHost" placeholder="example.com  or  https://site.com/page" style="flex:1; min-width:260px" spellcheck="false" autocomplete="off">
+            <button class="btn primary" id="btnDomLookup">Look up</button>
+            <span class="muted" id="domStatus"></span>
+          </div>
+          <div id="domResult" class="mt"></div>
+          <p class="muted" style="font-size:11.5px; margin-top:10px">Only the domain name leaves this PC (to rdap.org, and to VirusTotal if a key is set), plus a TLS handshake to the host. No browsing data is sent.</p>
+        </div>
+
+        <div class="card mt">
           <h3>LAN toolkit</h3>
           <div class="tabs" id="lanTabs">
             <button class="tab active" data-lan="scan">Subnet scan</button>
