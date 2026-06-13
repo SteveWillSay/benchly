@@ -15,6 +15,26 @@ from . import security
 HKCU = winreg.HKEY_CURRENT_USER
 HKLM = winreg.HKEY_LOCAL_MACHINE
 
+# Win11 classic right-click menu lives behind this CLSID
+_CLASSIC_MENU_CLSID = r"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}"
+_CLASSIC_MENU_INPROC = _CLASSIC_MENU_CLSID + r"\InprocServer32"
+
+
+def _win_build():
+    try:
+        k = winreg.OpenKey(HKLM, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
+        try:
+            v, _ = winreg.QueryValueEx(k, "CurrentBuildNumber")
+            return int(v)
+        finally:
+            winreg.CloseKey(k)
+    except (OSError, ValueError):
+        return 0
+
+
+def _is_win11():
+    return _win_build() >= 22000
+
 # Each tweak:
 #   key, cat, label, help, where (human path), hive, path, name, kind, on, off,
 #   admin (needs elevation), restart_explorer, extra [(name, on, off)] for multi-value
@@ -111,9 +131,112 @@ _TWEAKS = [
      "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
      "name": "AppsUseLightTheme", "kind": "dword", "on": 0, "off": 1,
      "extra": [("SystemUsesLightTheme", 0, 1)]},
+    {"key": "explorer_thispc", "cat": "Interface", "label": "Open Explorer to “This PC”",
+     "help": "Opens File Explorer to This PC instead of Quick Access / Home.",
+     "where": r"HKCU\…\Explorer\Advanced\LaunchTo",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "LaunchTo", "kind": "dword", "on": 1, "off": 2, "restart": "explorer"},
+
+    # ---- ads & noise ----
+    {"key": "lockscreen_ads", "cat": "Ads & noise", "label": "Kill lock-screen ads & tips",
+     "help": "Stops the “fun facts, tips & tricks” advertising overlay on the Spotlight lock screen.",
+     "where": r"HKCU\…\ContentDeliveryManager\RotatingLockScreenOverlayEnabled",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
+     "name": "RotatingLockScreenOverlayEnabled", "kind": "dword", "on": 0, "off": 1,
+     "extra": [("SubscribedContent-338387Enabled", 0, 1)]},
+    {"key": "settings_ads", "cat": "Ads & noise", "label": "Hide suggestions in Settings",
+     "help": "Removes promoted/suggested content from the Settings app.",
+     "where": r"HKCU\…\ContentDeliveryManager\SubscribedContent-338393Enabled",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
+     "name": "SubscribedContent-338393Enabled", "kind": "dword", "on": 0, "off": 1,
+     "extra": [("SubscribedContent-353694Enabled", 0, 1), ("SubscribedContent-353696Enabled", 0, 1)]},
+    {"key": "verbose_login", "cat": "Ads & noise", "label": "Verbose sign-in messages",
+     "help": "Shows detailed “Applying settings…” status at sign-in/out — useful for diagnosing slow logons. Needs a reboot.",
+     "where": r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\VerboseStatus",
+     "hive": HKLM, "path": r"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
+     "name": "VerboseStatus", "kind": "dword", "on": 1, "off": 0, "admin": True, "restart": "reboot"},
+
+    # ---- shutdown ----
+    {"key": "faster_shutdown", "cat": "Performance", "label": "Faster shutdown (force hung apps)",
+     "help": "Shortens how long Windows waits for unresponsive apps and auto-closes them at shutdown. "
+             "Slight risk of losing unsaved work in a frozen app. Sign out to apply.",
+     "where": r"HKCU\Control Panel\Desktop\AutoEndTasks (+ HungAppTimeout, WaitToKillAppTimeout)",
+     "hive": HKCU, "path": r"Control Panel\Desktop",
+     "name": "AutoEndTasks", "kind": "sz", "on": "1", "off": "0",
+     "extra": [("HungAppTimeout", "2000", "5000"), ("WaitToKillAppTimeout", "2000", "20000")]},
+]
+
+# Special tweaks that aren't a simple registry value (handled explicitly below)
+_SPECIAL = [
+    {"key": "classic_menu", "cat": "Interface", "label": "Classic right-click menu",
+     "help": "Restores the full Windows 10 context menu (no “Show more options”). Restarts Explorer.",
+     "where": _CLASSIC_MENU_CLSID + r"\InprocServer32 (empty default)",
+     "special": "classic_menu", "restart": "explorer", "win11_only": True},
+    {"key": "hibernation", "cat": "Performance", "label": "Enable hibernation",
+     "help": "Turns hibernation on (powercfg /hibernate on) and restores the Hibernate option / hiberfil.sys.",
+     "where": r"powercfg /hibernate · HKLM\SYSTEM\CurrentControlSet\Control\Power\HibernateEnabled",
+     "special": "hibernation", "admin": True},
 ]
 
 _BY_KEY = {t["key"]: t for t in _TWEAKS}
+_BY_KEY.update({t["key"]: t for t in _SPECIAL})
+
+
+def _key_exists(hive, path):
+    try:
+        winreg.CloseKey(winreg.OpenKey(hive, path))
+        return True
+    except OSError:
+        return False
+
+
+def _delete_tree(hive, path):
+    """Delete a key and any subkeys (winreg.DeleteKey only removes leaf keys)."""
+    try:
+        k = winreg.OpenKey(hive, path, 0, winreg.KEY_ALL_ACCESS)
+    except OSError:
+        return
+    try:
+        while True:
+            try:
+                sub = winreg.EnumKey(k, 0)
+            except OSError:
+                break
+            _delete_tree(hive, path + "\\" + sub)
+    finally:
+        winreg.CloseKey(k)
+    try:
+        winreg.DeleteKey(hive, path)
+    except OSError:
+        pass
+
+
+def _special_enabled(key):
+    if key == "classic_menu":
+        return _key_exists(HKCU, _CLASSIC_MENU_INPROC)
+    if key == "hibernation":
+        return _read(HKLM, r"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", "dword") == 1
+    return False
+
+
+def _set_special(key, enable):
+    if key == "classic_menu":
+        if enable:
+            k = winreg.CreateKeyEx(HKCU, _CLASSIC_MENU_INPROC, 0, winreg.KEY_SET_VALUE)
+            try:
+                winreg.SetValueEx(k, "", 0, winreg.REG_SZ, "")
+            finally:
+                winreg.CloseKey(k)
+        else:
+            _delete_tree(HKCU, _CLASSIC_MENU_CLSID)
+        return {"ok": True, "restart": "explorer"}
+    if key == "hibernation":
+        r = subprocess.run(["powercfg", "/hibernate", "on" if enable else "off"],
+                           capture_output=True, timeout=15, creationflags=CREATE_NO_WINDOW)
+        if r.returncode == 0:
+            return {"ok": True}
+        return {"ok": False, "error": "powercfg failed — hibernation may be blocked by firmware or policy."}
+    return {"ok": False, "error": "Unknown tweak."}
 
 
 def _read(hive, path, name, kind):
@@ -139,12 +262,22 @@ def _write(hive, path, name, kind, value):
 
 def get_tweaks():
     admin = security.is_admin()
+    win11 = _is_win11()
     items = []
     for t in _TWEAKS:
         current = _read(t["hive"], t["path"], t["name"], t["kind"])
         items.append({
             "key": t["key"], "cat": t["cat"], "label": t["label"], "help": t["help"],
             "where": t["where"], "enabled": current == t["on"],
+            "admin": t.get("admin", False),
+            "restart": t.get("restart"),
+        })
+    for t in _SPECIAL:
+        if t.get("win11_only") and not win11:
+            continue
+        items.append({
+            "key": t["key"], "cat": t["cat"], "label": t["label"], "help": t["help"],
+            "where": t["where"], "enabled": _special_enabled(t["key"]),
             "admin": t.get("admin", False),
             "restart": t.get("restart"),
         })
@@ -157,6 +290,11 @@ def set_tweak(key, enable=True):
         return {"ok": False, "error": "Unknown tweak."}
     if t.get("admin") and not security.is_admin():
         return {"ok": False, "error": f"'{t['label']}' needs elevation — use Run as admin."}
+    if t.get("special"):
+        try:
+            return _set_special(key, enable)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
     value = t["on"] if enable else t["off"]
     try:
         _write(t["hive"], t["path"], t["name"], t["kind"], value)

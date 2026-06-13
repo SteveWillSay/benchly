@@ -642,6 +642,8 @@ tbody tr:hover .row-action, .row-action:focus-visible { opacity: 1; }
 .dom-sec .dv .pill { margin: 0 3px 3px 0; }
 .lnk { color: var(--accent); text-decoration: none; }
 .lnk:hover { text-decoration: underline; }
+.cl-update { background: var(--surface); border: 1px solid var(--border-1); border-radius: var(--r2);
+  padding: 12px 14px; margin-bottom: 14px; }
 
 /* baseline diff */
 .diff-section { margin-bottom: 14px; }

@@ -829,6 +829,72 @@ $("#domResult").addEventListener("click", e => {
   if (a) { e.preventDefault(); api.open_in_browser(a.getAttribute("href")); }
 });
 
+/* ---- URL / redirect unmasker ---- */
+async function runUrlUnmask() {
+  const q = $("#urlInput").value.trim();
+  if (!q) return;
+  $("#btnUrlUnmask").disabled = true;
+  $("#urlStatus").innerHTML = `<span class="spin"></span> tracing…`;
+  $("#urlResult").innerHTML = "";
+  try {
+    const r = await api.unmask_url(q);
+    if (!r.ok) { $("#urlStatus").innerHTML = pill("bad", r.error); return; }
+    $("#urlStatus").textContent = "";
+    const flags = (r.flags || []).map(f => {
+      const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q";
+      return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`;
+    }).join("");
+    const chain = r.hops.map((h, i) => {
+      const tag = h.shortener ? pill("info", "shortener") : "";
+      const extra = h.redirects_to ? `<span class="muted"> → ${esc(h.redirects_to)}</span>`
+        : h.meta_refresh ? `<span class="muted"> ⟳ meta-refresh → ${esc(h.meta_refresh)}</span>`
+        : h.js_redirect ? `<span class="muted"> ⟳ JavaScript redirect (not followed)</span>`
+        : h.error ? `<span style="color:var(--crit)">${esc(h.error)}</span>` : "";
+      return `<div class="dr"><span class="dk">${i + 1}${h.status ? " · " + h.status : ""}</span>
+        <span class="dv mono" style="font-size:11.5px; word-break:break-all">${esc(h.url)} ${tag}${extra}</span></div>`;
+    }).join("");
+    $("#urlResult").innerHTML = `<div class="dom-verdict">${flags}</div>
+      <div class="dom-sec"><h4>Redirect chain (${r.hop_count} hop${r.hop_count === 1 ? "" : "s"})</h4>${chain}</div>`;
+  } finally { $("#btnUrlUnmask").disabled = false; }
+}
+$("#btnUrlUnmask").onclick = runUrlUnmask;
+$("#urlInput").addEventListener("keydown", e => { if (e.key === "Enter") runUrlUnmask(); });
+
+/* ---- Wi-Fi analyzer ---- */
+function signalBars(pct) {
+  if (pct == null) return "";
+  const cls = pct >= 67 ? "good" : pct >= 40 ? "warn" : "bad";
+  return `<span class="pill ${cls}">${pct}%${" · " + (Math.round(pct / 2 - 100))} dBm</span>`;
+}
+$("#btnWifiScan").onclick = async () => {
+  $("#wifiBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Scanning…</span></div>`;
+  const r = await api.scan_wifi();
+  if (!r.ok) { $("#wifiBody").innerHTML = `<div class="muted">${esc(r.error)}</div>`; return; }
+  if (!r.available) {
+    let cta = "";
+    if (r.reason === "location_off") cta = `<button class="btn small mt" id="btnWifiLoc">Open Location settings</button>`;
+    $("#wifiBody").innerHTML = `<div class="dom-flag info">${ico("q")}<span>${esc(r.message)}</span></div>${cta}`;
+    $("#btnWifiLoc") && ($("#btnWifiLoc").onclick = () => api.open_settings("ms-settings:privacy-location"));
+    return;
+  }
+  const cong = r.congestion_24 || {};
+  const congLine = (cong[1] || cong[6] || cong[11])
+    ? `<div class="muted" style="font-size:11.5px; margin-bottom:8px">2.4 GHz congestion — ch 1: ${cong[1] || 0} · ch 6: ${cong[6] || 0} · ch 11: ${cong[11] || 0} networks (use the least busy of 1/6/11)</div>`
+    : "";
+  const cur = r.current;
+  const curLine = cur ? `<div class="dom-flag good" style="margin-bottom:10px">${ico("check")}<span>Connected to <b>${esc(cur.ssid || "?")}</b> · ${esc(cur.signal || "")} · ${esc(cur.band || "")} ch ${esc(cur.channel || "?")} · ${esc(cur.rx || "?")}/${esc(cur.tx || "?")} Mbps</span></div>` : "";
+  $("#wifiBody").innerHTML = curLine + congLine + `<div class="table-wrap" style="max-height:340px"><table>
+    <thead><tr><th>Network</th><th>Signal</th><th>Band</th><th>Ch</th><th>Radio</th><th>Security</th></tr></thead><tbody>
+    ${r.aps.map(a => `<tr>
+      <td class="strong">${esc(a.ssid)}<div class="muted mono" style="font-size:10.5px">${esc(a.bssid)}</div></td>
+      <td>${signalBars(a.signal)}</td>
+      <td class="muted">${esc(a.band || "—")}</td>
+      <td class="mono">${esc(a.channel ?? "—")}</td>
+      <td class="muted" style="font-size:11px">${esc(a.radio || "")}</td>
+      <td class="muted" style="font-size:11px">${esc(a.auth || "")}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+};
+
 /* ================= PROCESSES page ================= */
 let procStop = null, procPaused = false, procData = [];
 let procSort = { key: "cpu", dir: -1 };
@@ -899,6 +965,7 @@ async function loadSoftware() {
 async function switchSw(kind) {
   curSw = kind;
   $$("#swTabs .tab").forEach(t => t.classList.toggle("active", t.dataset.sw === kind));
+  if (kind === "appupdates") { renderAppUpdates(); return; }            // winget, on-demand
   if (kind === "updates" && !swCache.updates) { renderSw(); return; }   // on-demand, it's slow
   if (!swCache[kind]) {
     $("#swBody").innerHTML = `<div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div>`;
@@ -991,6 +1058,81 @@ function renderSw() {
     $("#btnOpenWU2").onclick = () => api.open_settings("ms-settings:windowsupdate");
     $("#btnRecheckUpdates").onclick = () => { swCache.updates = null; checkUpdates(); };
   }
+}
+
+/* ---- App updates (winget) ---- */
+let appUpdates = null;
+let appUpdateJob = null;
+function renderAppUpdates() {
+  if (appUpdates === null) {
+    $("#swBody").innerHTML = `<div class="card">
+      <p class="muted" style="font-size:12.5px; margin-bottom:12px">Finds installed apps with a newer version available
+      via the Windows Package Manager (winget) and updates them — individually or all at once.</p>
+      <button class="btn primary" id="btnAppScan">Check for app updates</button></div>`;
+    $("#btnAppScan").onclick = scanAppUpdates;
+    return;
+  }
+  if (appUpdates.error === "no_winget") {
+    $("#swBody").innerHTML = `<div class="card">${emptyState("bang", "winget isn't available",
+      "Install “App Installer” from the Microsoft Store to enable app updates.")}</div>`;
+    return;
+  }
+  const rows = appUpdates.updates || [];
+  const body = rows.length
+    ? `<div class="table-wrap"><table>
+        <thead><tr><th>Application</th><th>Installed</th><th>Available</th><th>Source</th><th></th></tr></thead>
+        <tbody>${rows.map(u => `<tr data-appid="${esc(u.id)}">
+          <td class="strong">${esc(u.name)}<div class="muted mono" style="font-size:11px">${esc(u.id)}</div></td>
+          <td class="mono">${esc(u.current)}</td>
+          <td class="mono" style="color:var(--ok)">${esc(u.available)}</td>
+          <td class="muted">${esc(u.source)}</td>
+          <td style="width:110px"><button class="btn ghost small" data-update-id="${esc(u.id)}">Update</button></td>
+        </tr>`).join("")}</tbody></table></div>`
+    : `<div class="card">${emptyState("check", "Everything's up to date", "No app updates available via winget.")}</div>`;
+  $("#swBody").innerHTML = `<div class="row" style="margin-bottom:10px">
+      ${rows.length ? `<button class="btn primary" id="btnUpdateAll">Update all (${rows.length})</button>` : ""}
+      <button class="btn ghost" id="btnAppRescan">Re-check</button>
+      <span class="muted" id="appUpdMsg"></span></div>
+    ${body}
+    <div class="card mt" id="appUpdConsoleCard" style="display:none"><h3>winget output</h3>
+      <div class="console" id="appUpdConsole" style="max-height:280px"></div></div>`;
+  $("#btnAppRescan") && ($("#btnAppRescan").onclick = scanAppUpdates);
+  $("#btnUpdateAll") && ($("#btnUpdateAll").onclick = updateAllApps);
+}
+async function scanAppUpdates() {
+  $("#swBody").innerHTML = `<div class="card"><div class="row"><span class="spin"></span>
+    <span class="muted">Asking winget what has updates…</span></div></div>`;
+  appUpdates = await api.list_app_updates();
+  $("#cntAppUpdates").textContent = appUpdates.ok ? (appUpdates.count || "") : "";
+  renderAppUpdates();
+}
+$("#swBody").addEventListener("click", async e => {
+  const one = e.target.closest("[data-update-id]");
+  if (!one) return;
+  const id = one.dataset.updateId;
+  one.disabled = true; one.textContent = "Updating…";
+  const r = await api.update_app(id);
+  one.textContent = r.ok ? (r.state === "reboot" ? "Reboot" : "Done") : "Failed";
+  toast(r.ok ? `${id}: ${r.message}` : `${id}: ${r.message || r.error}`, r.ok ? "good" : "bad", 3500);
+});
+async function updateAllApps() {
+  const r = await api.update_all_apps();
+  if (!r.ok) { toast(r.error, "bad"); return; }
+  appUpdateJob = r.job;
+  $("#appUpdConsoleCard").style.display = "";
+  $("#btnUpdateAll") && ($("#btnUpdateAll").disabled = true);
+  const con = $("#appUpdConsole");
+  con.textContent = "";
+  let off = 0, fails = 0;
+  const poll = async () => {
+    const g = await api.get_update_all_job(appUpdateJob, off);
+    if (!g.ok) { if (++fails > 8) return; return void setTimeout(poll, 800); }
+    fails = 0;
+    if (g.lines && g.lines.length) { off = g.total; con.textContent += g.lines.join("\n") + "\n"; con.scrollTop = con.scrollHeight; }
+    if (g.done) { toast("App updates finished", g.state === "reboot" ? "warn" : "good", 3000); scanAppUpdates(); return; }
+    setTimeout(poll, 900);
+  };
+  poll();
 }
 
 /* ================= HEALTH page ================= */
@@ -1340,6 +1482,60 @@ async function loadRestoreCard() {
       <td class="strong">${esc(p.description)}</td><td class="muted">${esc(p.type)}</td></tr>`).join("")}
     </tbody></table></div>` : `<p class="muted" style="font-size:12px">No restore points yet.</p>`;
 }
+/* ---- Performance snapshot ("why slow now") ---- */
+let lastSnapshot = null;
+$("#btnSnapStart").onclick = async () => {
+  const btn = $("#btnSnapStart");
+  btn.disabled = true;
+  $("#btnSnapCopy").style.display = "none";
+  $("#snapResult").innerHTML = "";
+  $("#snapBar").style.display = "";
+  $("#snapBarFill").style.width = "0%";
+  const r = await api.start_snapshot(30);
+  if (!r.ok) { toast(r.error, "bad"); btn.disabled = false; $("#snapBar").style.display = "none"; return; }
+  $("#snapStatus").textContent = `sampling ${r.window}s…`;
+  const poll = async () => {
+    const g = await api.get_snapshot(r.job);
+    if (!g.ok) { btn.disabled = false; return; }
+    $("#snapBarFill").style.width = (g.progress || 0) + "%";
+    if (!g.done) { setTimeout(poll, 700); return; }
+    $("#snapBar").style.display = "none";
+    $("#snapStatus").textContent = "";
+    btn.disabled = false;
+    renderSnapshot(g.result);
+  };
+  poll();
+};
+function renderSnapshot(s) {
+  if (!s) { $("#snapResult").innerHTML = `<div class="muted">No data.</div>`; return; }
+  lastSnapshot = s;
+  $("#btnSnapCopy").style.display = "";
+  const c = s.counters || {};
+  const kpis = `<div class="speed-row">
+    <div class="speed-kpi"><div class="v">${s.sys_cpu}<small>%</small></div><div class="l">CPU</div></div>
+    <div class="speed-kpi"><div class="v">${s.mem_pct}<small>%</small></div><div class="l">Memory (${s.mem_avail_mb} MB free)</div></div>
+    <div class="speed-kpi"><div class="v">${s.disk_read_mbs + s.disk_write_mbs}<small> MB/s</small></div><div class="l">Disk I/O</div></div>
+    ${c.disk_queue != null ? `<div class="speed-kpi"><div class="v">${c.disk_queue}</div><div class="l">Disk queue</div></div>` : ""}
+  </div>`;
+  const tbl = (title, rows, val) => `<div class="dom-sec"><h4>${title}</h4>${
+    rows.map(r => `<div class="dr"><span class="dk strong">${esc(r.name)}</span><span class="dv">${val(r)}</span></div>`).join("") || `<div class="muted">—</div>`}</div>`;
+  $("#snapResult").innerHTML = kpis + `<div class="dom-grid" style="margin-top:12px">
+    ${tbl("Top CPU", s.top_cpu, r => r.cpu + "%")}
+    ${tbl("Top memory", s.top_mem, r => r.rss_mb + " MB")}
+    ${tbl("Top disk", s.top_disk, r => r.disk_kb + " KB")}</div>`;
+}
+$("#btnSnapCopy").onclick = () => {
+  if (!lastSnapshot) return;
+  const s = lastSnapshot;
+  const lines = [`Benchly performance snapshot (${s.window}s)`,
+    `CPU ${s.sys_cpu}%  |  Memory ${s.mem_pct}% (${s.mem_avail_mb} MB free)  |  Disk ${s.disk_read_mbs + s.disk_write_mbs} MB/s`,
+    s.counters && s.counters.disk_queue != null ? `Disk queue ${s.counters.disk_queue}  |  Commit ${s.counters.commit_pct}%` : "",
+    "", "Top CPU: " + s.top_cpu.map(r => `${r.name} ${r.cpu}%`).join(", "),
+    "Top memory: " + s.top_mem.map(r => `${r.name} ${r.rss_mb}MB`).join(", "),
+    "Top disk: " + s.top_disk.map(r => `${r.name} ${r.disk_kb}KB`).join(", ")];
+  navigator.clipboard.writeText(lines.filter(Boolean).join("\n")).then(() => toast("Snapshot copied", "good", 1800));
+};
+
 $("#btnRpCreate").onclick = async () => {
   if (!isAdmin) { toast("Creating a restore point needs elevation — use Run as admin.", "bad", 5000); return; }
   const btn = $("#btnRpCreate"); btn.disabled = true; const old = btn.innerHTML;
@@ -1905,12 +2101,94 @@ $$("#secTabs .tab").forEach(t => t.addEventListener("click", () => {
   const which = t.dataset.sec;
   $$("#secTabs .tab").forEach(x => x.classList.toggle("active", x === t));
   for (const [k, id] of [["overview", "secTabOverview"], ["autoruns", "secTabAutoruns"],
-                         ["hijack", "secTabHijack"], ["remote", "secTabRemote"], ["vt", "secTabVt"]])
+                         ["hijack", "secTabHijack"], ["remote", "secTabRemote"], ["vt", "secTabVt"],
+                         ["certs", "secTabCerts"], ["listeners", "secTabListeners"], ["email", "secTabEmail"]])
     $("#" + id).style.display = which === k ? "" : "none";
   if (which === "autoruns" && !secLoaded.autoruns) { secLoaded.autoruns = true; loadAutoruns(); }
   if (which === "hijack" && !secLoaded.hijack) { secLoaded.hijack = true; loadHijack(); }
   if (which === "remote" && !secLoaded.remote) { secLoaded.remote = true; loadRemote(); }
+  if (which === "certs" && !secLoaded.certs) { secLoaded.certs = true; loadCerts(); }
+  if (which === "listeners" && !secLoaded.listeners) { secLoaded.listeners = true; loadListeners(); }
 }));
+
+/* ---- Root certificate audit ---- */
+async function loadCerts() {
+  $("#certBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading the trusted root stores…</span></div>`;
+  const r = await api.audit_certs();
+  if (!r.ok) { $("#certBody").innerHTML = `<div class="muted">${esc(r.error || "Scan failed.")}</div>`; return; }
+  $("#cntCerts").textContent = (r.alert + r.review) ? `${r.alert + r.review}⚠` : r.total;
+  const lvl = { alert: pill("bad", "Interception"), review: pill("warn", "Review"), ok: pill("good", "OK") };
+  const banner = (r.alert || r.review)
+    ? `<div class="dom-flag warn" style="margin-bottom:12px">${ico("bang")}<span>${r.alert} interception and ${r.review} unrecognised root(s) found — review the highlighted entries.</span></div>`
+    : `<div class="dom-flag good" style="margin-bottom:12px">${ico("check")}<span>No unexpected root certificates — ${r.total} trusted roots, all from recognised CAs.</span></div>`;
+  $("#certBody").innerHTML = banner + `<div class="table-wrap" style="max-height:calc(100vh - 380px)"><table>
+    <thead><tr><th></th><th>Subject</th><th>Store</th><th>Expires</th><th>Key</th></tr></thead><tbody>
+    ${r.certs.map(c => `<tr>
+      <td>${lvl[c.level]}</td>
+      <td class="strong copy" style="max-width:420px">${esc(c.subject)}${c.reasons.length ? `<div class="muted" style="font-size:11px">${esc(c.reasons.join(" · "))}</div>` : ""}</td>
+      <td class="muted" style="font-size:11px">${esc(c.store)}</td>
+      <td class="mono" style="font-size:11px">${esc(c.not_after || "—")}</td>
+      <td class="muted" style="font-size:11px">${esc((c.sig || "") + (c.key_size ? " · " + c.key_size + "-bit" : ""))}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+$("#btnCertScan").onclick = () => { secLoaded.certs = true; loadCerts(); };
+
+/* ---- Listening ports ---- */
+async function loadListeners() {
+  $("#listenBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Mapping listening ports to processes…</span></div>`;
+  const r = await api.get_listeners();
+  if (!r.ok) { $("#listenBody").innerHTML = `<div class="muted">${esc(r.error)}</div>`; return; }
+  $("#cntListeners").textContent = r.flagged ? `${r.flagged}⚠` : r.total;
+  const sigBadge = x => x.signed === true ? pill("good", "Signed") : x.signed === false ? pill("warn", "Unsigned") : `<span class="muted" style="font-size:11px">—</span>`;
+  $("#listenBody").innerHTML = `<div class="table-wrap" style="max-height:calc(100vh - 360px)"><table>
+    <thead><tr><th></th><th>Address</th><th>Proto</th><th>Service</th><th>Process</th><th>Signature</th></tr></thead><tbody>
+    ${r.listeners.map(x => `<tr>
+      <td>${x.suspect ? pill("warn", "Check") : x.public ? pill("info", "Public") : `<span class="muted" style="font-size:11px">local</span>`}</td>
+      <td class="mono copy">${esc(x.addr)}${x.reasons && x.reasons.length ? `<div class="muted" style="font-size:11px">${esc(x.reasons.join(" · "))}</div>` : ""}</td>
+      <td>${esc(x.proto)}</td>
+      <td class="muted">${esc(x.service || "")}</td>
+      <td class="strong">${esc(x.process || "?")}${x.signer ? `<div class="muted" style="font-size:11px">${esc(x.signer)}</div>` : ""}</td>
+      <td>${sigBadge(x)}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+}
+$("#btnListenScan").onclick = () => { secLoaded.listeners = true; loadListeners(); };
+
+/* ---- Email header analyzer ---- */
+function renderEmail(r) {
+  const flags = (r.flags || []).map(f => {
+    const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q";
+    return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`;
+  }).join("");
+  const a = r.auth || {};
+  const authPill = (lbl, v) => {
+    const cls = v === "pass" ? "good" : (v === "fail" || v === "softfail") ? "bad" : "unk";
+    return pill(cls, `${lbl} ${v || "—"}`);
+  };
+  const rows = [
+    domRow("From", `${esc(r.from_name || "")} <span class="mono">${esc(r.from_addr || "")}</span>`),
+    domRow("Return-Path", r.return_path ? `<span class="mono">${esc(r.return_path)}</span>` : ""),
+    domRow("Reply-To", r.reply_to ? `<span class="mono">${esc(r.reply_to)}</span>` : ""),
+    domRow("Subject", esc(r.subject || "")),
+    domRow("Auth", `${authPill("SPF", a.spf)} ${authPill("DKIM", a.dkim)} ${authPill("DMARC", a.dmarc)}`),
+    domRow("Origin IP", r.origin_ip ? `<span class="mono copy">${esc(r.origin_ip)}</span>` : `<span class="muted">unknown</span>`),
+    domRow("Mailer", r.x_mailer ? esc(r.x_mailer) : ""),
+  ].filter(Boolean).join("");
+  const hops = (r.hops || []).length
+    ? `<div class="dom-sec" style="margin-top:12px"><h4>Delivery path (origin first)</h4>${
+        [...r.hops].reverse().map((h, i) => `<div class="dr"><span class="dk">${i + 1}</span>
+          <span class="dv mono" style="font-size:11px">${esc((h.ip || "—"))}${h.helo ? " · " + esc(h.helo) : ""}${h.time ? " · " + esc(h.time) : ""}</span></div>`).join("")}</div>`
+    : "";
+  return `<div class="dom-verdict">${flags}</div><div class="dom-grid"><div class="dom-sec"><h4>Message</h4>${rows}</div>${hops}</div>`;
+}
+$("#btnEmailCheck").onclick = async () => {
+  const raw = $("#emailHeaders").value.trim();
+  if (!raw) return;
+  $("#emailResult").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const r = await api.analyze_headers(raw);
+  if (!r.ok) { $("#emailResult").innerHTML = pill("bad", r.error); return; }
+  $("#emailResult").innerHTML = renderEmail(r);
+};
+$("#btnEmailClear").onclick = () => { $("#emailHeaders").value = ""; $("#emailResult").innerHTML = ""; };
 
 let autorunsData = [];
 async function loadAutoruns() {
@@ -2218,7 +2496,7 @@ async function loadDebloat() {
 
 async function loadTweaks() {
   const r = await api.get_tweaks();
-  const cats = ["Performance", "Privacy", "Interface"];
+  const cats = ["Performance", "Privacy", "Interface", "Ads & noise"];
   $("#tweaksBody").innerHTML = cats.map(cat => {
     const items = r.items.filter(i => i.cat === cat);
     if (!items.length) return "";
@@ -2258,6 +2536,17 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "1.8.0", name: "Triage toolkit & app updates", items: [
+    "App updates — find and install updates for your installed apps via winget, individually or all at once (Software → App updates).",
+    "Trusted root certificate audit — flags interception/adware roots and unrecognised self-signed CAs (Security → Root certificates).",
+    "Listening ports — every port the PC accepts connections on, the owning process, and whether it's signed (Security → Listening ports).",
+    "Email header analyzer — paste raw headers to trace the path, originating IP and SPF/DKIM/DMARC, and catch spoofing (Security → Email headers).",
+    "URL / redirect unmasker — expand short links and reveal the real destination, every hop (Network).",
+    "Wi-Fi analyzer — nearby networks, signal, band and 2.4 GHz channel congestion (Network).",
+    "Performance snapshot — a 30-second “why is it slow right now?” capture of the top CPU/memory/disk offenders (Toolbox).",
+    "More tweaks — Windows 11 classic right-click menu, faster shutdown, hibernation, kill lock-screen/Settings ads, verbose sign-in.",
+    "Check for updates — Benchly can now check for a newer release (set your release source in What's new).",
+  ] },
   { v: "1.7.0", name: "Domain & website lookup", items: [
     "New Domain & website lookup in the Network page — check any domain or URL before you trust it.",
     "WHOIS / RDAP registration: registrar, registration & expiry dates, domain age, status flags, and abuse contact.",
@@ -2305,9 +2594,48 @@ const CHANGELOG = [
   ] },
 ];
 function renderChangelog() {
-  $("#clBody").innerHTML = CHANGELOG.map((r, i) => `<div class="cl-ver">
+  const updatePanel = `<div class="cl-update" id="clUpdate">
+    <div class="row" style="align-items:center">
+      <button class="btn small primary" id="btnCheckUpdate">Check for updates</button>
+      <span class="muted" id="updateMsg" style="font-size:12px">Current version ${esc(CHANGELOG[0].v)}</span>
+    </div>
+    <div id="updateResult" style="margin-top:8px"></div>
+  </div>`;
+  $("#clBody").innerHTML = updatePanel + CHANGELOG.map((r, i) => `<div class="cl-ver">
     <div class="v"><b>${esc(r.v)}</b><span class="name">${esc(r.name)}</span>${i === 0 ? `<span class="latest">Latest</span>` : ""}</div>
     <ul>${r.items.map(it => `<li>${esc(it)}</li>`).join("")}</ul></div>`).join("");
+  $("#btnCheckUpdate").onclick = runUpdateCheck;
+}
+async function runUpdateCheck() {
+  $("#updateMsg").innerHTML = `<span class="spin"></span> checking…`;
+  $("#updateResult").innerHTML = "";
+  const r = await api.check_update();
+  if (!r.ok) { $("#updateMsg").innerHTML = pill("bad", r.error); return; }
+  if (!r.configured) {
+    $("#updateMsg").textContent = "";
+    $("#updateResult").innerHTML = `<div class="muted" style="font-size:12px">${esc(r.message)}</div>
+      <div class="row" style="margin-top:6px">
+        <input class="input" id="updateRepo" placeholder="owner/repo (e.g. yourname/benchly)" style="flex:1; min-width:200px" spellcheck="false">
+        <button class="btn small" id="btnSaveRepo">Save</button></div>`;
+    $("#btnSaveRepo").onclick = async () => {
+      const v = $("#updateRepo").value.trim();
+      if (!v) return;
+      await api.set_setting("update_repo", v);
+      toast("Update source saved", "good", 1500);
+      runUpdateCheck();
+    };
+    return;
+  }
+  if (!r.reachable) { $("#updateMsg").innerHTML = pill("warn", r.message); return; }
+  if (r.newer) {
+    $("#updateMsg").innerHTML = pill("good", `Update available: ${r.latest}`);
+    $("#updateResult").innerHTML = `<div class="dom-flag good" style="margin-top:4px">${ico("download")}
+      <span>Benchly ${esc(r.latest)} is available (you have ${esc(r.current)}).
+      <a href="${esc(r.url)}" class="lnk" data-ext="1">Open the release page</a>.</span></div>`;
+    $("#updateResult").querySelector('a[data-ext="1"]').onclick = e => { e.preventDefault(); api.open_in_browser(r.url); };
+  } else {
+    $("#updateMsg").innerHTML = pill("good", `Up to date (${r.current})`);
+  }
 }
 function openChangelog() {
   renderChangelog();
@@ -2331,6 +2659,14 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "shield", label: "Check a file on VirusTotal", run: () => { showPage("security"); $("#btnVtBrowse").click(); } },
   { cat: "Actions", icon: "wrench", label: "Scan the local subnet", run: () => { showPage("network"); $(`#lanTabs [data-lan="scan"]`).click(); $("#btnScanStart").click(); } },
   { cat: "Actions", icon: "shield", label: "Look up a domain / website", run: () => { showPage("network"); $("#domHost").focus(); } },
+  { cat: "Actions", icon: "shield", label: "Unmask a URL / short link", run: () => { showPage("network"); $("#urlInput").focus(); } },
+  { cat: "Actions", icon: "wrench", label: "Scan Wi-Fi networks", run: () => { showPage("network"); $("#btnWifiScan").click(); } },
+  { cat: "Actions", icon: "download", label: "Check for app updates (winget)", run: () => { showPage("software"); $(`#swTabs [data-sw="appupdates"]`).click(); } },
+  { cat: "Actions", icon: "shield", label: "Audit trusted root certificates", run: () => { showPage("security"); $(`#secTabs [data-sec="certs"]`).click(); } },
+  { cat: "Actions", icon: "shield", label: "Listening ports", run: () => { showPage("security"); $(`#secTabs [data-sec="listeners"]`).click(); } },
+  { cat: "Actions", icon: "shield", label: "Analyze email headers (phishing)", run: () => { showPage("security"); $(`#secTabs [data-sec="email"]`).click(); } },
+  { cat: "Actions", icon: "zap", label: "Performance snapshot — why is it slow?", run: () => { showPage("toolbox"); $("#btnSnapStart").click(); } },
+  { cat: "Actions", icon: "download", label: "Check for Benchly updates", run: () => openChangelog() },
   { cat: "Actions", icon: "copy", label: "Copy ticket summary", run: async () => { const t = await api.get_ticket_summary(); navigator.clipboard.writeText(t.text).then(() => toast("Ticket summary copied", "good", 2000)); } },
   { cat: "Actions", icon: "chev", label: "Remote snapshot…", run: () => { showPage("fleet"); $("#rmHost").focus(); } },
   { cat: "Actions", icon: "bug", label: "Autostart persistence map", run: () => { showPage("security"); $(`#secTabs [data-sec="autoruns"]`).click(); } },

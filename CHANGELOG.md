@@ -3,6 +3,43 @@
 All notable changes to Benchly. Dates are when each release was built.
 Versioning is semantic-ish: minor versions add features, patch versions fix/polish.
 
+## [1.8.0] — 2026-06-13
+
+The "triage toolkit & app updates" release — eight new technician tools.
+
+### Added — Updates & maintenance
+- **App updates** (Software → App updates) — finds installed apps with a newer
+  version via the Windows Package Manager (winget) and updates them individually
+  or all at once, with live output.
+- **Check for updates** — Benchly can check a configured GitHub release source for
+  a newer version (set the source from the "What's new" panel).
+- **More Windows tweaks** — Windows 11 classic right-click menu, faster shutdown
+  (force hung apps), enable hibernation, kill lock-screen & Settings ads, verbose
+  sign-in messages, and open Explorer to "This PC". Each documents what it changes
+  and where, and is reversible.
+
+### Added — Security & phishing triage
+- **Trusted root certificate audit** (Security → Root certificates) — flags
+  interception/adware roots (Superfish, antivirus HTTPS scanning, corporate
+  proxies, dev tools) and unrecognised self-signed CAs, with weak-key/old-signature
+  notes.
+- **Listening ports** (Security → Listening ports) — every port the PC accepts
+  connections on, the owning process, and whether that program is signed; unsigned
+  listeners on a network interface are flagged.
+- **Email header analyzer** (Security → Email headers) — paste raw headers to
+  reconstruct the delivery path, find the originating IP, read SPF/DKIM/DMARC and
+  catch the classic spoofing tells (Return-Path / Reply-To / brand mismatches).
+  Parsed entirely locally.
+- **URL / redirect unmasker** (Network) — expands shortened links and reveals the
+  real destination, every hop in the chain, without running page scripts.
+
+### Added — Diagnostics
+- **Wi-Fi analyzer** (Network) — nearby networks, signal/band, and 2.4 GHz channel
+  congestion across the non-overlapping 1 / 6 / 11 channels.
+- **Performance snapshot** (Toolbox) — a 30-second "why is it slow right now?"
+  capture of the top CPU, memory and disk offenders plus system pressure, ready to
+  copy into a ticket.
+
 ## [1.7.0] — 2026-06-13
 
 The "know who you're dealing with" release — domain & website intelligence.

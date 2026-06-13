@@ -16,10 +16,12 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      repair, devices, schedtasks, crashes, baseline, updates, browser_ext,
                      speedtest, settings, vt, netscan, temps, drivers, memdiag, batterytrend,
                      remote, fleet, diag, restore, autoruns, threats, runbooks, debloat,
-                     reliability, cleanup, usbhistory, backupaudit, tweaks, domain)
+                     reliability, cleanup, usbhistory, backupaudit, tweaks, domain,
+                     winget, certaudit, mailcheck, urlcheck, listeners, wifi, slowsnap,
+                     selfupdate)
 
 APP_NAME = "Benchly"
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.8.0"
 
 
 def resource_path(rel: str) -> str:
@@ -149,6 +151,49 @@ class Api:
 
     def lookup_domain(self, query):
         return domain.lookup_domain(query)
+
+    def unmask_url(self, url):
+        return urlcheck.unmask_url(url)
+
+    def scan_wifi(self):
+        return wifi.scan_wifi()
+
+    # --- app updates (winget) ---------------------------------------------------
+    def winget_available(self):
+        return {"ok": True, "available": winget.available()}
+
+    def list_app_updates(self):
+        return winget.list_updates()
+
+    def update_app(self, pkg_id):
+        return winget.update_one(pkg_id)
+
+    def update_all_apps(self):
+        return winget.update_all_job()
+
+    def get_update_all_job(self, job_id, offset=0):
+        return winget.get_update_all_job(job_id, offset)
+
+    # --- phishing & trust triage ------------------------------------------------
+    def audit_certs(self):
+        return certaudit.audit_certs()
+
+    def analyze_headers(self, raw):
+        return mailcheck.analyze_headers(raw)
+
+    def get_listeners(self):
+        return listeners.get_listeners()
+
+    # --- performance snapshot ---------------------------------------------------
+    def start_snapshot(self, window=30):
+        return slowsnap.start_snapshot(window)
+
+    def get_snapshot(self, job_id):
+        return slowsnap.get_snapshot(job_id)
+
+    # --- self update ------------------------------------------------------------
+    def check_update(self):
+        return selfupdate.check_update(APP_VERSION)
 
     # --- audit / software / events ----------------------------------------------
     def get_health(self, refresh=False):

@@ -286,6 +286,24 @@
         </div>
 
         <div class="card mt">
+          <h3>URL / redirect unmasker</h3>
+          <div class="desc" style="margin:-2px 0 10px">Expand a shortened link and reveal where it really ends up — every hop in the redirect chain — without opening it.</div>
+          <div class="row wrap">
+            <input class="input" id="urlInput" placeholder="https://bit.ly/…  or any link" style="flex:1; min-width:260px" spellcheck="false" autocomplete="off">
+            <button class="btn primary" id="btnUrlUnmask">Trace</button>
+            <span class="muted" id="urlStatus"></span>
+          </div>
+          <div id="urlResult" class="mt"></div>
+          <p class="muted" style="font-size:11.5px; margin-top:10px">Benchly only requests the URLs — it never runs page scripts. Note: visiting a link can tip off the sender (tracking pixels) or consume a one-time link.</p>
+        </div>
+
+        <div class="card mt">
+          <h3>Wi-Fi analyzer <span class="right"><button class="btn small" id="btnWifiScan">Scan</button></span></h3>
+          <div class="desc" style="margin:-2px 0 10px">Nearby networks, signal strength, band and 2.4 GHz channel congestion.</div>
+          <div id="wifiBody"><div class="muted" style="font-size:12.5px">Press Scan to list nearby Wi-Fi networks.</div></div>
+        </div>
+
+        <div class="card mt">
           <h3>LAN toolkit</h3>
           <div class="tabs" id="lanTabs">
             <button class="tab active" data-lan="scan">Subnet scan</button>
@@ -386,6 +404,7 @@
           <button class="tab" data-sw="tasks">Scheduled tasks <span class="count" id="cntTasks"></span></button>
           <button class="tab" data-sw="extensions">Browser extensions <span class="count" id="cntExtensions"></span></button>
           <button class="tab" data-sw="updates">Pending updates <span class="count" id="cntUpdates"></span></button>
+          <button class="tab" data-sw="appupdates">App updates <span class="count" id="cntAppUpdates"></span></button>
         </div>
         <div id="swBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div></div></div></div>
       </section>
@@ -494,6 +513,9 @@
           <button class="tab" data-sec="autoruns">Autoruns <span class="count" id="cntAutoruns"></span></button>
           <button class="tab" data-sec="hijack">Browser hijack</button>
           <button class="tab" data-sec="remote">Remote access</button>
+          <button class="tab" data-sec="certs">Root certificates <span class="count" id="cntCerts"></span></button>
+          <button class="tab" data-sec="listeners">Listening ports <span class="count" id="cntListeners"></span></button>
+          <button class="tab" data-sec="email">Email headers</button>
           <button class="tab" data-sec="vt">VirusTotal</button>
         </div>
 
@@ -528,6 +550,45 @@
               Review anything here you didn't set up yourself.
             </p>
             <div id="remoteBody"></div>
+          </div>
+        </div>
+
+        <div id="secTabCerts" style="display:none">
+          <div class="card">
+            <h3>Trusted root certificate audit <span class="right"><button class="btn small" id="btnCertScan">Re-scan</button></span></h3>
+            <p class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px">
+              A rogue or interception root certificate lets software silently read your HTTPS traffic. Benchly flags
+              self-signed roots that aren't from a recognised public CA, plus known antivirus / proxy / adware
+              interception roots. “Few certificates” is normal — Windows fetches public roots on demand.
+            </p>
+            <div id="certBody"></div>
+          </div>
+        </div>
+
+        <div id="secTabListeners" style="display:none">
+          <div class="card">
+            <h3>Listening ports <span class="right"><button class="btn small" id="btnListenScan">Re-scan</button></span></h3>
+            <p class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px">
+              Every port this PC is accepting connections on, the process behind it, and whether that program is
+              digitally signed. Unsigned listeners — especially on a network interface — are worth a second look.
+            </p>
+            <div id="listenBody"></div>
+          </div>
+        </div>
+
+        <div id="secTabEmail" style="display:none">
+          <div class="card">
+            <h3>Email header analyzer <span class="right muted" style="font-size:11px">parsed locally — nothing is sent anywhere</span></h3>
+            <p class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px">
+              Paste the raw headers of a suspicious email (in most clients: ⋯ → “View source” / “Show original”).
+              Benchly traces the delivery path, the originating IP, the SPF/DKIM/DMARC results, and the classic
+              spoofing tells.
+            </p>
+            <textarea class="input" id="emailHeaders" spellcheck="false" placeholder="Paste full email headers here…"
+              style="width:100%; min-height:120px; font-family:var(--mono); font-size:12px; resize:vertical"></textarea>
+            <div class="row mt"><button class="btn primary" id="btnEmailCheck">Analyze headers</button>
+              <button class="btn ghost" id="btnEmailClear">Clear</button></div>
+            <div id="emailResult" class="mt"></div>
           </div>
         </div>
 
@@ -575,6 +636,19 @@
             </p>
             <div id="bpBody"><button class="btn" id="btnBpCheck">Check backup posture</button></div>
           </div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Performance snapshot <span class="right muted" id="snapStatus"></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            “Why is it slow right now?” — samples the machine for 30 seconds and reports the top CPU, memory and
+            disk offenders plus system pressure, ready to copy into a ticket.
+          </p>
+          <div class="row">
+            <button class="btn primary" id="btnSnapStart"><svg class="ic"><use href="#i-zap"/></svg>Capture 30s snapshot</button>
+            <button class="btn ghost" id="btnSnapCopy" style="display:none"><svg class="ic sm"><use href="#i-copy"/></svg>Copy</button>
+          </div>
+          <div class="bar mt" id="snapBar" style="display:none"><div class="fill" id="snapBarFill" style="width:0%"></div></div>
+          <div id="snapResult" class="mt"></div>
         </div>
         <div class="tool-grid" id="toolGrid"></div>
         <div class="card mt" id="repairConsoleCard" style="display:none">
