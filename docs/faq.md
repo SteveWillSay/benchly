@@ -88,12 +88,6 @@ Benchly sees the machine is *already* centrally managed it warns you first, beca
 GPO/MDM would overwrite anything you set locally — so this is meant for standalone PCs without
 Intune.
 
-### Where did the "iCloud" theme go?
-
-It's still here — it's just called **Frosted Glass** now (same glass-and-gradient look, a name
-that actually says what it is). Switch to it from the Appearance menu in the title bar, or
-launch with `--theme frost`.
-
 ### Can I run it on Windows Server or an older build?
 
 It targets Windows 10 and 11 (64-bit) and needs the WebView2 runtime. It'll *run* on Server
