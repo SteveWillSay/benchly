@@ -75,6 +75,63 @@ def _nvidia_gpus():
         return []
 
 
+def gpu_forensics():
+    """GPU clocks, throttle reasons, and a TDR/driver-reset history — the "is my OC stable" view."""
+    smi = _find_nvidia_smi()
+    gpus = []
+    if smi:
+        try:
+            fields = ("name,temperature.gpu,clocks.gr,clocks.max.gr,power.draw,power.limit,"
+                      "clocks_throttle_reasons.sw_power_cap,clocks_throttle_reasons.hw_thermal_slowdown,"
+                      "clocks_throttle_reasons.sw_thermal_slowdown,clocks_throttle_reasons.hw_power_brake_slowdown")
+            out = subprocess.run([smi, f"--query-gpu={fields}", "--format=csv,noheader,nounits"],
+                                 capture_output=True, timeout=10,
+                                 creationflags=CREATE_NO_WINDOW).stdout.decode("ascii", "replace")
+            for line in out.strip().splitlines():
+                p = [x.strip() for x in line.split(",")]
+                if len(p) < 10:
+                    continue
+                def n(v):
+                    try:
+                        return float(v)
+                    except ValueError:
+                        return None
+                active = lambda v: v.lower() == "active"
+                reasons = []
+                if active(p[6]):
+                    reasons.append("power limit")
+                if active(p[7]) or active(p[8]):
+                    reasons.append("thermal")
+                if active(p[9]):
+                    reasons.append("power brake")
+                gpus.append({"name": p[0], "temp_c": n(p[1]), "clock_mhz": n(p[2]),
+                             "max_clock_mhz": n(p[3]), "power_w": n(p[4]), "power_limit_w": n(p[5]),
+                             "throttle": reasons})
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    # GPU driver-reset / TDR history (Display log, event 4101)
+    tdr = as_list(ps_json(
+        "Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Display'; Id=4101; "
+        "StartTime=(Get-Date).AddDays(-30)} -MaxEvents 50 -ErrorAction SilentlyContinue | "
+        "Select-Object @{n='Time';e={$_.TimeCreated.ToString('yyyy-MM-dd HH:mm')}}", timeout=30))
+    tdr_times = [t.get("Time") for t in tdr if t.get("Time")]
+
+    flags = []
+    if not smi:
+        flags.append({"level": "info", "text": "No NVIDIA GPU detected (nvidia-smi not found)."})
+    else:
+        for g in gpus:
+            if g["throttle"]:
+                flags.append({"level": "info", "text": f"{g['name']} is throttling ({', '.join(g['throttle'])}) right now."})
+    if tdr_times:
+        flags.append({"level": "warn", "text": f"{len(tdr_times)} GPU driver reset(s) (TDR / Event 4101) in the last 30 days — a sign of an unstable overclock, a marginal PSU, or a driver issue."})
+    elif smi:
+        flags.append({"level": "good", "text": "No GPU driver resets in the last 30 days."})
+    return {"ok": True, "available": bool(smi), "gpus": gpus,
+            "tdr_count": len(tdr_times), "tdr_times": tdr_times[:20], "flags": flags}
+
+
 def _acpi_zones():
     """Best-effort ACPI thermal zones — cached for 60 s (each read spawns PS)."""
     now = time.monotonic()

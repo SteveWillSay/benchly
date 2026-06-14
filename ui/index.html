@@ -243,6 +243,23 @@
           <h3>Battery health trend <span class="right muted" id="batteryNote"></span></h3>
           <div id="batteryBody"></div>
         </div>
+        <div class="grid cols-2" style="margin-bottom:12px">
+          <div class="card">
+            <h3>GPU stability &amp; throttle <span class="right"><button class="btn small" id="btnGpuForensics">Check</button></span></h3>
+            <p class="muted" style="font-size:12px; margin-bottom:8px">Live clocks, throttle reasons, and a 30-day history of GPU driver resets (TDRs) — "is my overclock stable?"</p>
+            <div id="gpuForensicsBody"></div>
+          </div>
+          <div class="card">
+            <h3>Display refresh <span class="right"><button class="btn small" id="btnDisplayLinks">Check</button></span></h3>
+            <p class="muted" style="font-size:12px; margin-bottom:8px">Catches a monitor left below its best refresh rate (the classic "144 Hz panel stuck at 60").</p>
+            <div id="displayLinksBody"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Virtualization (WSL / Hyper-V / Docker) <span class="right"><button class="btn small" id="btnVirt">Check</button></span></h3>
+          <p class="muted" style="font-size:12px; margin-bottom:8px">WSL distros and memory cap, ballooning virtual disks, Hyper-V switches, and whether VT-x is on.</p>
+          <div id="virtBody"></div>
+        </div>
         <div id="systemBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:60%"></div></div></div></div>
       </section>
 
@@ -252,6 +269,11 @@
           <div><h2>Storage</h2><div class="desc">Physical disks, SMART health, volumes and space analysis</div></div>
           <div class="spacer"></div>
           <button class="btn" id="btnStorRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Drive health forecast <span class="right"><button class="btn small" id="btnSmartPredict">Check</button></span></h3>
+          <p class="muted" style="font-size:12px; margin-bottom:8px">Goes beyond the SMART snapshot — trends the scary numbers (wear, growing read/write errors) over time and scores each drive's risk. Trends build up the more you check. SSD wear needs admin.</p>
+          <div id="smartPredictBody"></div>
         </div>
         <div id="storageBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:75%"></div></div></div></div>
 
@@ -276,6 +298,12 @@
           <button class="btn" id="btnNetRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
         </div>
         <div id="netAdapters" class="grid cols-2"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div></div>
+
+        <div class="card mt">
+          <h3>Bufferbloat test <span class="right"><button class="btn small" id="btnBufferbloat">Run (≈10s)</button></span></h3>
+          <div class="desc" style="margin:-2px 0 10px">Measures latency while idle, then while the connection is saturated. A low ping that balloons under load (bufferbloat) is why calls stutter when someone's downloading.</div>
+          <div id="bufferbloatBody"><span class="muted" style="font-size:12.5px">Briefly maxes your connection to measure latency under load.</span></div>
+        </div>
 
         <div class="card mt">
           <h3>Domain &amp; website lookup</h3>

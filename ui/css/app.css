@@ -633,12 +633,12 @@ tbody tr:hover .row-action, .row-action:focus-visible { opacity: 1; }
 .dom-sec { background: var(--surface); border: 1px solid var(--border-1); border-radius: var(--r2); padding: 13px 15px; }
 .dom-sec h4 { margin: 0 0 9px; font-size: 11px; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.06em; color: var(--text-3); }
-.dom-sec .dr { display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 4px 0;
+.dr { display: grid; grid-template-columns: minmax(96px, 200px) 1fr; gap: 12px; padding: 4px 0;
   font-size: 12.5px; align-items: start; border-top: 1px solid var(--border-1); }
-.dom-sec .dr:first-of-type { border-top: 0; }
-.dom-sec .dk { color: var(--text-3); }
-.dom-sec .dv { color: var(--text-1); min-width: 0; word-break: break-word; }
-.dom-sec .dv .mono { white-space: pre-line; }
+.dr:first-of-type { border-top: 0; }
+.dk { color: var(--text-3); }
+.dv { color: var(--text-1); min-width: 0; word-break: break-word; }
+.dv .mono { white-space: pre-line; }
 .dom-sec .dv .pill { margin: 0 3px 3px 0; }
 .lnk { color: var(--accent); text-decoration: none; }
 .lnk:hover { text-decoration: underline; }

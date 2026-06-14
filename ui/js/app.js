@@ -2719,6 +2719,65 @@ function scamLight(c) {
   return `<div class="dom-flag ${cls}" style="font-size:13px; font-weight:600">${ico(c === "green" ? "check" : "bang")}<span>${label}</span></div>`;
 }
 
+/* ================= HOME-LAB (Bundle D) ================= */
+function dFlags(arr) { return (arr || []).map(f => { const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q"; return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`; }).join(""); }
+$("#btnGpuForensics").onclick = async () => {
+  $("#gpuForensicsBody").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const g = await api.gpu_forensics();
+  const gpus = g.gpus.map(x => `<div class="dr"><span class="dk strong">${esc(x.name)}</span><span class="dv">${x.temp_c ?? "?"}°C · ${Math.round(x.clock_mhz || 0)}/${Math.round(x.max_clock_mhz || 0)} MHz · ${Math.round(x.power_w || 0)}/${Math.round(x.power_limit_w || 0)} W${x.throttle.length ? ` · ${pill("warn", "throttling: " + x.throttle.join(", "))}` : ""}</span></div>`).join("");
+  const tdr = g.tdr_count ? `<div class="dom-sec" style="margin-top:8px"><h4>Driver resets (TDR) — last 30 days <span class="right">${g.tdr_count}</span></h4>${g.tdr_times.map(t => `<div class="muted mono" style="font-size:11px">${esc(t)}</div>`).join("")}</div>` : "";
+  $("#gpuForensicsBody").innerHTML = `<div class="dom-verdict">${dFlags(g.flags)}</div>${gpus}${tdr}`;
+};
+$("#btnDisplayLinks").onclick = async () => {
+  $("#displayLinksBody").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const l = await api.display_links();
+  const rows = l.monitors.map(m => `<div class="dr"><span class="dk strong">${esc(m.name)}</span><span class="dv">${m.width}×${m.height} @ ${m.refresh}Hz${m.underclocked ? ` ${pill("warn", "max " + m.max_refresh + "Hz")}` : ` ${pill("good", "best")}`}</span></div>`).join("");
+  $("#displayLinksBody").innerHTML = `<div class="dom-verdict">${dFlags(l.flags)}</div>${rows}`;
+};
+$("#btnVirt").onclick = async () => {
+  $("#virtBody").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const v = await api.virt_health();
+  let wsl = "";
+  if (v.wsl.installed) {
+    const distros = v.wsl.distros.map(d => `${esc(d.name)} (v${d.version}, ${esc(d.state)})`).join(", ") || "none";
+    const vhdx = v.wsl.vhdx.map((x, i) => `<div class="dr"><span class="dk mono" style="font-size:11px; word-break:break-all">${esc(x.path)}</span><span class="dv">${fmtBytes(x.bytes)} ${x.bytes > 21474836480 ? `<button class="btn ghost small" data-vhdx="${esc(x.path)}">Compact</button>` : ""}</span></div>`).join("");
+    wsl = `<div class="dom-sec"><h4>WSL</h4><div class="muted" style="font-size:12px">Distros: ${distros}${v.wsl.mem_cap ? ` · memory cap ${esc(v.wsl.mem_cap)}` : " · no memory cap set"}</div>${vhdx}</div>`;
+  } else wsl = `<div class="dom-sec"><h4>WSL</h4><div class="muted" style="font-size:12px">Not installed.</div></div>`;
+  const sw = v.switches.length ? `<div class="dom-sec"><h4>Hyper-V switches</h4>${v.switches.map(s => `<div class="dr"><span class="dk">${esc(s.name)}</span><span class="dv muted">${esc(s.type)}${s.adapter ? " · " + esc(s.adapter) : ""}</span></div>`).join("")}</div>` : "";
+  $("#virtBody").innerHTML = `<div class="dom-verdict">${dFlags(v.flags)}</div>
+    <div class="muted" style="font-size:12px; margin-bottom:6px">VT-x: ${v.vt_enabled ? "on" : "off"} · Hyper-V: ${v.hyperv ? "present" : "no"}</div>
+    <div class="dom-grid">${wsl}${sw}</div>`;
+  $("#virtBody").querySelectorAll("[data-vhdx]").forEach(b => b.onclick = async () => {
+    if (!await confirmModal("Compact this virtual disk?", "Shrinks the file to reclaim space (non-destructive). Shut down WSL first (wsl --shutdown) for it to free much.", "Compact")) return;
+    b.disabled = true; b.textContent = "Working…";
+    const r = await api.compact_vhdx(b.dataset.vhdx);
+    toast(r.ok ? r.detail : r.error, r.ok ? "good" : "bad", 5000); b.disabled = false; b.textContent = "Compact";
+  });
+};
+$("#btnSmartPredict").onclick = async () => {
+  $("#smartPredictBody").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const s = await api.smart_predict();
+  const lvl = { alert: pill("bad", "Replace soon"), watch: pill("warn", "Watch"), ok: pill("good", "OK") };
+  const rows = s.disks.map(d => `<div class="dr"><span class="dk">${lvl[d.level]} <span class="strong">${esc(d.name)}</span>
+    ${d.reasons.length ? `<div class="muted" style="font-size:11px">${esc(d.reasons.join(" · "))}</div>` : ""}</span>
+    <span class="dv muted" style="font-size:11.5px">${d.wear_pct != null ? `wear ${d.wear_pct}% · ` : ""}${d.power_on_hours != null ? `${d.power_on_hours}h · ` : ""}${d.temp_c ? d.temp_c + "°C · " : ""}${d.samples} sample(s)</span></div>`).join("");
+  $("#smartPredictBody").innerHTML = `<div class="dom-verdict">${dFlags(s.flags)}</div>${rows}`;
+};
+$("#btnBufferbloat").onclick = async () => {
+  $("#btnBufferbloat").disabled = true;
+  $("#bufferbloatBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Measuring idle, then saturating the link…</span></div>`;
+  const b = await api.bufferbloat_test();
+  $("#btnBufferbloat").disabled = false;
+  if (!b.ok) { $("#bufferbloatBody").innerHTML = pill("bad", b.error); return; }
+  const grade = b.grade === "A" || b.grade === "B" ? "good" : b.grade === "C" ? "warn" : "bad";
+  $("#bufferbloatBody").innerHTML = `<div class="speed-row">
+      <div class="speed-kpi"><div class="v">${b.grade}</div><div class="l">Bufferbloat grade</div></div>
+      <div class="speed-kpi"><div class="v">${b.idle_ms}<small> ms</small></div><div class="l">Idle latency</div></div>
+      <div class="speed-kpi"><div class="v">${b.loaded_ms}<small> ms</small></div><div class="l">Under load</div></div>
+      <div class="speed-kpi"><div class="v">+${b.added_ms}<small> ms</small></div><div class="l">Added by load</div></div>
+    </div><div class="dom-verdict mt">${dFlags(b.flags)}</div>`;
+};
+
 /* ================= CLEANUP page ================= */
 $$("#cleanTabs .tab").forEach(t => t.addEventListener("click", () => {
   const which = t.dataset.clean;
@@ -2908,6 +2967,13 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.3.0", name: "Home lab & power user", items: [
+    "GPU stability & throttle forensics (System) — live clocks, throttle reasons, and a 30-day history of GPU driver resets (TDRs): “is my overclock stable?”",
+    "Display refresh check (System) — catches a monitor left below its best refresh rate (the classic “144 Hz panel stuck at 60”).",
+    "Virtualization health (System) — WSL distros and memory cap, ballooning WSL/Docker virtual disks (with optional compact), Hyper-V switches, and whether VT-x is on.",
+    "Drive health forecast (Storage) — trends the scary SMART numbers (wear, growing read/write errors) over time and scores each drive's risk, so you can replace a dying disk before it dies.",
+    "Bufferbloat test (Network) — measures latency while idle and under load and grades it, so you know why calls stutter when someone's downloading.",
+  ] },
   { v: "2.2.0", name: "Helper — for fixing the family PC", items: [
     "New Helper page — friendly, big-button tools for fixing a relative's computer and handing it off.",
     "Text my tech person — a plain-English health summary you can copy into a message.",
@@ -3141,6 +3207,11 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "shield", label: "BitLocker recovery key", run: () => { showPage("helper"); $("#btnBitlocker")?.click(); } },
   { cat: "Actions", icon: "download", label: "Rescue my photos & documents", run: () => { showPage("helper"); $("#btnRescueScan")?.click(); } },
   { cat: "Actions", icon: "shield", label: "Is this a scam? (check email or link)", run: () => { showPage("helper"); $("#scamInput")?.focus(); } },
+  { cat: "Actions", icon: "cpu2", label: "GPU stability & throttle forensics", run: () => { showPage("system"); $("#btnGpuForensics")?.click(); } },
+  { cat: "Actions", icon: "cpu2", label: "Display refresh-rate check", run: () => { showPage("system"); $("#btnDisplayLinks")?.click(); } },
+  { cat: "Actions", icon: "cpu2", label: "Virtualization health (WSL / Docker)", run: () => { showPage("system"); $("#btnVirt")?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "Drive health forecast (SMART trend)", run: () => { showPage("storage"); $("#btnSmartPredict")?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "Bufferbloat test", run: () => { showPage("network"); $("#btnBufferbloat")?.click(); } },
   { cat: "Actions", icon: "shield", label: "Analyze email headers (phishing)", run: () => { showPage("security"); $(`#secTabs [data-sec="email"]`).click(); } },
   { cat: "Actions", icon: "zap", label: "Performance snapshot — why is it slow?", run: () => { showPage("toolbox"); $("#btnSnapStart").click(); } },
   { cat: "Actions", icon: "zap", label: "Power, sleep & wake doctor", run: () => { showPage("toolbox"); $("#btnPowerScan").click(); } },

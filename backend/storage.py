@@ -151,3 +151,74 @@ def _dir_size(path: str) -> int:
         except (PermissionError, OSError):
             continue
     return total
+
+
+def smart_predict():
+    """Trend the scary SMART numbers over time and score each drive's risk."""
+    import datetime
+    from . import history
+    disks = get_storage().get("disks", [])
+    out = []
+    for d in disks:
+        key = (d.get("serial") or d.get("id") or d.get("name") or "").strip()
+        if not key or d.get("wear_pct") is None and d.get("read_errors") is None:
+            # still show drives, but trending needs reliability counters
+            if not key:
+                continue
+        series = "smart_" + key
+        hist = history.read(series)
+        cur = {"wear": d.get("wear_pct"), "hours": d.get("power_on_hours"),
+               "read_err": d.get("read_errors") or 0, "write_err": d.get("write_errors") or 0,
+               "temp": d.get("temp_c")}
+        # only record a new point if the last one is > 6h old (don't spam on every open)
+        record = True
+        if hist:
+            try:
+                last = datetime.datetime.fromisoformat(hist[-1]["t"])
+                record = (datetime.datetime.now() - last).total_seconds() > 6 * 3600
+            except (ValueError, KeyError):
+                record = True
+        if record:
+            history.append(series, cur)
+
+        baseline = hist[0] if hist else None
+        reasons = []
+        risk = 0
+        wear = d.get("wear_pct")
+        if wear is not None:
+            if wear >= 90:
+                risk += 3; reasons.append(f"SSD wear at {wear}% of rated endurance")
+            elif wear >= 70:
+                risk += 1; reasons.append(f"SSD wear at {wear}%")
+        if baseline:
+            d_read = cur["read_err"] - (baseline.get("read_err") or 0)
+            d_write = cur["write_err"] - (baseline.get("write_err") or 0)
+            if d_read > 0:
+                risk += 2; reasons.append(f"read errors rose by {d_read} since {baseline['t'][:10]}")
+            if d_write > 0:
+                risk += 2; reasons.append(f"write errors rose by {d_write} since {baseline['t'][:10]}")
+        if (d.get("health") or "").lower() not in ("healthy", ""):
+            risk += 3; reasons.append(f"drive reports '{d.get('health')}'")
+        if d.get("temp_c") and d["temp_c"] >= 60:
+            risk += 1; reasons.append(f"running warm ({d['temp_c']}°C)")
+
+        level = "alert" if risk >= 4 else "watch" if risk >= 2 else "ok"
+        out.append({
+            "name": d.get("name") or key, "media": d.get("media"), "bus": d.get("bus"),
+            "size": d.get("size"), "health": d.get("health"),
+            "wear_pct": wear, "power_on_hours": d.get("power_on_hours"),
+            "temp_c": d.get("temp_c"), "read_errors": cur["read_err"], "write_errors": cur["write_err"],
+            "samples": len(hist) + (1 if record else 0),
+            "since": baseline["t"][:10] if baseline else None,
+            "level": level, "reasons": reasons,
+        })
+    order = {"alert": 0, "watch": 1, "ok": 2}
+    out.sort(key=lambda x: order[x["level"]])
+    flags = []
+    if any(x["level"] == "alert" for x in out):
+        flags.append({"level": "warn", "text": "A drive is showing warning signs — back it up and plan a replacement."})
+    elif any(x["level"] == "watch" for x in out):
+        flags.append({"level": "info", "text": "A drive is worth keeping an eye on. Benchly trends these over time."})
+    else:
+        flags.append({"level": "good", "text": "All drives look healthy. Trends build up the more you check."})
+    return {"ok": True, "disks": out, "flags": flags}

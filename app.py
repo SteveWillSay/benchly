@@ -20,10 +20,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      winget, certaudit, mailcheck, urlcheck, listeners, wifi, slowsnap,
                      selfupdate, power, shellrepair, gremlins,
                      defender, persistence, execevidence, hardening,
-                     bitlocker, avcheck, helpercard, display, rescue)
+                     bitlocker, avcheck, helpercard, display, rescue,
+                     links, netperf, virt)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 
 
 def resource_path(rel: str) -> str:
@@ -354,6 +355,25 @@ class Api:
 
     def apply_quiet_mode(self):
         return tweaks.apply_quiet_mode()
+
+    # --- home lab / power user ----------------------------------------------------------
+    def display_links(self):
+        return links.display_links()
+
+    def gpu_forensics(self):
+        return temps.gpu_forensics()
+
+    def smart_predict(self):
+        return storage.smart_predict()
+
+    def bufferbloat_test(self):
+        return netperf.bufferbloat_test()
+
+    def virt_health(self):
+        return virt.virt_health()
+
+    def compact_vhdx(self, path):
+        return virt.compact_vhdx(path)
 
     # --- audits ------------------------------------------------------------------------
     def get_scheduled_tasks(self):
