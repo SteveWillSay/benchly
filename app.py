@@ -18,10 +18,10 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      remote, fleet, diag, restore, autoruns, threats, runbooks, debloat,
                      reliability, cleanup, usbhistory, backupaudit, tweaks, domain,
                      winget, certaudit, mailcheck, urlcheck, listeners, wifi, slowsnap,
-                     selfupdate)
+                     selfupdate, power, shellrepair, gremlins)
 
 APP_NAME = "Benchly"
-APP_VERSION = "1.9.0"
+APP_VERSION = "2.0.0"
 
 
 def resource_path(rel: str) -> str:
@@ -245,6 +245,45 @@ class Api:
 
     def purge_print_queue(self):
         return devices.purge_print_queue()
+
+    def printer_doctor(self):
+        return devices.printer_doctor()
+
+    def printer_clear_offline(self, name):
+        return devices.printer_clear_offline(name)
+
+    def printer_testpage(self, name):
+        return devices.printer_testpage(name)
+
+    # --- power / sleep / wake -----------------------------------------------------------
+    def power_overview(self):
+        return power.power_overview()
+
+    def wake_history(self, days=7):
+        return power.wake_history(days)
+
+    def set_device_wake(self, name, enable):
+        return power.set_device_wake(name, enable)
+
+    def disarm_wake_task(self, task_path):
+        return power.disarm_wake_task(task_path)
+
+    # --- cache & shell repair -----------------------------------------------------------
+    def list_shell_repairs(self):
+        return shellrepair.list_repairs()
+
+    def run_shell_repair(self, key):
+        return shellrepair.run_repair(key)
+
+    # --- gremlin hunters ----------------------------------------------------------------
+    def disk_cpu_culprit(self, window=8):
+        return gremlins.disk_cpu_culprit(window)
+
+    def usb_drop_history(self, days=7):
+        return gremlins.usb_drop_history(days)
+
+    def mark_freeze(self, window_secs=90):
+        return gremlins.mark_freeze(window_secs)
 
     # --- audits ------------------------------------------------------------------------
     def get_scheduled_tasks(self):

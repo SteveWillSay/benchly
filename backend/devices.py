@@ -1,9 +1,11 @@
 """Problem devices (yellow-bang audit) and printer triage."""
 
 import os
+import re
+import socket
 import subprocess
 
-from .ps import ps_json, as_list, CREATE_NO_WINDOW
+from .ps import ps_json, as_list, run_ps, CREATE_NO_WINDOW
 from . import security
 
 # Device Manager (CM) error codes a bench tech actually meets
@@ -135,3 +137,106 @@ def purge_print_queue():
         return {"ok": True, "detail": "; ".join(steps)}
     except Exception as e:
         return {"ok": False, "error": f"{e} ({'; '.join(steps)})"}
+
+
+# --------------------------------------------------------------------------- #
+# printer doctor — the "it says offline but it's right there" diagnosis
+# --------------------------------------------------------------------------- #
+_PRINTER_DOCTOR_PS = r"""
+$o = [ordered]@{}
+$o.printers = Get-CimInstance Win32_Printer |
+    Select-Object Name,Default,PrinterStatus,WorkOffline,PortName,DriverName
+$o.ports = Get-PrinterPort -ErrorAction SilentlyContinue |
+    Select-Object Name,PrinterHostAddress,Description
+$o.drivers = Get-PrinterDriver -ErrorAction SilentlyContinue | Select-Object Name
+$o.jobs = @(Get-CimInstance Win32_PrintJob).Count
+$o.spooler = [string](Get-Service -Name Spooler -ErrorAction SilentlyContinue).Status
+$o
+"""
+
+_IP_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
+
+
+def _reachable(host, ports=(9100, 631, 515), timeout=1.2):
+    for port in ports:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def printer_doctor():
+    raw = ps_json(_PRINTER_DOCTOR_PS, timeout=45) or {}
+    port_addr = {}
+    for p in as_list(raw.get("ports")):
+        host = p.get("PrinterHostAddress") or ""
+        if host:
+            port_addr[p.get("Name")] = host
+    # driver name → count, to spot duplicate/conflicting drivers
+    drv_counts = {}
+    for d in as_list(raw.get("drivers")):
+        base = re.sub(r"\s+(class\s+)?driver$|\s+v?\d+(\.\d+)*$", "", (d.get("Name") or ""), flags=re.I).strip()
+        drv_counts[base] = drv_counts.get(base, 0) + 1
+
+    printers = []
+    flags = []
+    for p in as_list(raw.get("printers")):
+        name = p.get("Name") or ""
+        port = p.get("PortName") or ""
+        offline_flag = bool(p.get("WorkOffline"))
+        status = _PRINTER_STATUS.get(p.get("PrinterStatus"), "Unknown")
+        host = port_addr.get(port) or (port if _IP_RE.match(port) else None)
+        issues = []
+        reachable = None
+        if offline_flag:
+            issues.append("“Use Printer Offline” is ticked")
+        if host:
+            reachable = _reachable(host)
+            if not reachable:
+                issues.append(f"can't reach {host} — the printer may be off, or DHCP gave it a new IP")
+        base = re.sub(r"\s+(class\s+)?driver$|\s+v?\d+(\.\d+)*$", "", (p.get("DriverName") or ""), flags=re.I).strip()
+        if drv_counts.get(base, 0) > 1:
+            issues.append("more than one version of this driver is installed")
+        printers.append({
+            "name": name, "default": bool(p.get("Default")), "status": status,
+            "offline": offline_flag, "port": port, "host": host,
+            "reachable": reachable, "driver": p.get("DriverName"), "issues": issues,
+        })
+
+    jobs = raw.get("jobs") or 0
+    spooler = raw.get("spooler") or "Unknown"
+    if spooler != "Running":
+        flags.append({"level": "warn", "text": f"The Print Spooler service is {spooler}."})
+    if jobs:
+        flags.append({"level": "info", "text": f"{jobs} job(s) are sitting in the queue."})
+    if not any(p["issues"] for p in printers) and spooler == "Running" and not flags:
+        flags.append({"level": "good", "text": "Printers look healthy."})
+    return {"ok": True, "printers": printers, "jobs": jobs, "spooler": spooler, "flags": flags}
+
+
+def printer_clear_offline(name):
+    """Untick 'Use Printer Offline' and nudge the spooler so it comes back online."""
+    if not re.match(r"^[\w .,\-()#&]+$", str(name or "")):
+        return {"ok": False, "error": "Invalid printer name."}
+    safe = name.replace("'", "''")
+    out = run_ps("& { $p = Get-CimInstance Win32_Printer -Filter \"Name='" + safe + "'\" -ErrorAction SilentlyContinue; "
+                 "if ($p) { $p | Invoke-CimMethod -MethodName Resume -ErrorAction SilentlyContinue | Out-Null; "
+                 "$p | Set-CimInstance -Property @{WorkOffline=$false} -ErrorAction SilentlyContinue; 'OK' } else { 'NF' } }",
+                 timeout=30)
+    if "OK" in out:
+        return {"ok": True, "where": f"Win32_Printer '{name}': WorkOffline → false + Resume"}
+    return {"ok": False, "error": "Printer not found, or Windows wouldn't clear the flag (try restarting the spooler)."}
+
+
+def printer_testpage(name):
+    if not re.match(r"^[\w .,\-()#&]+$", str(name or "")):
+        return {"ok": False, "error": "Invalid printer name."}
+    safe = name.replace("'", "''")
+    out = run_ps("& { $p = Get-CimInstance Win32_Printer -Filter \"Name='" + safe + "'\" -ErrorAction SilentlyContinue; "
+                 "if ($p) { $r = $p | Invoke-CimMethod -MethodName PrintTestPage; \"RC:$($r.ReturnValue)\" } else { 'NF' } }",
+                 timeout=30)
+    if "RC:0" in out:
+        return {"ok": True, "message": "Test page sent."}
+    return {"ok": False, "error": "Couldn't send a test page (printer not found or offline)."}

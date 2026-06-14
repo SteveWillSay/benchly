@@ -614,7 +614,7 @@
       <!-- ==================== TOOLBOX ==================== -->
       <section class="page" id="page-toolbox">
         <div class="page-head">
-          <div><h2>Toolbox</h2><div class="desc">Repair tools and configuration baseline — all repairs need elevation</div></div>
+          <div><h2>Toolbox</h2><div class="desc">Repair tools, diagnostics and configuration baseline</div></div>
           <div class="spacer"></div>
         </div>
         <div class="grid cols-2" style="margin-bottom:12px">
@@ -650,6 +650,43 @@
           <div class="bar mt" id="snapBar" style="display:none"><div class="fill" id="snapBarFill" style="width:0%"></div></div>
           <div id="snapResult" class="mt"></div>
         </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <h3>Power, sleep &amp; wake doctor <span class="right"><button class="btn small" id="btnPowerScan">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            Why won't it sleep? What woke it at 3 AM? What's set to wake it? Plain-English answers from the
+            powercfg dark arts.
+          </p>
+          <div id="powerBody"><div class="muted" style="font-size:12.5px">Press Check to look at sleep, wake timers and wake devices.</div></div>
+        </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <h3>Gremlin hunters</h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            The weird, intermittent stuff: what's hammering the disk when “nothing” is, which USB device keeps
+            dropping, and a button to stamp the moment it just hiccupped.
+          </p>
+          <div class="tabs" id="gremTabs">
+            <button class="tab active" data-grem="disk">Disk / CPU culprit</button>
+            <button class="tab" data-grem="usb">USB drops</button>
+            <button class="tab" data-grem="freeze">Mark the freeze</button>
+          </div>
+          <div id="gremDisk">
+            <div class="row"><button class="btn primary" id="btnGremDisk">Find what's hammering the disk (8s)</button>
+              <span class="muted" id="gremDiskStatus"></span></div>
+            <div id="gremDiskResult" class="mt"></div>
+          </div>
+          <div id="gremUsb" style="display:none">
+            <div class="row"><button class="btn primary" id="btnGremUsb">Check USB connect/disconnect history</button></div>
+            <div id="gremUsbResult" class="mt"></div>
+          </div>
+          <div id="gremFreeze" style="display:none">
+            <p class="muted" style="font-size:12px; margin:2px 0 8px">The instant something hiccups — a freeze, stutter or glitch — hit this. Benchly pulls everything the logs recorded around that moment.</p>
+            <div class="row"><button class="btn primary" id="btnGremFreeze"><svg class="ic sm"><use href="#i-zap"/></svg>It just happened</button></div>
+            <div id="gremFreezeResult" class="mt"></div>
+          </div>
+        </div>
+
         <div class="tool-grid" id="toolGrid"></div>
         <div class="card mt" id="repairConsoleCard" style="display:none">
           <h3><span id="repairTitle">Output</span>
@@ -713,6 +750,7 @@
           <button class="tab" data-clean="large">Large &amp; duplicate</button>
           <button class="tab" data-clean="debloat">Debloat apps</button>
           <button class="tab" data-clean="tweaks">Tweaks</button>
+          <button class="tab" data-clean="repair">Repair</button>
         </div>
 
         <div id="cleanTabJunk">
@@ -765,6 +803,21 @@
           <div class="row mt" id="explorerRow" style="display:none">
             <button class="btn" id="btnRestartExplorer">Restart Explorer to apply</button>
             <span class="muted" style="font-size:12px">Some interface tweaks need Explorer to restart (the taskbar will briefly disappear).</span>
+          </div>
+        </div>
+
+        <div id="cleanTabRepair" style="display:none">
+          <div class="card">
+            <h3>Cache &amp; shell repair</h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:12px">
+              The “it just looks broken” fixes — blank icons, broken thumbnails, garbled fonts, a dead Start
+              search. None of these touch your files; every cache rebuilds itself.
+            </p>
+            <div id="repairBody"></div>
+            <div class="row mt" id="repairExplorerRow" style="display:none">
+              <button class="btn" id="btnRepairRestartExplorer">Restart Explorer to finish</button>
+              <span class="muted" style="font-size:12px">The taskbar will briefly disappear, then come back.</span>
+            </div>
           </div>
         </div>
       </section>

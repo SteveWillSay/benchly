@@ -1393,27 +1393,31 @@ async function loadDevices() {
     $("#devBody").innerHTML = `<div class="card">
       <h3>Problem devices <span class="right">${d.problems.length ? pill("bad", d.problems.length + " issue(s)") : pill("good", "All clear")}</span></h3>${list}</div>`;
   }).catch(() => { $("#devBody").innerHTML = `<div class="card">${emptyState("bang", "Couldn't load devices")}</div>`; });
-  api.get_printers().then(p => {
+  api.printer_doctor().then(p => {
     const spoolerOk = p.spooler === "Running";
+    const banner = (p.flags || []).map(f => {
+      const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q";
+      return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`;
+    }).join("");
     const printers = p.printers.length ? `<div class="table-wrap" style="max-height:none"><table>
-      <thead><tr><th>Printer</th><th>Status</th><th>Port</th><th>Driver</th><th></th></tr></thead><tbody>
-      ${p.printers.map(x => `<tr>
-        <td class="strong copy">${esc(x.name)}${x.default ? ` <span class="muted" style="font-size:11px">· default</span>` : ""}</td>
-        <td>${x.offline ? pill("bad", "Offline") : x.status === "Idle" ? pill("good", "Idle") : pill("info", esc(x.status))}</td>
-        <td class="mono">${esc(x.port)}</td><td class="muted">${esc(x.driver)}</td><td></td></tr>`).join("")}
+      <thead><tr><th>Printer</th><th>Status</th><th>Address</th><th>Driver</th><th></th></tr></thead><tbody>
+      ${p.printers.map((x, i) => `<tr>
+        <td class="strong copy">${esc(x.name)}${x.default ? ` <span class="muted" style="font-size:11px">· default</span>` : ""}
+          ${x.issues.length ? `<div class="muted" style="font-size:11px">${esc(x.issues.join(" · "))}</div>` : ""}</td>
+        <td>${x.offline ? pill("warn", "Offline") : x.reachable === false ? pill("bad", "Unreachable") : x.status === "Idle" ? pill("good", "Idle") : pill("info", esc(x.status))}</td>
+        <td class="mono">${esc(x.host || x.port)}</td><td class="muted">${esc(x.driver || "")}</td>
+        <td style="white-space:nowrap">${x.offline ? `<button class="btn ghost small" data-prn-online="${esc(x.name)}">Bring online</button>` : ""}
+          <button class="btn ghost small" data-prn-test="${esc(x.name)}">Test page</button></td></tr>`).join("")}
       </tbody></table></div>` : emptyState("printer", "No printers installed");
-    const jobs = p.jobs.length ? `<div class="table-wrap mt" style="max-height:200px"><table>
-      <thead><tr><th>Document</th><th>Printer</th><th>Owner</th><th>Status</th><th class="num">Pages</th><th>Submitted</th></tr></thead><tbody>
-      ${p.jobs.map(j => `<tr><td class="strong">${esc(j.document)}</td><td>${esc(j.printer)}</td>
-        <td>${esc(j.owner)}</td><td>${esc(j.status)}</td><td class="num">${j.pages ?? "—"}</td><td class="mono">${esc(j.submitted ?? "")}</td></tr>`).join("")}
-      </tbody></table></div>` : "";
     $("#prnBody").innerHTML = `<div class="card">
-      <h3>Printers
+      <h3>Printer doctor
         <span class="right row" style="gap:8px">
           ${spoolerOk ? pill("good", "Spooler running") : pill("bad", "Spooler " + esc(p.spooler))}
+          <button class="btn small" id="btnPrnRescan">Re-check</button>
           <button class="btn small danger" id="btnPurgeQueue" title="Stop spooler, delete stuck jobs, restart">Purge queue</button>
         </span>
-      </h3>${printers}${jobs}</div>`;
+      </h3>${banner}${printers}</div>`;
+    $("#btnPrnRescan").onclick = loadDevices;
     $("#btnPurgeQueue").onclick = async () => {
       if (!await confirmModal("Purge print queue?",
           "Stops the spooler, deletes every queued job on all printers, and restarts it.", "Purge",
@@ -1422,6 +1426,15 @@ async function loadDevices() {
       toast(r.ok ? "Print queue purged" : r.error, r.ok ? "good" : "bad", 5000);
       if (r.ok) loadDevices();
     };
+    $("#prnBody").querySelectorAll("[data-prn-online]").forEach(b => b.onclick = async () => {
+      const r = await api.printer_clear_offline(b.dataset.prnOnline);
+      toast(r.ok ? "Brought the printer back online" : r.error, r.ok ? "good" : "bad", 4000);
+      if (r.ok) loadDevices();
+    });
+    $("#prnBody").querySelectorAll("[data-prn-test]").forEach(b => b.onclick = async () => {
+      const r = await api.printer_testpage(b.dataset.prnTest);
+      toast(r.ok ? "Test page sent" : r.error, r.ok ? "good" : "bad", 4000);
+    });
   }).catch(() => { $("#prnBody").innerHTML = `<div class="card">${emptyState("printer", "Couldn't load printers")}</div>`; });
   api.get_driver_audit().then(d => {
     const flag = x => x.duplicate ? pill("warn", "Duplicate") : x.old ? pill("warn", "Old") : "";
@@ -1515,7 +1528,7 @@ function renderSnapshot(s) {
   const kpis = `<div class="speed-row">
     <div class="speed-kpi"><div class="v">${s.sys_cpu}<small>%</small></div><div class="l">CPU</div></div>
     <div class="speed-kpi"><div class="v">${s.mem_pct}<small>%</small></div><div class="l">Memory (${s.mem_avail_mb} MB free)</div></div>
-    <div class="speed-kpi"><div class="v">${s.disk_read_mbs + s.disk_write_mbs}<small> MB/s</small></div><div class="l">Disk I/O</div></div>
+    <div class="speed-kpi"><div class="v">${(s.disk_read_mbs + s.disk_write_mbs).toFixed(1)}<small> MB/s</small></div><div class="l">Disk I/O</div></div>
     ${c.disk_queue != null ? `<div class="speed-kpi"><div class="v">${c.disk_queue}</div><div class="l">Disk queue</div></div>` : ""}
   </div>`;
   const tbl = (title, rows, val) => `<div class="dom-sec"><h4>${title}</h4>${
@@ -1529,12 +1542,90 @@ $("#btnSnapCopy").onclick = () => {
   if (!lastSnapshot) return;
   const s = lastSnapshot;
   const lines = [`Benchly performance snapshot (${s.window}s)`,
-    `CPU ${s.sys_cpu}%  |  Memory ${s.mem_pct}% (${s.mem_avail_mb} MB free)  |  Disk ${s.disk_read_mbs + s.disk_write_mbs} MB/s`,
+    `CPU ${s.sys_cpu}%  |  Memory ${s.mem_pct}% (${s.mem_avail_mb} MB free)  |  Disk ${(s.disk_read_mbs + s.disk_write_mbs).toFixed(1)} MB/s`,
     s.counters && s.counters.disk_queue != null ? `Disk queue ${s.counters.disk_queue}  |  Commit ${s.counters.commit_pct}%` : "",
     "", "Top CPU: " + s.top_cpu.map(r => `${r.name} ${r.cpu}%`).join(", "),
     "Top memory: " + s.top_mem.map(r => `${r.name} ${r.rss_mb}MB`).join(", "),
     "Top disk: " + s.top_disk.map(r => `${r.name} ${r.disk_kb}KB`).join(", ")];
   navigator.clipboard.writeText(lines.filter(Boolean).join("\n")).then(() => toast("Snapshot copied", "good", 1800));
+};
+
+/* ---- Power, sleep & wake doctor ---- */
+function flagRow(f) {
+  const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q";
+  return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`;
+}
+$("#btnPowerScan").onclick = async () => {
+  $("#powerBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Asking powercfg…</span></div>`;
+  const r = await api.power_overview();
+  if (!r.ok) { $("#powerBody").innerHTML = `<div class="muted">${esc(r.error || "Failed.")}</div>`; return; }
+  const sec = (title, body) => body ? `<div class="dom-sec"><h4>${title}</h4>${body}</div>` : "";
+  const blockers = r.requests.admin
+    ? (r.requests.blockers.length
+        ? r.requests.blockers.map(b => `<div class="dr"><span class="dk">${esc(b.category)}</span><span class="dv">${esc(b.what)}</span></div>`).join("")
+        : `<div class="muted" style="font-size:12px">Nothing is keeping the PC awake right now.</div>`)
+    : `<div class="muted" style="font-size:12px">Run as admin to see this.</div>`;
+  const timers = r.wake_timers.admin
+    ? (r.wake_timers.timers.length
+        ? r.wake_timers.timers.map(t => `<div class="dr"><span class="dk strong">timer</span><span class="dv">${esc(t.reason || t.owner)}</span></div>`).join("")
+        : `<div class="muted" style="font-size:12px">No wake timers are armed.</div>`)
+    : `<div class="muted" style="font-size:12px">Run as admin to see this.</div>`;
+  const devices = r.wake_devices.length
+    ? `<div class="row wrap" style="gap:6px">${r.wake_devices.map(d => `<span class="pill info" title="Can wake the PC">${esc(d)}</span>`).join("")}</div>`
+    : `<div class="muted" style="font-size:12px">No devices are armed to wake the PC.</div>`;
+  $("#powerBody").innerHTML = `<div class="dom-verdict">${(r.flags || []).map(flagRow).join("")}</div>
+    <div class="dom-grid">
+      ${sec("Keeping it awake now", blockers)}
+      ${sec("Wake timers", timers)}
+      ${sec("Devices allowed to wake it", devices)}
+      ${sec("Sleep states available", `<div class="muted" style="font-size:12px">${esc(r.sleep_states.join(" · ") || "—")}${r.modern_standby ? " · Modern Standby (S0)" : ""}</div>`)}
+      ${r.last_wake ? sec("Last wake", `<div class="muted" style="font-size:12px">${esc(r.last_wake)}</div>`) : ""}
+    </div>`;
+};
+
+/* ---- Gremlin hunters ---- */
+$$("#gremTabs .tab").forEach(t => t.addEventListener("click", () => {
+  const which = t.dataset.grem;
+  $$("#gremTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  for (const [k, id] of [["disk", "gremDisk"], ["usb", "gremUsb"], ["freeze", "gremFreeze"]])
+    $("#" + id).style.display = which === k ? "" : "none";
+}));
+$("#btnGremDisk").onclick = async () => {
+  $("#btnGremDisk").disabled = true;
+  $("#gremDiskStatus").innerHTML = `<span class="spin"></span> watching 8s…`;
+  const r = await api.disk_cpu_culprit(8);
+  $("#btnGremDisk").disabled = false; $("#gremDiskStatus").textContent = "";
+  if (!r.ok) { toast(r.error || "failed", "bad"); return; }
+  const tbl = (title, rows, fmt) => `<div class="dom-sec"><h4>${title}</h4>${
+    rows.length ? rows.map(x => `<div class="dr"><span class="dk strong">${esc(x.name)}${x.why ? `<div class="muted" style="font-size:11px">${esc(x.why)}</div>` : ""}</span><span class="dv">${fmt(x)}</span></div>`).join("") : `<div class="muted" style="font-size:12px">Nothing notable.</div>`}</div>`;
+  $("#gremDiskResult").innerHTML = `<div class="muted" style="font-size:12px; margin-bottom:8px">Disk was moving ${(r.disk_read_mbs + r.disk_write_mbs).toFixed(1)} MB/s overall during the sample.</div>
+    <div class="dom-grid">${tbl("Top disk users", r.top_disk, x => x.disk_kb_s + " KB/s")}${tbl("Top CPU", r.top_cpu, x => x.cpu + "%")}</div>`;
+};
+$("#btnGremUsb").onclick = async () => {
+  $("#gremUsbResult").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const r = await api.usb_drop_history(14);
+  if (!r.ok) { $("#gremUsbResult").innerHTML = `<div class="muted">${esc(r.error)}</div>`; return; }
+  const drops = r.devices.length
+    ? `<div class="dom-sec"><h4>Repeatedly reconnecting (last 14 days)</h4>${r.devices.map(d => `<div class="dr"><span class="dk strong">${esc(d.name)}</span><span class="dv">${d.events}× — try turning off USB selective suspend for this device</span></div>`).join("")}</div>`
+    : "";
+  const probs = r.problem.length
+    ? `<div class="dom-sec"><h4>USB devices with a fault</h4>${r.problem.map(d => `<div class="dr"><span class="dk strong">${esc(d.name)}</span><span class="dv">${pill("warn", esc(d.status))}</span></div>`).join("")}</div>`
+    : "";
+  $("#gremUsbResult").innerHTML = (drops || probs)
+    ? `<div class="dom-grid">${drops}${probs}</div>`
+    : emptyState("check", "No USB drama", "No devices are repeatedly dropping, and none are faulted.");
+};
+$("#btnGremFreeze").onclick = async () => {
+  $("#gremFreezeResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Pulling the logs around now…</span></div>`;
+  const r = await api.mark_freeze(120);
+  if (!r.ok) { $("#gremFreezeResult").innerHTML = `<div class="muted">${esc(r.error)}</div>`; return; }
+  const rows = r.events.length
+    ? `<div class="table-wrap" style="max-height:300px"><table><thead><tr><th>Time</th><th>Level</th><th>Source</th><th>ID</th><th>What</th></tr></thead><tbody>
+       ${r.events.map(e => `<tr><td class="mono">${esc(e.time)}</td>
+         <td>${e.level === "Error" || e.level === "Critical" ? pill("bad", esc(e.level)) : pill("warn", esc(e.level))}</td>
+         <td>${esc(e.provider)}</td><td class="mono">${esc(e.id)}</td><td class="muted">${esc(e.msg)}</td></tr>`).join("")}</tbody></table></div>`
+    : emptyState("check", "Nothing logged around that moment", `No errors or warnings in the last ${r.window}s.`);
+  $("#gremFreezeResult").innerHTML = `<div class="muted" style="font-size:12px; margin-bottom:8px">At the mark: CPU ${r.cpu}% · memory ${r.mem_pct}%. Events in the last ${r.window}s:</div>${rows}`;
 };
 
 $("#btnRpCreate").onclick = async () => {
@@ -1658,9 +1749,23 @@ $("#btnBlCompare").onclick = async () => {
   const build = r.os_build.old !== r.os_build.new
     ? `<div class="diff-section"><h3 style="margin-bottom:6px">OS build</h3>
        <div class="diff-row"><span class="tag chg">~</span><span class="d-name">${esc(r.os_build.old)} → ${esc(r.os_build.new)}</span></div></div>` : "";
+  const settings = (r.settings && r.settings.length)
+    ? `<div class="diff-section"><h3 style="margin-bottom:6px">Windows settings <span class="right muted">${r.settings.length} change(s)</span></h3>
+       ${r.settings.map((s, i) => `<div class="diff-row"><span class="tag chg">~</span>
+         <span class="d-name">${esc(s.label)}</span>
+         <span class="d-val" style="flex:1">${esc(s.old)} → <b>${esc(s.new)}</b></span>
+         ${s.revertable ? `<button class="btn ghost small" data-revert="${i}">Put back</button>` : ""}</div>`).join("")}</div>` : "";
   $("#blResult").innerHTML = `<p class="muted" style="font-size:12px; margin-bottom:10px">
-    Baseline ${esc(r.baseline_time)} → now ${esc(r.now_time)}</p>` + score + build +
+    Baseline ${esc(r.baseline_time)} → now ${esc(r.now_time)}</p>` + settings + score + build +
     section("Applications", r.apps) + section("Services", r.services) + section("Startup entries", r.startup);
+  $("#blResult").querySelectorAll("[data-revert]").forEach(b => b.onclick = async () => {
+    const s = r.settings[+b.dataset.revert];
+    const res = await api.revert_setting(s.key, s.old_raw);
+    if (!res.ok) { toast(res.error, "bad", 4000); return; }
+    toast(`Put “${s.label}” back to ${s.old}`, "good", 2500);
+    if (res.restart === "explorer") toast("Restart Explorer (in Cleanup → Tweaks) to see it fully.", "info", 4000);
+    b.closest(".diff-row").style.opacity = "0.5"; b.disabled = true;
+  });
 };
 
 /* ================= SECURITY page ================= */
@@ -2378,12 +2483,37 @@ $$("#cleanTabs .tab").forEach(t => t.addEventListener("click", () => {
   const which = t.dataset.clean;
   $$("#cleanTabs .tab").forEach(x => x.classList.toggle("active", x === t));
   for (const [k, id] of [["junk", "cleanTabJunk"], ["large", "cleanTabLarge"],
-                         ["debloat", "cleanTabDebloat"], ["tweaks", "cleanTabTweaks"]])
+                         ["debloat", "cleanTabDebloat"], ["tweaks", "cleanTabTweaks"], ["repair", "cleanTabRepair"]])
     $("#" + id).style.display = which === k ? "" : "none";
   if (which === "debloat" && !cleanLoaded.debloat) { cleanLoaded.debloat = true; loadDebloat(); }
   if (which === "tweaks" && !cleanLoaded.tweaks) { cleanLoaded.tweaks = true; loadTweaks(); }
+  if (which === "repair" && !cleanLoaded.repair) { cleanLoaded.repair = true; loadShellRepairs(); }
 }));
 const cleanLoaded = {};
+async function loadShellRepairs() {
+  const items = await api.list_shell_repairs();
+  $("#repairBody").innerHTML = items.map(r => `
+    <div class="toggle-row">
+      <div class="t-info">
+        <div class="t-name">${esc(r.label)}${r.admin ? `<span class="muted" style="font-size:11px"> · admin</span>` : ""}</div>
+        <div class="t-help">${esc(r.fixes)}</div>
+        <div class="t-help mono copy" style="font-size:10.5px; margin-top:2px; opacity:0.8">${esc(r.where)}</div>
+      </div>
+      <button class="btn small" data-repair="${r.key}">Repair</button>
+    </div>`).join("");
+  $("#repairBody").querySelectorAll("[data-repair]").forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = "Working…";
+    const r = await api.run_shell_repair(b.dataset.repair);
+    b.disabled = false; b.textContent = r.ok ? "Done" : "Repair";
+    toast(r.ok ? r.message : r.error, r.ok ? "good" : "bad", 4000);
+    if (r.ok && r.restart) $("#repairExplorerRow").style.display = "";
+  });
+}
+$("#btnRepairRestartExplorer").onclick = async () => {
+  const r = await api.restart_explorer();
+  toast(r.ok ? "Explorer restarted" : r.error, r.ok ? "good" : "bad");
+  if (r.ok) $("#repairExplorerRow").style.display = "none";
+};
 function loadCleanup() { /* junk tab is on-demand via button */ }
 
 $("#btnJunkScan").onclick = async () => {
@@ -2537,6 +2667,13 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.0.0", name: "Everyday fixes & gremlin hunting", items: [
+    "Power, sleep & wake doctor (Toolbox) — why won't it sleep, what woke it at 3 AM, and what's armed to wake it, in plain English.",
+    "Gremlin hunters (Toolbox) — find what's hammering the disk when “nothing” is, spot USB devices that keep dropping, and a “mark the freeze” button that pulls every log around the moment it hiccupped.",
+    "Cache & shell repair (Cleanup → Repair) — one-click fixes for blank icons, broken thumbnails, garbled fonts and a dead Start search.",
+    "Printer doctor (Devices) — catches “offline” printers, a printer that got a new IP from DHCP, and duplicate drivers; bring it back online or print a test page.",
+    "“What changed?” (Toolbox → baseline) — now spots everyday Windows settings that changed (display language, default browser, taskbar, dark mode, mouse, text size) with one-click “put it back”.",
+  ] },
   { v: "1.9.0", name: "One-click updates", items: [
     "Benchly can now update itself. When a new version is out, “Check for updates” offers Download & install — it fetches the new build, verifies it, and restarts into the new version.",
     "Works for both flavours: an installed copy updates in place via the installer, and a portable exe swaps itself out and relaunches.",
@@ -2714,6 +2851,10 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "shield", label: "Listening ports", run: () => { showPage("security"); $(`#secTabs [data-sec="listeners"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Analyze email headers (phishing)", run: () => { showPage("security"); $(`#secTabs [data-sec="email"]`).click(); } },
   { cat: "Actions", icon: "zap", label: "Performance snapshot — why is it slow?", run: () => { showPage("toolbox"); $("#btnSnapStart").click(); } },
+  { cat: "Actions", icon: "zap", label: "Power, sleep & wake doctor", run: () => { showPage("toolbox"); $("#btnPowerScan").click(); } },
+  { cat: "Actions", icon: "bug", label: "Gremlin hunters (disk / USB / freeze)", run: () => { showPage("toolbox"); $("#btnGremDisk")?.scrollIntoView({ block: "center" }); } },
+  { cat: "Actions", icon: "wrench", label: "Cache & shell repair (blank icons, fonts…)", run: () => { showPage("cleanup"); $(`#cleanTabs [data-clean="repair"]`).click(); } },
+  { cat: "Actions", icon: "printer", label: "Printer doctor", run: () => { showPage("devices"); $("#prnBody")?.scrollIntoView({ block: "center" }); } },
   { cat: "Actions", icon: "download", label: "Check for Benchly updates", run: () => openChangelog() },
   { cat: "Actions", icon: "copy", label: "Copy ticket summary", run: async () => { const t = await api.get_ticket_summary(); navigator.clipboard.writeText(t.text).then(() => toast("Ticket summary copied", "good", 2000)); } },
   { cat: "Actions", icon: "chev", label: "Remote snapshot…", run: () => { showPage("fleet"); $("#rmHost").focus(); } },
