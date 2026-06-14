@@ -24,10 +24,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      links, netperf, virt,
                      pendingreboot, wuhistory, boottime,
                      licensing, identity, grouppolicy, timesync, baseline_policy,
-                     firewall, credentials)
+                     firewall, credentials,
+                     envaudit, runtimes, audio)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.6.0"
+APP_VERSION = "2.7.0"
 
 
 def resource_path(rel: str) -> str:
@@ -316,6 +317,31 @@ class Api:
 
     def winsock_catalog(self):
         return network.winsock_catalog()
+
+    # --- power / storage / runtime forensics (Bundle H) ------------------------------
+    def battery_report(self):
+        return power.battery_report()
+
+    def energy_report(self, duration=30):
+        return power.energy_report(int(duration))
+
+    def storage_deep(self):
+        return storage.storage_deep()
+
+    def env_audit(self):
+        return envaudit.env_audit()
+
+    def clean_path(self, scope):
+        return envaudit.clean_path(scope)
+
+    def runtimes_inventory(self):
+        return runtimes.runtimes_inventory()
+
+    def audio_status(self):
+        return audio.audio_status()
+
+    def restart_audio(self):
+        return audio.restart_audio()
 
     # --- devices & printers ----------------------------------------------------------
     def get_problem_devices(self):

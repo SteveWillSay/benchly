@@ -265,6 +265,35 @@
           <div id="virtBody"></div>
         </div>
         <div id="systemBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:60%"></div></div></div></div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Battery &amp; power efficiency <span class="right">
+            <button class="btn small" id="btnBatteryReport">Battery</button>
+            <button class="btn small ghost" id="btnEnergyReport" title="Runs a ~30s power trace">Energy trace</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            Battery wear and cycle count, and a short powercfg trace that names what's hurting power efficiency
+            (selective-suspend off, devices blocking sleep, thirsty drivers).
+          </p>
+          <div id="powerReportBody"><div class="muted" style="font-size:12.5px">Battery = wear &amp; cycles (laptops). Energy trace needs admin and runs ~30 seconds.</div></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Environment &amp; PATH <span class="right"><button class="btn small" id="btnEnvAudit">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            A broken or bloated PATH is a baffling source of "command not found / wrong version runs". This checks
+            every entry for missing folders, duplicates and quoting issues.
+          </p>
+          <div id="envBody"><div class="muted" style="font-size:12.5px">Press Check to audit the Machine and User PATH.</div></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Installed runtimes <span class="right"><button class="btn small" id="btnRuntimes">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            The .NET, Visual C++ and DirectX runtimes a program quietly needs — the "app won't start, missing
+            runtime" diagnosis in one place.
+          </p>
+          <div id="runtimesBody"><div class="muted" style="font-size:12.5px">Press Check to list the installed runtimes.</div></div>
+        </div>
       </section>
 
       <!-- ==================== STORAGE ==================== -->
@@ -290,6 +319,15 @@
           </div>
           <div class="crumbs mt" id="anCrumbs"></div>
           <div id="anResult" class="mt"></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Advanced storage health <span class="right"><button class="btn small" id="btnStorageDeep">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            Beyond SMART: is TRIM running on the SSDs, any Storage Spaces pool health, the drives' reliability
+            counters, and how much space System Restore's shadow copies are using.
+          </p>
+          <div id="storageDeepBody"><div class="muted" style="font-size:12.5px">Press Check for TRIM, Storage Spaces, reliability counters and shadow-copy usage.</div></div>
         </div>
       </section>
 
@@ -557,6 +595,14 @@
         <div id="prnBody" class="mt"><div class="card"><div class="skel-block"><div class="skel"></div></div></div></div>
         <div id="drvBody" class="mt"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:65%"></div></div></div></div>
         <div id="usbBody" class="mt"></div>
+        <div class="card mt">
+          <h3>Audio devices <span class="right"><button class="btn small" id="btnAudioCheck">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            The "no sound / wrong output / can't pick a device" triage — playback and recording endpoints, their
+            state, and whether the audio services are running.
+          </p>
+          <div id="audioBody"><div class="muted" style="font-size:12.5px">Press Check to list audio devices and service health.</div></div>
+        </div>
       </section>
 
       <!-- ==================== SECURITY ==================== -->

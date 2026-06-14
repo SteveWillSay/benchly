@@ -791,6 +791,119 @@ async function loadShDns() {
     : "";
   el.innerHTML = `<div class="dom-grid">${dns}${win}</div>`;
 }
+
+/* ================= Bundle H: power / storage / runtime forensics ================= */
+$("#btnBatteryReport").onclick = async () => {
+  $("#powerReportBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading battery report…</span></div>`;
+  const r = await api.battery_report().catch(() => null);
+  if (!r || !r.ok) { $("#powerReportBody").innerHTML = `<div class="muted">Couldn't read the battery report.</div>`; return; }
+  if (!r.has_battery) { $("#powerReportBody").innerHTML = `<div class="muted" style="font-size:12.5px">${esc(r.message)}</div>`; return; }
+  const wearLvl = r.wear_pct == null ? "info" : r.wear_pct >= 30 ? "warn" : "good";
+  $("#powerReportBody").innerHTML = `<div class="dom-sec">
+    ${r.wear_pct != null ? `<div class="dr"><span class="dk">Battery wear</span><span class="dv">${pill(wearLvl, r.wear_pct + "%")}</span></div>` : ""}
+    ${r.full_mwh ? `<div class="dr"><span class="dk">Full charge / design</span><span class="dv mono">${r.full_mwh} / ${r.design_mwh} mWh</span></div>` : ""}
+    ${r.cycles != null ? `<div class="dr"><span class="dk">Cycle count</span><span class="dv mono">${r.cycles}</span></div>` : ""}
+  </div>`;
+};
+$("#btnEnergyReport").onclick = async () => {
+  const b = $("#btnEnergyReport"); b.disabled = true;
+  $("#powerReportBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Running a ~30s power trace…</span></div>`;
+  const r = await api.energy_report(30).catch(() => null);
+  b.disabled = false;
+  if (!r || !r.ok) { $("#powerReportBody").innerHTML = `<div class="muted">Couldn't run the energy trace.</div>`; return; }
+  if (r.needs_admin) { $("#powerReportBody").innerHTML = `<div class="dom-flag warn">${ico("bang")}<span>${esc(r.note)}</span></div>`; return; }
+  const counts = `<div class="row" style="gap:6px; margin-bottom:8px">
+    ${pill(r.errors ? "bad" : "good", (r.errors || 0) + " errors")}
+    ${pill(r.warnings ? "warn" : "good", (r.warnings || 0) + " warnings")}
+    ${pill("info", (r.info || 0) + " info")}</div>`;
+  const issues = r.issues.length ? `<div class="dom-sec">${r.issues.map(i =>
+    `<div class="dom-flag ${i.level === "error" ? "bad" : "warn"}">${ico("bang")}<span>${esc(i.text)}</span></div>`).join("")}</div>`
+    : `<div class="muted" style="font-size:12px">No efficiency problems reported.</div>`;
+  $("#powerReportBody").innerHTML = counts + issues;
+};
+$("#btnEnvAudit").onclick = async () => {
+  $("#envBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Auditing PATH…</span></div>`;
+  const r = await api.env_audit().catch(() => null);
+  if (!r || !r.ok) { $("#envBody").innerHTML = `<div class="muted">Couldn't read the environment.</div>`; return; }
+  const head = r.problem_count
+    ? `<div class="dom-flag warn">${ico("bang")}<span>${r.problem_count} PATH entr${r.problem_count === 1 ? "y has" : "ies have"} a problem (highlighted below).</span></div>`
+    : `<div class="dom-flag good">${ico("check")}<span>PATH is clean — every entry exists, no duplicates.</span></div>`;
+  const rows = r.entries.map(e => `<div class="dr">
+    <span class="dk mono" style="font-size:11px; ${e.ok ? "" : "color:var(--warn,#d98a3a)"}">${esc(e.value)}</span>
+    <span class="dv">${e.ok ? `<span class="muted">${esc(e.scope)}</span>` : pill("warn", esc(e.problems.join(", ")))}</span></div>`).join("");
+  const vw = r.var_warnings.length ? `<div class="dom-sec"><h4>Variables pointing at a missing folder</h4>${
+    r.var_warnings.map(v => `<div class="dr"><span class="dk strong">${esc(v.name)}</span><span class="dv mono" style="font-size:11px">${esc(v.value)}</span></div>`).join("")}</div>` : "";
+  const clean = r.problem_count ? `<div class="row" style="margin-top:8px">
+    <button class="btn small primary" data-clean-path="User">Clean User PATH</button>
+    <button class="btn small ghost" data-clean-path="Machine">Clean Machine PATH (admin)</button>
+    <span class="muted" style="font-size:11px">Removes broken &amp; duplicate entries; backs up the prior value.</span></div>` : "";
+  $("#envBody").innerHTML = head + `<div class="dom-sec" style="margin-top:8px">${rows}</div>` + vw + clean;
+  $$("#envBody [data-clean-path]").forEach(b => b.onclick = async () => {
+    if (!confirm("Remove broken and duplicate entries from this PATH? The prior value is backed up.")) return;
+    b.disabled = true;
+    const res = await api.clean_path(b.dataset.cleanPath);
+    toast(res.ok ? (res.message || res.where || "PATH cleaned") : (res.error || "Couldn't clean PATH"), res.ok ? "good" : "bad", 3500);
+    if (res.ok && res.changed) $("#btnEnvAudit").click();
+  });
+};
+$("#btnRuntimes").onclick = async () => {
+  $("#runtimesBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading runtimes…</span></div>`;
+  const r = await api.runtimes_inventory().catch(() => null);
+  if (!r || !r.ok) { $("#runtimesBody").innerHTML = `<div class="muted">Couldn't read runtimes.</div>`; return; }
+  const list = (title, arr) => `<div class="dom-sec"><h4>${title}</h4>${
+    arr.length ? arr.map(x => `<div class="dr"><span class="dk strong">${esc(x)}</span></div>`).join("") : `<div class="muted" style="font-size:12px">None found.</div>`}</div>`;
+  const vc = `<div class="dom-sec"><h4>Visual C++ redistributables</h4>${
+    r.vcredist.length ? r.vcredist.map(v => `<div class="dr"><span class="dk">${esc(v.name)}</span><span class="dv mono">${esc(v.version)}</span></div>`).join("") : `<div class="muted" style="font-size:12px">None found.</div>`}</div>`;
+  $("#runtimesBody").innerHTML = `<div class="dom-grid">
+    ${list(".NET Framework", r.dotnet_framework)}
+    ${list(".NET (Core / 5+)", r.dotnet_core)}
+    ${vc}
+    <div class="dom-sec"><h4>DirectX</h4><div class="dr"><span class="dk strong">${esc(r.directx.label)}</span><span class="dv mono">${esc(r.directx.ddi || "")}</span></div></div>
+  </div>`;
+};
+$("#btnStorageDeep").onclick = async () => {
+  $("#storageDeepBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading deep storage health…</span></div>`;
+  const r = await api.storage_deep().catch(() => null);
+  if (!r || !r.ok) { $("#storageDeepBody").innerHTML = `<div class="muted">Couldn't read storage health.</div>`; return; }
+  const trimPill = r.trim_enabled == null ? pill("info", "unknown") : r.trim_enabled ? pill("good", "enabled") : pill("warn", "disabled");
+  const top = `<div class="dom-sec"><h4>Filesystem</h4>
+    <div class="dr"><span class="dk">TRIM (SSD)</span><span class="dv">${trimPill}</span></div>
+    <div class="dr"><span class="dk">C: dirty bit</span><span class="dv">${r.c_dirty ? pill("warn", "set — chkdsk wanted") : pill("good", "clean")}</span></div></div>`;
+  const spaces = (r.pools.length || r.vdisks.length) ? `<div class="dom-sec"><h4>Storage Spaces</h4>
+    ${r.pools.map(p => `<div class="dr"><span class="dk strong">${esc(p.FriendlyName)} (${p.Size} GB)</span><span class="dv">${esc(p.Health || "")}</span></div>`).join("")}
+    ${r.vdisks.map(v => `<div class="dr"><span class="dk">${esc(v.FriendlyName)} · ${esc(v.Resiliency || "")}</span><span class="dv">${esc(v.Health || "")}</span></div>`).join("")}</div>` : "";
+  const rel = r.reliability.length ? `<div class="dom-sec"><h4>Reliability counters${r.reliability.every(x => x.wear == null) ? ` ${pill("info", "wear/temp need admin")}` : ""}</h4>
+    ${r.reliability.map(x => `<div class="dr"><span class="dk strong">${esc(x.name)}</span><span class="dv">${
+      x.wear != null ? `wear ${x.wear}% · ` : ""}${x.temp != null ? `${x.temp}°C · ` : ""}${x.read_err != null ? `rd-err ${x.read_err} · wr-err ${x.write_err}` : (x.wear == null ? "—" : "")}</span></div>`).join("")}</div>` : "";
+  const vss = r.vss.length ? `<div class="dom-sec"><h4>Shadow-copy storage (System Restore)</h4>
+    ${r.vss.map(v => `<div class="dr"><span class="dk strong">${esc(v.volume)}</span><span class="dv mono" style="font-size:11px">used ${esc(v.used || "—")} / max ${esc(v.max || "—")}</span></div>`).join("")}</div>`
+    : (r.vss_needs_admin ? `<div class="dom-sec"><h4>Shadow-copy storage</h4><div class="muted" style="font-size:12px">Run as admin to see restore-point space usage.</div></div>` : "");
+  $("#storageDeepBody").innerHTML = `<div class="dom-grid">${top}${spaces}${rel}${vss}</div>`;
+};
+$("#btnAudioCheck").onclick = async () => {
+  $("#audioBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading audio devices…</span></div>`;
+  const r = await api.audio_status().catch(() => null);
+  if (!r || !r.ok) { $("#audioBody").innerHTML = `<div class="muted">Couldn't read audio devices.</div>`; return; }
+  const notes = r.notes.map(n => `<div class="dom-flag warn">${ico("bang")}<span>${esc(n)}</span></div>`).join("");
+  const eps = r.endpoints.filter(e => e.present || e.status === "active");
+  const list = eps.length ? `<div class="table-wrap" style="max-height:260px"><table>
+    <thead><tr><th>Device</th><th>Kind</th><th>State</th></tr></thead><tbody>
+    ${eps.map(e => `<tr><td class="strong">${esc(e.name)}</td><td class="muted">${esc(e.kind)}</td>
+      <td>${e.status === "active" ? pill("good", "active") : e.concern ? pill("bad", esc(e.status)) : pill("info", esc(e.status))}</td></tr>`).join("")}
+    </tbody></table></div>` : emptyState("bang", "No audio endpoints found");
+  const svc = `<div class="row" style="gap:6px; margin-top:8px">${r.services.map(s =>
+    s.concern ? pill("warn", `${esc(s.name)}: ${esc(s.status)}`) : pill("good", `${esc(s.name)}: ${esc(s.status)}`)).join("")}
+    <button class="btn small ghost" id="btnAudioRestart" title="Restart the audio services">Restart audio</button></div>`;
+  $("#audioBody").innerHTML = notes + list + svc;
+  const rb = $("#btnAudioRestart");
+  if (rb) rb.onclick = async () => {
+    rb.disabled = true;
+    const res = await api.restart_audio();
+    toast(res.ok ? "Audio service restarted" : (res.error || "Couldn't restart"), res.ok ? "good" : "bad");
+    rb.disabled = false;
+    if (res.ok) $("#btnAudioCheck").click();
+  };
+};
 $("#btnNetClear").onclick = () => {
   const c = $("#netConsole");
   c.dataset.used = "";
@@ -3363,6 +3476,13 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.7.0", name: "Power, storage & runtime forensics", items: [
+    "Battery & power efficiency (System) — battery wear and cycle count, plus a short powercfg trace that names what's hurting power efficiency (selective-suspend off, devices blocking sleep, thirsty drivers).",
+    "Environment & PATH audit (System) — checks every Machine and User PATH entry for missing folders, duplicates and quoting issues — the baffling “command not found / wrong version runs” fixer. One-click clean of broken & duplicate entries, with the prior value backed up.",
+    "Installed runtimes (System) — the .NET Framework, .NET (Core/5+), Visual C++ redistributables and DirectX a program quietly needs. The “app won't start, missing runtime” diagnosis in one place.",
+    "Advanced storage health (Storage) — beyond SMART: is TRIM running on the SSDs, Storage Spaces pool health, the drives' reliability counters, shadow-copy (System Restore) space, and the filesystem dirty bit.",
+    "Audio device doctor (Devices) — the “no sound / wrong output / can't pick a device” triage: playback and recording endpoints with their state, the audio services, and a one-click restart.",
+  ] },
   { v: "2.6.0", name: "Network & sharing deep", items: [
     "New Sharing & firewall section on the Network page, for the silent “can't see the printer / keeps asking me to sign in” problems.",
     "Network profile — spots a connection left on Public (which blocks file/printer sharing and discovery) and flips it to Private in one click.",
@@ -3620,6 +3740,11 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "wrench", label: "Network profile (Public/Private)", run: () => { showPage("network"); $("#btnSharing")?.click(); } },
   { cat: "Actions", icon: "shield", label: "Mapped drives & saved credentials", run: () => { showPage("network"); $("#btnSharing")?.click(); $(`#shTabs [data-sh="creds"]`)?.click(); } },
   { cat: "Actions", icon: "wrench", label: "DNS cache & Winsock catalog", run: () => { showPage("network"); $("#btnSharing")?.click(); $(`#shTabs [data-sh="dns"]`)?.click(); } },
+  { cat: "Actions", icon: "cpu2", label: "Battery wear & power efficiency", run: () => { showPage("system"); $("#btnBatteryReport")?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "Environment & PATH audit", run: () => { showPage("system"); $("#btnEnvAudit")?.click(); } },
+  { cat: "Actions", icon: "cpu2", label: "Installed runtimes (.NET / VC++ / DirectX)", run: () => { showPage("system"); $("#btnRuntimes")?.click(); } },
+  { cat: "Actions", icon: "drive", label: "Advanced storage health (TRIM / VSS)", run: () => { showPage("storage"); $("#btnStorageDeep")?.click(); } },
+  { cat: "Actions", icon: "q", label: "Audio device doctor", run: () => { showPage("devices"); $("#btnAudioCheck")?.click(); } },
   { cat: "Actions", icon: "download", label: "Check for app updates (winget)", run: () => { showPage("software"); $(`#swTabs [data-sw="appupdates"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Audit trusted root certificates", run: () => { showPage("security"); $(`#secTabs [data-sec="certs"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Listening ports", run: () => { showPage("security"); $(`#secTabs [data-sec="listeners"]`).click(); } },

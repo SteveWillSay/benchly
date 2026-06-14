@@ -6,7 +6,7 @@ import threading
 
 import psutil
 
-from .ps import ps_json, as_list
+from .ps import ps_json, as_list, run_ps
 
 _DISKS_PS = r"""
 $o = [ordered]@{}
@@ -222,3 +222,78 @@ def smart_predict():
     else:
         flags.append({"level": "good", "text": "All drives look healthy. Trends build up the more you check."})
     return {"ok": True, "disks": out, "flags": flags}
+
+
+# --------------------------------------------------------------------------- #
+# Deep storage health (H2): TRIM, Storage Spaces, reliability counters, VSS
+# --------------------------------------------------------------------------- #
+def storage_deep():
+    from . import security
+    admin = security.is_admin()
+
+    # TRIM (SSD): DisableDeleteNotify 0 = enabled.
+    trim_out = run_ps("fsutil behavior query DisableDeleteNotify 2>&1", timeout=15) or ""
+    trim = None
+    import re as _re
+    m = _re.search(r"NTFS\s+DisableDeleteNotify\s*=\s*(\d)", trim_out) or \
+        _re.search(r"DisableDeleteNotify\s*=\s*(\d)", trim_out)
+    if m:
+        trim = (m.group(1) == "0")
+
+    # Storage Spaces (non-primordial pools + virtual disks).
+    pools = as_list(ps_json(
+        "Get-StoragePool -ErrorAction SilentlyContinue | Where-Object { -not $_.IsPrimordial } | "
+        "Select-Object FriendlyName,@{n='Health';e={[string]$_.HealthStatus}},"
+        "@{n='Size';e={[math]::Round($_.Size/1GB)}}", timeout=25))
+    vdisks = as_list(ps_json(
+        "Get-VirtualDisk -ErrorAction SilentlyContinue | Select-Object FriendlyName,"
+        "@{n='Health';e={[string]$_.HealthStatus}},@{n='Resiliency';e={[string]$_.ResiliencySettingName}}",
+        timeout=25))
+
+    # Reliability counters (richer than basic SMART; some fields want admin).
+    rel = as_list(ps_json(
+        "Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object { "
+        "$r = $_ | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue; "
+        "[pscustomobject]@{ Name=$_.FriendlyName; Wear=$r.Wear; Temp=$r.Temperature; "
+        "ReadErr=$r.ReadErrorsTotal; WriteErr=$r.WriteErrorsTotal } }", timeout=30, depth=3))
+    reliability = []
+    for r in rel:
+        if isinstance(r, dict) and r.get("Name"):
+            reliability.append({"name": r.get("Name"), "wear": r.get("Wear"),
+                                "temp": r.get("Temp"), "read_err": r.get("ReadErr"),
+                                "write_err": r.get("WriteErr")})
+
+    # VSS shadow-copy storage (restore-point space) — needs admin.
+    vss = []
+    if admin:
+        vtext = run_ps("vssadmin list shadowstorage 2>&1", timeout=20) or ""
+        cur = {}
+        for line in vtext.splitlines():
+            s = line.strip()
+            if s.lower().startswith("for volume"):
+                if cur:
+                    vss.append(cur)
+                mm = _re.search(r"\(([A-Z]:)\)", s)
+                cur = {"volume": mm.group(1) if mm else s}
+            elif "used shadow copy storage space" in s.lower():
+                cur["used"] = s.split(":", 1)[1].strip()
+            elif "allocated shadow copy storage space" in s.lower():
+                cur["allocated"] = s.split(":", 1)[1].strip()
+            elif "maximum shadow copy storage space" in s.lower():
+                cur["max"] = s.split(":", 1)[1].strip()
+        if cur:
+            vss.append(cur)
+
+    # Filesystem dirty bit on C: (set = chkdsk wanted at next boot).
+    dirty_out = run_ps("fsutil dirty query C: 2>&1", timeout=15) or ""
+    c_dirty = "is dirty" in dirty_out.lower()
+
+    return {
+        "ok": True, "is_admin": admin,
+        "trim_enabled": trim,
+        "pools": [p for p in pools if isinstance(p, dict)],
+        "vdisks": [v for v in vdisks if isinstance(v, dict)],
+        "reliability": reliability,
+        "vss": vss, "vss_needs_admin": not admin,
+        "c_dirty": c_dirty,
+    }

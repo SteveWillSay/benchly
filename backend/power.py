@@ -205,3 +205,68 @@ def disarm_wake_task(task_path):
     if "OK" in out:
         return {"ok": True, "where": f"Scheduled task {task_path} → Conditions → Wake the computer (off)"}
     return {"ok": False, "error": "Could not change the task (it may not exist or need admin)."}
+
+
+# --------------------------------------------------------------------------- #
+# Power efficiency reports (H1)
+# --------------------------------------------------------------------------- #
+import os
+import tempfile
+
+
+def battery_report():
+    """Battery wear & cycle count from powercfg's battery report (laptops)."""
+    has_batt = ps_json("[bool](Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue)", timeout=15)
+    if not has_batt:
+        return {"ok": True, "has_battery": False,
+                "message": "No battery — this looks like a desktop or a PC without one."}
+    out = os.path.join(tempfile.gettempdir(), "benchly-battery.xml")
+    from .ps import run_ps
+    run_ps(f'powercfg /batteryreport /xml /output "{out}" 2>&1', timeout=30)
+    design = full = cycles = None
+    try:
+        import xml.etree.ElementTree as ET
+        txt = open(out, encoding="utf-8", errors="replace").read()
+        txt = re.sub(r'\sxmlns="[^"]+"', "", txt, count=1)   # drop the default namespace
+        root = ET.fromstring(txt)
+        for b in root.iter("Battery"):
+            d, f, c = b.findtext("DesignCapacity"), b.findtext("FullChargeCapacity"), b.findtext("CycleCount")
+            design = int(d) if d and d.isdigit() else design
+            full = int(f) if f and f.isdigit() else full
+            cycles = int(c) if c and c.isdigit() else cycles
+            break
+    except Exception:
+        pass
+    wear = round((1 - full / design) * 100, 1) if (design and full and design > 0) else None
+    return {"ok": True, "has_battery": True, "design_mwh": design, "full_mwh": full,
+            "cycles": cycles, "wear_pct": wear}
+
+
+def energy_report(duration=30):
+    """A short powercfg /energy trace → the efficiency errors/warnings it found.
+
+    Runs a live trace for `duration` seconds, so it's a deliberate on-demand check.
+    """
+    if not security.is_admin():
+        return {"ok": True, "needs_admin": True,
+                "note": "The energy efficiency trace needs admin — use Run as admin, then try again."}
+    from .ps import run_ps
+    out = os.path.join(tempfile.gettempdir(), "benchly-energy.html")
+    txt = run_ps(f'powercfg /energy /output "{out}" /duration {int(duration)} 2>&1 | Out-String',
+                 timeout=int(duration) + 30) or ""
+    def _n(label):
+        m = re.search(rf"(\d+)\s+{label}", txt)
+        return int(m.group(1)) if m else None
+    issues = []
+    try:
+        html = open(out, encoding="utf-8", errors="replace").read()
+        for cls, level in (("errorName", "error"), ("warnName", "warning")):
+            for mm in re.finditer(rf'class="{cls}">(.*?)</td>', html, re.S):
+                t = re.sub("<[^>]+>", "", mm.group(1)).strip()
+                if t:
+                    issues.append({"level": level, "text": t[:160]})
+    except Exception:
+        pass
+    return {"ok": True, "duration": int(duration),
+            "errors": _n("Errors"), "warnings": _n("Warnings"), "info": _n("Informational"),
+            "issues": issues[:25]}
