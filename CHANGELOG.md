@@ -1,7 +1,8 @@
 # Changelog
 
-All notable changes to Benchly. Dates are when each release was built.
-Versioning is semantic-ish: minor versions add features, patch versions fix/polish.
+Every release of Benchly, newest first. Dates are when each build was cut.
+Versioning is semantic-ish: minor versions add features, patch versions fix and polish.
+The same notes show up in the app — click the version number in the corner for "What's new".
 
 ## [1.8.0] — 2026-06-13
 

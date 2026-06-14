@@ -1,91 +1,149 @@
+<div align="center">
+
+<img src="assets/icon.png" width="96" alt="Benchly">
+
 # Benchly
 
-**The IT technician's one-stop workstation triage bench.**
+**Put any PC on the bench.**
 
-One window for everything you normally need a USB stick full of fragmented utilities for:
-live performance telemetry, deep hardware inventory, SMART disk health, a network tool
-console, a weighted health & security audit, and a client-ready HTML report — in a single
-portable exe with a modern UI.
+A single-window diagnostics, triage and repair bench for Windows —
+the one tool that replaces the USB stick full of half-trusted freeware
+you've been carrying around since 2014.
 
-![Benchly](assets/icon.png)
+</div>
 
-## Features
+---
 
-| Page | What you get |
+One portable executable. No installer required, no account, nothing phoning home.
+It opens in about a second and shows you the whole machine: live vitals, the deep
+hardware inventory, disk health, the network, what's autostarting, what's listening,
+what's wrong, and how to fix it — in a UI that doesn't look like it was built in 2009.
+
+The thing that makes Benchly different from a launcher full of separate utilities
+isn't that it bundles them. It's that **every action that touches Windows tells you
+exactly what it changes and where**, and **anything that leaves the machine is named
+out loud**. You can hand it to a client's PC and know precisely what it did.
+
+## Quick start
+
+Grab the latest build from the [**Releases**](../../releases/latest) page:
+
+| You want… | Download | Notes |
+|---|---|---|
+| **The no-fuss option** | `Benchly-x.y.z-portable.exe` | One file. Run it from a desktop, a network share, or a USB stick. Nothing is installed. |
+| **A proper install** | `Benchly-Setup-x.y.z.exe` | Start-menu entry, optional desktop shortcut, clean uninstaller. |
+
+Double-click and you're in. Some checks — SMART drive wear, BitLocker, TPM, Secure
+Boot, machine-wide tweaks — need elevation; hit **Run as admin** in the title bar and
+Benchly relaunches elevated and drops you back on the same page.
+
+> **Windows 10 or 11**, 64-bit. Benchly rides on the WebView2 runtime, which ships
+> with Windows 11 and every current Windows 10. On a stripped LTSC image without it,
+> the app will point you at the one-time Microsoft download.
+
+## A quick tour
+
+Benchly is organised as pages down the left rail. Press a number key to jump straight
+to one, or hit **Ctrl + K** for a command palette over every page and action.
+
+**See the machine.** The **Dashboard** is your triage glance — live CPU / RAM / disk-I/O
+/ network graphs that actually update every second, a per-core grid, a health-score
+ring, and the noisiest processes. **System** is the full inventory down to each RAM
+module's part number and the monitor's EDID. **Storage** reads real SMART health,
+temperature and wear, then lets you drill into what's eating the disk. **Processes**
+is a live, sortable, end-task-on-hover table.
+
+**Work the network — and the web.** Beyond adapters, Wi-Fi and the usual
+ping / traceroute / DNS / port tools, Benchly can **look up any domain** (registration
+age, TLS certificate, hosting, reputation — to judge a site before you trust it),
+**unmask a shortened URL** by following every redirect without opening it, and
+**analyze nearby Wi-Fi** for signal and channel congestion.
+
+**Judge what you can trust.** **Security** shows your real antivirus (it reads Security
+Center, so third-party AVs aren't mistaken for "off"), maps the full **autostart
+persistence** surface, audits the **trusted root certificates** for interception or
+adware roots, lists every **listening port** with the signed/unsigned process behind
+it, and parses **raw email headers** to catch phishing — all of it with a VirusTotal
+check that only ever sends a hash.
+
+**Fix it and tidy it.** The **Toolbox** streams the heavy repair tools (SFC, DISM,
+chkdsk, winsock, Windows Update reset) live, snapshots a configuration **baseline** to
+diff against later, and captures a 30-second **"why is it slow right now?"** snapshot.
+**Fix-It** walks guided runbooks for the everyday complaints. **Cleanup** clears junk,
+finds large and duplicate files, debloats preinstalled apps, and offers a shelf of
+documented, reversible **Windows tweaks**. **Software** can even update your installed
+apps through winget.
+
+**Report and scale.** One click exports a clean, client-ready **HTML + PDF report**
+(generated in the background, with a machine-readable JSON twin). **Fleet** compares
+those reports across machines and pulls remote snapshots over WinRM.
+
+The full, page-by-page reference lives in **[docs/features.md](docs/features.md)**.
+
+## The part most tools skip: transparency
+
+Benchly is built for a context where trust matters — you're often working on someone
+else's machine. So two promises are wired through the whole app:
+
+- **Every change is documented in place.** A repair tool tells you the exact paths and
+  services it touches. A tweak shows the precise registry key it writes. A destructive
+  action spells out the files it will remove before you confirm.
+- **Nothing leaves the machine quietly.** VirusTotal checks send a **SHA-256 hash, never
+  the file**. A domain lookup sends the **domain name** to public registries and a TLS
+  handshake to the host — nothing about your browsing. Remote snapshots use credentials
+  passed through the environment **once**, never written to disk. The email and URL tools
+  parse and resolve; they never execute anything.
+
+The honest, line-by-line version is in **[docs/privacy-and-safety.md](docs/privacy-and-safety.md)** —
+worth a read before you run anything destructive.
+
+## Power-user notes
+
+| Key | Does |
 |---|---|
-| **Dashboard** | Triage vitals strip, live CPU / RAM / disk-I/O / network sparklines (1 s), per-core load grid, health score ring, top processes, clickable volume bars |
-| **System** | Full inventory: machine, OS, CPU, every RAM module (slot/speed/part no.), GPUs, monitor EDID, board, BIOS/UEFI, Secure Boot, TPM |
-| **Storage** | Physical disks with SMART health, temperature, wear & power-on hours¹, volumes, and a drill-down space analyzer (drive chips, breadcrumbs, reveal-in-Explorer) |
-| **Network** | Adapter/Wi-Fi detail, public IP, quick-target chips (gateway/DNS), and tools: ping, traceroute, DNS lookup, port test, active connections, flush DNS — with a copyable session log |
-| **Processes** | Live sortable, filterable process table; end-task on row hover |
-| **Software** | Installed apps (registry-accurate), startup entries with enabled/disabled state, services, hotfix history |
-| **Devices** | Problem-device audit (yellow-bang devices with decoded CM error codes) and printer triage with one-click stuck-queue purge |
-| **Security** | Every registered antivirus product via Security Center (third-party AVs detected correctly), firewall/BitLocker/UAC/Secure Boot/TPM at a glance, and a VirusTotal file-reputation check (files are hashed locally — only the SHA-256 leaves the machine) |
-| **Health Audit** | 14 weighted checks → score /100 + grade, each failure with a one-click remediation link into Windows Settings |
-| **Event Log** | A triage summary that groups events by source with plain-English explanations and remediation links, plus the raw log with level filters and a Crashes tab (BSOD bugchecks, dirty shutdowns, app crashes grouped by faulting module) |
-| **Toolbox** | Repair tools with live streamed output (SFC, DISM scan/repair, chkdsk, winsock reset, WU cache reset) and a configuration baseline — snapshot the machine when healthy, diff later to see exactly what changed |
-| **Export Report** | One click → polished standalone HTML **and PDF** report, generated in the background with stage-by-stage progress |
+| **Ctrl + K** | Command palette — every page and action, fuzzy-searchable |
+| **1 – 9** | Jump to a page; **0** → Toolbox |
+| **/** | Focus the current page's filter · **Esc** clears it |
+| `--page <name>` | Launch straight onto a page |
+| `--theme icloud` | Launch in the glass theme |
 
-Software also audits **scheduled tasks** (non-Microsoft, failures first), **browser extensions**
-(Chrome/Edge/Brave/Firefox) and **pending Windows Updates** (list + Settings deep link).
-Network gains a **WAN speed test** (via speed.cloudflare.com). **Ctrl+K** opens a command palette
-over every page and action.
-
-**v1.5** adds safety, cleanup and malware-triage tooling — see [CHANGELOG.md](CHANGELOG.md) for the
-full per-release history. Highlights: **Security** gains an autostart persistence map (with VirusTotal
-triage), browser-hijack scan and remote-access/scam check; a new **Cleanup** page (junk, large &
-duplicate files, debloat, privacy toggles); a new **Fix-It** page (guided runbooks); restore-point and
-backup-posture cards in the Toolbox; a per-process deep-inspect drawer; a reliability timeline;
-USB-device history; and an iCloud appearance theme with a customizable glass background.
-
-v1.4 adds the field kit:
-
-- **LAN toolkit** (Network) — subnet scanner (parallel ping sweep + ARP + reverse DNS + vendor
-  lookup, with one-click port-profile and Wake from results), saved-machine **Wake-on-LAN**, and a
-  **DHCP & DNS health** check (leases, per-server lookup timing, multiple-DHCP warning)
-- **Port profile scan** — TCP-connect sweep of 25 common service ports with banner grab
-- **Fleet** page — **remote snapshots over WinRM** (credentials passed via environment, never stored)
-  and **cross-machine report comparison** using the `.json` twin saved beside every exported report
-- **Live sensors** (System) — NVIDIA GPU temp/load/VRAM/power, disk temps when elevated, ACPI zones,
-  and a LibreHardwareMonitor bridge for CPU cores when its web server is running — honestly labelled
-- **Driver audit** (Devices) — third-party drivers with old/duplicate flags
-- **Memory diagnostic** (Toolbox) — schedule the Windows memory test, read past verdicts
-- **Battery health trend** (System) — one reading per day, charted across the battery's life
-- **Ticket summary** (Toolbox / Ctrl+K) — paste-ready plain-text triage block for your PSA
-
-¹ needs elevation — **Run as admin** in the title bar relaunches elevated and returns to the same page.
-
-Everywhere: values like serials, MACs and IPs are click-to-copy; `/` focuses the page filter; `Esc` clears it; keys 1–8 switch pages.
-
-## Run it
-
-| Flavour | How |
-|---|---|
-| **Portable** | `dist\Benchly.exe` — single file, no install, run from a USB stick |
-| **Installer** | `dist_installer\Benchly-Setup-<version>.exe` — Start-menu + optional desktop shortcut |
-| **From source** | `.venv\Scripts\python.exe app.py` |
-
-Keyboard: keys **1–8** switch pages. `--page <name>` opens on a specific page.
+Values you'd otherwise hand-type — serials, MACs, IP addresses, hashes — are
+click-to-copy throughout. There are two looks: **Graphite** (the default flat dark) and
+**iCloud** (frosted glass with a customizable gradient), switchable live from the title
+bar. Click the version number any time for the in-app changelog.
 
 ## Build from source
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install pywebview psutil pyinstaller pillow
-.\build_portable.ps1                                  # → dist\Benchly.exe
+.venv\Scripts\python app.py            # run it straight from source
+
+.\build_portable.ps1                   # → dist\Benchly.exe
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss   # → dist_installer\
 ```
 
-## Architecture
+The full build-and-release runbook — versioning, tagging, publishing a GitHub release —
+is in **[docs/building.md](docs/building.md)**.
 
-- **Shell** — [pywebview](https://pywebview.flowrl.com/) window on the WebView2 runtime (ships with Windows 11).
-- **Backend** (`backend/`) — psutil for fast 1-second telemetry; batched PowerShell/CIM
-  queries for the deep inventory (one shell round-trip per domain, JSON over stdout);
-  registry reads for software/startup. Everything degrades gracefully without admin rights.
-- **Frontend** (`ui/`) — vanilla HTML/CSS/JS, zero CDN dependencies (fully offline),
-  custom canvas sparklines, dark theme tuned for long bench sessions.
+## How it's built
 
-## Requirements
+- **Shell** — a [pywebview](https://pywebview.flowrl.com/) window on Windows' WebView2
+  runtime. Native window, web front-end, no browser bundled.
+- **Backend** (`backend/`) — Python. `psutil` for the fast one-second telemetry; batched
+  PowerShell / CIM queries for the deep inventory (one round-trip per domain, JSON back
+  over stdout); direct registry reads for software and startup. Long jobs stream to the
+  UI through a small background-job store. Everything degrades gracefully without admin
+  rights instead of erroring out.
+- **Frontend** (`ui/`) — hand-written HTML, CSS and JavaScript. No framework, no CDN, no
+  build step — it runs fully offline. Canvas sparklines, a strict content-security-policy,
+  and a dark theme tuned for long sessions at the bench.
 
-Windows 10/11 with the WebView2 runtime (preinstalled on Win 11; the portable exe will
-prompt on bare Win 10 LTSC machines). No other dependencies.
+A solo project, so the code is closed-source and the releases are for the maintainer's
+own bench use — but the architecture notes above are the honest shape of it.
+
+## Questions
+
+Common ones — "is it safe to run on a client's PC?", "why does it need admin?", "does it
+work offline?", "where's my data stored?" — are answered in **[docs/faq.md](docs/faq.md)**.
+Per-release history is in **[CHANGELOG.md](CHANGELOG.md)**.
