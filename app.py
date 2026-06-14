@@ -18,10 +18,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      remote, fleet, diag, restore, autoruns, threats, runbooks, debloat,
                      reliability, cleanup, usbhistory, backupaudit, tweaks, domain,
                      winget, certaudit, mailcheck, urlcheck, listeners, wifi, slowsnap,
-                     selfupdate, power, shellrepair, gremlins)
+                     selfupdate, power, shellrepair, gremlins,
+                     defender, persistence, execevidence, hardening)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.0.1"
+APP_VERSION = "2.1.0"
 
 
 def resource_path(rel: str) -> str:
@@ -284,6 +285,34 @@ class Api:
 
     def mark_freeze(self, window_secs=90):
         return gremlins.mark_freeze(window_secs)
+
+    # --- security & IR v2 ---------------------------------------------------------------
+    def audit_defender(self):
+        return defender.audit_defender()
+
+    def remove_exclusion(self, kind, value):
+        return defender.remove_exclusion(kind, value)
+
+    def map_persistence(self):
+        return persistence.map_persistence()
+
+    def recent_execution(self, days=14):
+        return execevidence.recent_execution(days)
+
+    def hardening_scorecard(self):
+        return hardening.scorecard()
+
+    def apply_control(self, key):
+        return hardening.apply_control(key)
+
+    def asr_rules(self):
+        return hardening.asr_rules()
+
+    def set_asr(self, rule_id, mode):
+        return hardening.set_asr(rule_id, mode)
+
+    def post_scam_check(self):
+        return threats.post_scam_check()
 
     # --- audits ------------------------------------------------------------------------
     def get_scheduled_tasks(self):

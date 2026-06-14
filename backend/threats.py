@@ -80,6 +80,51 @@ def remote_access_audit():
     }
 
 
+def post_scam_check():
+    """One guided pass after a suspected scam / remote-access incident."""
+    from . import persistence, defender
+    ra = remote_access_audit()
+    per = persistence.map_persistence()
+    dfn = defender.audit_defender()
+
+    findings = []
+    if ra["tools"]:
+        running = [t["name"] for t in ra["tools"] if t["running"]]
+        findings.append({"level": "warn" if running else "info",
+                         "title": "Remote-access tools",
+                         "detail": (("Running now: " + ", ".join(running) + ". ") if running else "")
+                                   + "Installed: " + ", ".join(t["name"] for t in ra["tools"]) + "."})
+    if per["total"]:
+        bits = []
+        if per["wmi"]:
+            bits.append(f"{len(per['wmi'])} WMI subscription(s)")
+        if per["services"]:
+            bits.append(f"{len(per['services'])} odd service(s)")
+        if per["tasks"]:
+            bits.append(f"{len(per['tasks'])} odd task(s)")
+        findings.append({"level": "warn", "title": "Persistence to review", "detail": ", ".join(bits) + "."})
+    if dfn.get("defender") and dfn.get("flagged"):
+        findings.append({"level": "warn", "title": "Defender exclusions",
+                         "detail": f"{dfn['flagged']} risky exclusion(s) — an attacker may have told Defender to ignore a folder."})
+    extra_admins = [a["name"] for a in ra["admins"]
+                    if a.get("name") and not re.search(r"\\(administrator|domain admins)$", a["name"], re.I)]
+    if len(ra["admins"]) > 1:
+        findings.append({"level": "info", "title": "Administrator accounts",
+                         "detail": "Members: " + ", ".join(a["name"] for a in ra["admins"]) + ". Remove any you don't recognise."})
+
+    checklist = [
+        "Disconnect from the internet if the attacker may still be connected.",
+        "Close/uninstall any remote-access tool you didn't set up (see above).",
+        "From a DIFFERENT, trusted device, change passwords for email and banking first.",
+        "Turn on two-factor authentication where you can.",
+        "Call your bank if you shared card details or they touched financial sites.",
+        "Review the persistence, exclusions and accounts flagged above and remove anything you don't recognise.",
+        "Run a full antivirus scan.",
+    ]
+    return {"ok": True, "findings": findings, "checklist": checklist,
+            "clean": not any(f["level"] == "warn" for f in findings)}
+
+
 # ---- browser hijack scan ---------------------------------------------------------
 
 _CHROMIUM = [

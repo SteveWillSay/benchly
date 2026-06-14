@@ -515,6 +515,8 @@
           <button class="tab" data-sec="remote">Remote access</button>
           <button class="tab" data-sec="certs">Root certificates <span class="count" id="cntCerts"></span></button>
           <button class="tab" data-sec="listeners">Listening ports <span class="count" id="cntListeners"></span></button>
+          <button class="tab" data-sec="persist">Persistence <span class="count" id="cntPersist"></span></button>
+          <button class="tab" data-sec="harden">Hardening <span class="count" id="cntHarden"></span></button>
           <button class="tab" data-sec="email">Email headers</button>
           <button class="tab" data-sec="vt">VirusTotal</button>
         </div>
@@ -589,6 +591,37 @@
             <div class="row mt"><button class="btn primary" id="btnEmailCheck">Analyze headers</button>
               <button class="btn ghost" id="btnEmailClear">Clear</button></div>
             <div id="emailResult" class="mt"></div>
+          </div>
+        </div>
+
+        <div id="secTabPersist" style="display:none">
+          <div class="card">
+            <h3>Persistence &amp; exclusions <span class="right"><button class="btn small" id="btnPersistScan">Scan</button></span></h3>
+            <p class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px">
+              The hiding spots autoruns flattens or misses — WMI event subscriptions (fileless persistence),
+              services and tasks with suspicious paths, Defender exclusions, and what's executed recently
+              (from Prefetch). Findings are ranked context, not verdicts — legit software trips some of these.
+            </p>
+            <div id="persistBody"><div class="muted" style="font-size:12.5px">Press Scan to map persistence. Some parts need Run as admin.</div></div>
+          </div>
+        </div>
+
+        <div id="secTabHarden" style="display:none">
+          <div class="card">
+            <h3>Hardening scorecard <span class="right" id="hardenScore"></span></h3>
+            <p class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px">
+              High-value Windows hardening checks, each with a reversible one-click fix that documents exactly
+              what it changes. Nothing is applied automatically.
+            </p>
+            <div id="hardenBody"><div class="muted" style="font-size:12.5px">Loading…</div></div>
+          </div>
+          <div class="card mt">
+            <h3>Attack Surface Reduction rules</h3>
+            <p class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px">
+              ASR rules block common ransomware and malware behaviours. Set a rule to <b>Audit</b> first (it just
+              logs what it would block), then <b>Block</b> once you're confident nothing you use is affected.
+            </p>
+            <div id="asrBody"></div>
           </div>
         </div>
 
@@ -734,6 +767,15 @@
           <div><h2>Fix-It</h2><div class="desc">Guided runbooks for the most common problems</div></div>
           <div class="spacer"></div>
           <button class="btn ghost" id="btnFixitBack" style="display:none">← All problems</button>
+        </div>
+        <div class="card" id="postScamCard" style="margin-bottom:14px">
+          <h3>Recovering from a scam or remote-access incident <span class="right"><button class="btn small primary" id="btnPostScam">Run the check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.55; margin-bottom:6px">
+            If you let someone control your PC, or think you were scammed, this does one guided pass — remote-access
+            tools, persistence, Defender exclusions and admin accounts — then gives you a clear, ordered list of what
+            to do next. It flags things to review; it never deletes anything for you.
+          </p>
+          <div id="postScamResult" class="mt"></div>
         </div>
         <div id="runbookList" class="grid cols-3"></div>
         <div id="runbookDetail" style="display:none"></div>

@@ -2208,14 +2208,117 @@ $$("#secTabs .tab").forEach(t => t.addEventListener("click", () => {
   $$("#secTabs .tab").forEach(x => x.classList.toggle("active", x === t));
   for (const [k, id] of [["overview", "secTabOverview"], ["autoruns", "secTabAutoruns"],
                          ["hijack", "secTabHijack"], ["remote", "secTabRemote"], ["vt", "secTabVt"],
-                         ["certs", "secTabCerts"], ["listeners", "secTabListeners"], ["email", "secTabEmail"]])
+                         ["certs", "secTabCerts"], ["listeners", "secTabListeners"], ["email", "secTabEmail"],
+                         ["persist", "secTabPersist"], ["harden", "secTabHarden"]])
     $("#" + id).style.display = which === k ? "" : "none";
   if (which === "autoruns" && !secLoaded.autoruns) { secLoaded.autoruns = true; loadAutoruns(); }
   if (which === "hijack" && !secLoaded.hijack) { secLoaded.hijack = true; loadHijack(); }
   if (which === "remote" && !secLoaded.remote) { secLoaded.remote = true; loadRemote(); }
   if (which === "certs" && !secLoaded.certs) { secLoaded.certs = true; loadCerts(); }
   if (which === "listeners" && !secLoaded.listeners) { secLoaded.listeners = true; loadListeners(); }
+  if (which === "harden" && !secLoaded.harden) { secLoaded.harden = true; loadHardening(); }
 }));
+
+/* ---- Persistence & exclusions ---- */
+function flagRowSec(f) {
+  const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q";
+  return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`;
+}
+$("#btnPersistScan").onclick = loadPersistence;
+async function loadPersistence() {
+  $("#persistBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Mapping persistence, exclusions and recent execution…</span></div>`;
+  const [p, d, e] = await Promise.all([api.map_persistence(), api.audit_defender(), api.recent_execution(14)]);
+  const total = (p.total || 0) + (d.flagged || 0) + (e.lolbin_count || 0);
+  $("#cntPersist").textContent = total ? `${total}⚠` : "";
+  const sec = (title, body, count) => `<div class="dom-sec"><h4>${esc(title)}${count != null ? ` <span class="right muted">${count}</span>` : ""}</h4>${body}</div>`;
+  const reasonList = arr => arr && arr.length ? `<div class="muted" style="font-size:11px">${esc(arr.join(" · "))}</div>` : "";
+
+  const wmi = p.wmi.length
+    ? p.wmi.map(w => `<div class="dr"><span class="dk strong">${esc(w.name)}<div class="muted" style="font-size:11px">${esc(w.type)}</div></span>
+        <span class="dv mono" style="font-size:11px; word-break:break-all">${esc(w.payload)}${reasonList(w.reasons)}</span></div>`).join("")
+    : `<div class="muted" style="font-size:12px">None — good.</div>`;
+  const svc = p.services.length
+    ? p.services.map(s => `<div class="dr"><span class="dk strong">${esc(s.display || s.name)}</span><span class="dv mono" style="font-size:11px; word-break:break-all">${esc(s.path)}${reasonList(s.reasons)}</span></div>`).join("")
+    : `<div class="muted" style="font-size:12px">Nothing odd.</div>`;
+  const tasks = p.tasks.length
+    ? p.tasks.map(t => `<div class="dr"><span class="dk strong">${esc(t.name)}<div class="muted" style="font-size:11px">${esc(t.author)}</div></span><span class="dv mono" style="font-size:11px; word-break:break-all">${esc(t.exec)}${reasonList(t.reasons)}</span></div>`).join("")
+    : `<div class="muted" style="font-size:12px">Nothing odd.</div>`;
+
+  let defenderHtml;
+  if (!d.defender) defenderHtml = `<div class="muted" style="font-size:12px">${esc(d.message)}</div>`;
+  else if (d.needs_admin) defenderHtml = `<div class="muted" style="font-size:12px">Run as admin to read the exclusion list.</div>`;
+  else if (!d.exclusions.length) defenderHtml = `<div class="muted" style="font-size:12px">No exclusions set.</div>`;
+  else defenderHtml = d.exclusions.map((x, i) => `<div class="dr"><span class="dk">${esc(x.kind)}</span>
+      <span class="dv mono" style="font-size:11px; word-break:break-all">${esc(x.value)}${x.risk ? `<div class="bad-reason" style="font-size:11px; color:var(--warn)">${esc(x.risk)}</div>` : ""}</span>
+      ${x.risk ? `<button class="btn ghost small" data-excl="${i}">Remove</button>` : ""}</div>`).join("");
+
+  let execHtml;
+  if (!e.ok && e.error === "no_admin") execHtml = `<div class="muted" style="font-size:12px">Run as admin to read what's executed recently (Prefetch).</div>`;
+  else if (!e.ok) execHtml = `<div class="muted" style="font-size:12px">${esc(e.message || e.error)}</div>`;
+  else execHtml = `<div class="table-wrap" style="max-height:260px"><table><thead><tr><th>Last run</th><th>Program</th></tr></thead><tbody>
+      ${e.entries.filter(x => x.recent).slice(0, 60).map(x => `<tr><td class="mono">${esc(x.last_run)}</td><td class="strong">${esc(x.exe)}${x.lolbin ? ` ${pill("warn", "LOLBin")}` : ""}</td></tr>`).join("")}</tbody></table></div>`;
+
+  const allFlags = [...(p.flags || []), ...(d.flags || []), ...(e.flags || [])];
+  $("#persistBody").innerHTML = `<div class="dom-verdict">${allFlags.map(flagRowSec).join("")}</div>
+    <div class="dom-grid">
+      ${sec("WMI event subscriptions", wmi, p.wmi.length)}
+      ${sec("Suspicious services", svc, p.services.length)}
+      ${sec("Suspicious scheduled tasks", tasks, p.tasks.length)}
+      ${sec("Defender exclusions", defenderHtml, d.defender && !d.needs_admin ? d.exclusions.length : null)}
+      ${sec("Recently executed (last 14 days)", execHtml, e.ok ? e.recent_count : null)}
+    </div>`;
+  if (d.exclusions) $("#persistBody").querySelectorAll("[data-excl]").forEach(b => b.onclick = async () => {
+    const x = d.exclusions[+b.dataset.excl];
+    if (!await confirmModal("Remove Defender exclusion?", `Defender will stop ignoring:\n${x.value}`, "Remove")) return;
+    const r = await api.remove_exclusion(x.kind, x.value);
+    toast(r.ok ? "Exclusion removed" : r.error, r.ok ? "good" : "bad", 4000);
+    if (r.ok) loadPersistence();
+  });
+}
+
+/* ---- Hardening scorecard + ASR ---- */
+async function loadHardening() {
+  $("#hardenBody").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const h = await api.hardening_scorecard();
+  $("#cntHarden").textContent = (h.total - h.passed) ? `${h.total - h.passed}` : "";
+  const grade = h.score >= 80 ? "good" : h.score >= 50 ? "warn" : "bad";
+  $("#hardenScore").innerHTML = pill(grade, `${h.score}/100 · ${h.passed} of ${h.total}`);
+  $("#hardenBody").innerHTML = h.controls.map((c, i) => `
+    <div class="toggle-row">
+      <div class="t-info">
+        <div class="t-name">${c.ok ? pill("good", "OK") : pill("warn", "Review")} ${esc(c.label)}
+          <span class="muted" style="font-size:11px"> · ${esc(c.cat)}${c.admin ? " · admin" : ""}</span></div>
+        <div class="t-help">${esc(c.help)}</div>
+        <div class="t-help mono copy" style="font-size:10.5px; margin-top:2px; opacity:0.8">${esc(c.where)} · now: ${esc(c.current)}</div>
+      </div>
+      ${c.ok ? "" : `<button class="btn small" data-harden="${esc(c.key)}" ${c.admin && !h.is_admin ? "disabled title='needs admin'" : ""}>Apply fix</button>`}
+    </div>`).join("");
+  $("#hardenBody").querySelectorAll("[data-harden]").forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = "Applying…";
+    const r = await api.apply_control(b.dataset.harden);
+    if (!r.ok) { b.disabled = false; b.textContent = "Apply fix"; toast(r.error, "bad", 4000); return; }
+    toast("Applied" + (r.reboot ? " — takes effect after a reboot" : ""), "good", 3000);
+    loadHardening();
+  });
+  loadAsr();
+}
+async function loadAsr() {
+  const a = await api.asr_rules();
+  const modePill = m => m === "block" ? pill("good", "Block") : m === "audit" ? pill("info", "Audit") : m === "warn" ? pill("warn", "Warn") : `<span class="muted" style="font-size:11px">Off</span>`;
+  $("#asrBody").innerHTML = `<div class="table-wrap"><table><thead><tr><th>Rule</th><th>State</th><th></th></tr></thead><tbody>
+    ${a.rules.map(r => `<tr><td class="strong">${esc(r.label)}</td><td>${modePill(r.state)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="audit" ${!a.is_admin ? "disabled" : ""}>Audit</button>
+        <button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="block" ${!a.is_admin ? "disabled" : ""}>Block</button>
+        ${r.state !== "off" ? `<button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="off" ${!a.is_admin ? "disabled" : ""}>Off</button>` : ""}
+      </td></tr>`).join("")}</tbody></table></div>`;
+  $("#asrBody").querySelectorAll("[data-asr]").forEach(b => b.onclick = async () => {
+    const r = await api.set_asr(b.dataset.asr, b.dataset.mode);
+    toast(r.ok ? `ASR rule set to ${b.dataset.mode}` : r.error, r.ok ? "good" : "bad", 3000);
+    if (r.ok) loadAsr();
+  });
+}
+$("#btnHardenRescan") && ($("#btnHardenRescan").onclick = () => { secLoaded.harden = true; loadHardening(); });
 
 /* ---- Root certificate audit ---- */
 async function loadCerts() {
@@ -2423,6 +2526,7 @@ async function loadFixit() {
   $("#runbookDetail").style.display = "none";
   $("#btnFixitBack").style.display = "none";
   $("#runbookList").style.display = "";
+  $("#postScamCard").style.display = "";
   $("#runbookList").innerHTML = runbooks.map(rb => `
     <div class="card lift" data-runbook="${rb.id}" style="cursor:pointer">
       <h3 style="color:var(--text-1); text-transform:none; letter-spacing:0; font-size:14px; font-weight:600">${esc(rb.title)}</h3>
@@ -2434,11 +2538,27 @@ $("#runbookList").addEventListener("click", e => {
   const c = e.target.closest("[data-runbook]");
   if (c) openRunbook(c.dataset.runbook);
 });
+$("#btnPostScam").onclick = async () => {
+  const btn = $("#btnPostScam"); btn.disabled = true;
+  $("#postScamResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Checking remote tools, persistence, exclusions and accounts…</span></div>`;
+  const r = await api.post_scam_check();
+  btn.disabled = false;
+  if (!r.ok) { $("#postScamResult").innerHTML = pill("bad", r.error || "failed"); return; }
+  const findings = r.findings.length
+    ? r.findings.map(f => `<div class="dom-flag ${f.level === "warn" ? "warn" : "info"}">${ico(f.level === "warn" ? "bang" : "q")}
+        <span><b>${esc(f.title)}:</b> ${esc(f.detail)}</span></div>`).join("")
+    : `<div class="dom-flag good">${ico("check")}<span>Nothing obviously wrong turned up. Still follow the steps below to be safe.</span></div>`;
+  const steps = `<div class="dom-sec" style="margin-top:12px"><h4>What to do now — in this order</h4>
+    <ol style="margin:0 0 0 18px; padding:0; font-size:12.5px; line-height:1.8">${r.checklist.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>`;
+  $("#postScamResult").innerHTML = `<div class="dom-verdict">${findings}</div>${steps}
+    <p class="muted" style="font-size:11.5px; margin-top:10px">This is triage, not a clean bill of health — for anything serious, a fresh Windows install is the only certainty.</p>`;
+};
 $("#btnFixitBack").onclick = loadFixit;
 function openRunbook(id) {
   const rb = runbooks.find(r => r.id === id);
   if (!rb) return;
   $("#runbookList").style.display = "none";
+  $("#postScamCard").style.display = "none";
   $("#btnFixitBack").style.display = "";
   $("#runbookDetail").style.display = "";
   $("#runbookDetail").innerHTML = `<div class="card">
@@ -2667,6 +2787,13 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.1.0", name: "Security & incident response", items: [
+    "Persistence & exclusions (Security) — maps the hiding spots autoruns misses: WMI event subscriptions (fileless persistence), services and tasks with suspicious paths, Microsoft Defender exclusions, and what's run recently (from Prefetch).",
+    "Hardening scorecard (Security) — high-value Windows hardening checks scored out of 100, each with a reversible one-click fix that documents exactly what it changes.",
+    "Attack Surface Reduction rules — set the key anti-ransomware rules to Audit first, then Block, right from the app.",
+    "Recover from a scam (Fix-It) — one guided pass after a remote-access incident: remote tools, persistence, exclusions and admin accounts, then a clear ordered checklist of what to do next.",
+    "Defender exclusion removal, plus all findings framed as ranked context — legit software trips some heuristics, so nothing is auto-removed.",
+  ] },
   { v: "2.0.1", name: "Nicer update progress", items: [
     "The self-updater now shows a proper progress bar — download stage, percentage, and megabytes, in the Benchly look (and a moving bar if the server doesn't report the size).",
   ] },
@@ -2874,6 +3001,9 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "download", label: "Check for app updates (winget)", run: () => { showPage("software"); $(`#swTabs [data-sw="appupdates"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Audit trusted root certificates", run: () => { showPage("security"); $(`#secTabs [data-sec="certs"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Listening ports", run: () => { showPage("security"); $(`#secTabs [data-sec="listeners"]`).click(); } },
+  { cat: "Actions", icon: "bug", label: "Persistence & Defender exclusions", run: () => { showPage("security"); $(`#secTabs [data-sec="persist"]`).click(); $("#btnPersistScan")?.click(); } },
+  { cat: "Actions", icon: "shield", label: "Hardening scorecard & ASR rules", run: () => { showPage("security"); $(`#secTabs [data-sec="harden"]`).click(); } },
+  { cat: "Actions", icon: "shield", label: "Recover from a scam (post-incident check)", run: () => { showPage("fixit"); $("#btnPostScam")?.click(); } },
   { cat: "Actions", icon: "shield", label: "Analyze email headers (phishing)", run: () => { showPage("security"); $(`#secTabs [data-sec="email"]`).click(); } },
   { cat: "Actions", icon: "zap", label: "Performance snapshot — why is it slow?", run: () => { showPage("toolbox"); $("#btnSnapStart").click(); } },
   { cat: "Actions", icon: "zap", label: "Power, sleep & wake doctor", run: () => { showPage("toolbox"); $("#btnPowerScan").click(); } },
