@@ -1,7 +1,7 @@
 # Building & releasing
 
-Notes to self, mostly — the exact steps that turn the source into a signed-off release.
-Windows only; everything below assumes PowerShell from the repo root.
+Mostly notes to myself — the exact steps that turn the source into a release I'm happy to
+ship. Windows only, and everything below assumes PowerShell from the repo root.
 
 ## One-time setup
 
@@ -10,28 +10,28 @@ python -m venv .venv
 .venv\Scripts\pip install pywebview psutil pyinstaller pillow
 ```
 
-[Inno Setup 6](https://jrsoftware.org/isdl.php) is needed for the installer; it lands at
+You'll want [Inno Setup 6](https://jrsoftware.org/isdl.php) for the installer — it lands at
 `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`. The [GitHub CLI](https://cli.github.com/)
-(`gh`) is needed only for publishing releases.
+(`gh`) is only needed when you're publishing a release.
 
-## Run from source
+## Running from source
 
 ```powershell
 .venv\Scripts\python app.py
 ```
 
-Handy launch flags while developing:
+A few flags that come in handy while you're working on it:
 
-| Flag | Effect |
+| Flag | What it does |
 |---|---|
 | `--page <name>` | Open straight onto a page (`dashboard`, `security`, `network`, …) |
-| `--theme icloud` | Start in the glass theme |
-| `--turbo` | Run the live loop at 20× — for soak-testing the dashboard |
+| `--theme frost` | Start in the Frosted Glass theme |
+| `--turbo` | Run the live loop at 20× — handy for soak-testing the dashboard |
 
-There's a watchdog log at `%APPDATA%\Benchly\benchly.log` (rotating) with a 30-second
-heartbeat — useful when chasing a hang.
+There's a rotating watchdog log at `%APPDATA%\Benchly\benchly.log` with a 30-second
+heartbeat, which is the first place to look when you're chasing a hang.
 
-## Build the binaries
+## Building the binaries
 
 ```powershell
 # Portable single-file exe  →  dist\Benchly.exe
@@ -46,26 +46,26 @@ pyinstaller --noconfirm --clean --onefile --windowed --name Benchly `
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-The frontend has no build step — `ui/` is shipped as-is and bundled via `--add-data`.
+The frontend has no build step — `ui/` ships as-is and gets bundled in via `--add-data`.
 
 ## Cutting a release
 
-1. **Bump the version in all four places** (they must agree):
+1. **Bump the version in all four spots** (they have to agree):
    - `app.py` → `APP_VERSION`
    - `version_info.txt` → `filevers`, `prodvers`, and the `FileVersion` / `ProductVersion`
      strings
    - `installer.iss` → `#define AppVersion`
-   - `ui/js/app.js` → a new entry at the top of the `CHANGELOG` array (this is the in-app
+   - `ui/js/app.js` → a fresh entry at the top of the `CHANGELOG` array (that's the in-app
      "What's new")
 2. **Update `CHANGELOG.md`** with the same notes.
-3. **Build** both binaries (above) and **launch-verify** the portable exe actually boots.
-4. **Stage the release folder** and checksums:
+3. **Build** both binaries (above) and **actually launch the portable exe** to confirm it
+   boots — don't skip this.
+4. **Stage the release folder and checksums:**
    ```powershell
    $rel = "release\v<version>"
    New-Item -ItemType Directory -Force $rel | Out-Null
    Copy-Item dist\Benchly.exe "$rel\Benchly-<version>-portable.exe"
    Copy-Item dist_installer\Benchly-Setup-<version>.exe $rel
-   # write SHA256SUMS.txt for everything in the folder
    Get-ChildItem $rel -File -Exclude SHA256SUMS.txt |
      ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
      Out-File "$rel\SHA256SUMS.txt" -Encoding ascii
@@ -85,16 +85,17 @@ The frontend has no build step — `ui/` is shipped as-is and bundled via `--add
      --title "Benchly v<version>" --notes-file release\v<version>\RELEASE.md --latest
    ```
 
-The release `.exe` files are **git-ignored** — binaries live on the GitHub release, not in
-the tree. `SHA256SUMS.txt`, `RELEASE.md` and `CHANGELOG.md` are tracked.
+The release `.exe` files are **git-ignored** on purpose — binaries belong on the GitHub
+release, not in the tree. `SHA256SUMS.txt`, `RELEASE.md` and `CHANGELOG.md` are tracked.
 
-## House rules learned the hard way
+## A few things learned the hard way
 
-- **Never** rewrite a UTF-8 Python source file with PowerShell `Get-Content`/`-replace`/
-  `Set-Content` — it mangles em-dashes and other non-ASCII. Edit those files directly.
-- In `backend/ps.py`, multi-statement PowerShell must be wrapped in `& { … }`, not
-  `( … )`. `ps_json()` already does this for you.
-- Don't strip CSS rules as "unused" too eagerly — a couple have come back a release later.
-- The in-app updater reads its release source from the `update_repo` setting, falling back
-  to the default baked into `backend/selfupdate.py`. A **private** repo returns 404 to the
-  anonymous Releases API, so "Check for updates" stays quiet until the repo is public.
+- **Never** rewrite a UTF-8 source file with PowerShell `Get-Content` / `-replace` /
+  `Set-Content` — it quietly mangles em-dashes and other non-ASCII. Edit those files directly.
+- In `backend/ps.py`, multi-statement PowerShell has to be wrapped in `& { … }`, not `( … )`.
+  `ps_json()` already handles that for you.
+- Don't go stripping CSS rules as "unused" too eagerly — a couple have come back to bite a
+  release later.
+- The in-app updater reads its release source from the `update_repo` setting, falling back to
+  the default baked into `backend/selfupdate.py`. A **private** repo answers the anonymous
+  Releases API with a 404, so "Check for updates" stays quiet until the repo's public.

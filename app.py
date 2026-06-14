@@ -21,7 +21,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      selfupdate)
 
 APP_NAME = "Benchly"
-APP_VERSION = "1.8.0"
+APP_VERSION = "1.8.1"
 
 
 def resource_path(rel: str) -> str:
@@ -496,7 +496,7 @@ def main():
             pass
     if "--turbo" in sys.argv:        # 20× polling cadence for soak-testing
         hash_parts.append("turbo")
-    if "--theme" in sys.argv:        # e.g. `Benchly.exe --theme icloud`
+    if "--theme" in sys.argv:        # e.g. `Benchly.exe --theme frost`
         try:
             hash_parts.append(sys.argv[sys.argv.index("--theme") + 1])
         except IndexError:

@@ -132,7 +132,8 @@ const mixHex = (a, b, t) => {
   return `#${[m(r1, r2), m(g1, g2), m(b1, b2)].map(v => v.toString(16).padStart(2, "0")).join("")}`;
 };
 function applyTheme(name) {
-  if (name === "icloud") document.documentElement.dataset.theme = "icloud";
+  // "icloud" kept as a back-compat alias for the renamed Frosted Glass theme
+  if (name === "frost" || name === "icloud") document.documentElement.dataset.theme = "frost";
   else delete document.documentElement.dataset.theme;
 }
 function applyBackground(c) {
@@ -142,8 +143,8 @@ function applyBackground(c) {
   root.setProperty("--ic-bg3", c[2]);
   root.setProperty("--ic-glow", hexRgb(c[0]).join(", "));
 }
-// Synchronous launch-flag theme to avoid a flash (#…,icloud).
-if (location.hash.includes("icloud")) applyTheme("icloud");
+// Synchronous launch-flag theme to avoid a flash (#…,frost).
+if (location.hash.includes("frost") || location.hash.includes("icloud")) applyTheme("frost");
 
 function renderSwatches(selected) {
   $("#bgSwatches").innerHTML = BG_PRESETS.map((p, i) =>
@@ -151,9 +152,9 @@ function renderSwatches(selected) {
        style="background:linear-gradient(160deg, ${p.c[0]}, ${p.c[2]})"></button>`).join("");
 }
 function syncAppearanceUI() {
-  const theme = document.documentElement.dataset.theme === "icloud" ? "icloud" : "graphite";
+  const theme = document.documentElement.dataset.theme === "frost" ? "frost" : "graphite";
   $$("#themeSeg button").forEach(b => b.classList.toggle("on", b.dataset.themeChoice === theme));
-  $("#bgPicker").style.display = theme === "icloud" ? "" : "none";
+  $("#bgPicker").style.display = theme === "frost" ? "" : "none";
 }
 $("#btnTheme").onclick = () => {
   const pop = $("#appearance-pop");
@@ -178,7 +179,7 @@ $("#bgSwatches").addEventListener("click", async e => {
   loadedBgIndex = i;
   applyBackground(BG_PRESETS[i].c);
   renderSwatches(i);
-  await api.set_setting("icloud_bg", BG_PRESETS[i].c);
+  await api.set_setting("frost_bg", BG_PRESETS[i].c);
 });
 $("#bgApplyCustom").onclick = async () => {
   const c1 = $("#bgC1").value, c2 = $("#bgC2").value;
@@ -186,17 +187,17 @@ $("#bgApplyCustom").onclick = async () => {
   loadedBgIndex = -1;
   applyBackground(c);
   renderSwatches(-1);
-  await api.set_setting("icloud_bg", c);
+  await api.set_setting("frost_bg", c);
 };
 
 /* ================= boot ================= */
 let isAdmin = false;
 async function boot() {
-  if (!location.hash.includes("icloud")) {           // honour the saved choice
+  if (!location.hash.includes("frost") && !location.hash.includes("icloud")) {   // honour the saved choice
     try { applyTheme((await api.get_setting("theme")) || "graphite"); } catch { /* default */ }
   }
   try {
-    const savedBg = await api.get_setting("icloud_bg");
+    const savedBg = (await api.get_setting("frost_bg")) || (await api.get_setting("icloud_bg"));
     if (Array.isArray(savedBg) && savedBg.length === 3) {
       applyBackground(savedBg);
       loadedBgIndex = BG_PRESETS.findIndex(p => p.c[0] === savedBg[0] && p.c[2] === savedBg[2]);
@@ -2536,6 +2537,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "1.8.1", name: "Frosted Glass & friendlier docs", items: [
+    "The glass theme is now called Frosted Glass — same look, clearer name. Switch it from the Appearance menu in the title bar.",
+    "Rewrote the documentation in a friendlier, more conversational style, with a gallery of screenshots.",
+  ] },
   { v: "1.8.0", name: "Triage toolkit & app updates", items: [
     "App updates — find and install updates for your installed apps via winget, individually or all at once (Software → App updates).",
     "Trusted root certificate audit — flags interception/adware roots and unrecognised self-signed CAs (Security → Root certificates).",
@@ -2568,7 +2573,7 @@ const CHANGELOG = [
     "New Fix-It page with guided runbooks for common problems.",
     "Restore-point safety net and a backup-posture audit in the Toolbox.",
     "Per-process deep inspect, a reliability timeline, USB device history, and startup-impact ratings.",
-    "iCloud appearance with a customizable glass background.",
+    "Frosted Glass appearance with a customizable glass background.",
   ] },
   { v: "1.4.0", name: "Field kit & stability", items: [
     "LAN toolkit: subnet scanner, Wake-on-LAN, DHCP/DNS health, and a port profiler.",
