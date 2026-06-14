@@ -2667,6 +2667,9 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.0.1", name: "Nicer update progress", items: [
+    "The self-updater now shows a proper progress bar — download stage, percentage, and megabytes, in the Benchly look (and a moving bar if the server doesn't report the size).",
+  ] },
   { v: "2.0.0", name: "Everyday fixes & gremlin hunting", items: [
     "Power, sleep & wake doctor (Toolbox) — why won't it sleep, what woke it at 3 AM, and what's armed to wake it, in plain English.",
     "Gremlin hunters (Toolbox) — find what's hammering the disk when “nothing” is, spot USB devices that keep dropping, and a “mark the freeze” button that pulls every log around the moment it hiccupped.",
@@ -2782,9 +2785,12 @@ async function runUpdateCheck() {
       <div class="row" style="margin-top:8px; align-items:center">
         ${canAuto ? `<button class="btn small primary" id="btnDoUpdate">Download &amp; install</button>` : ""}
         <a href="${esc(r.url)}" class="lnk" data-ext="1" style="font-size:12px">View release page</a>
-        <span class="muted" id="updProg" style="font-size:12px"></span>
       </div>
-      <div class="bar mt" id="updBar" style="display:none"><div class="fill" id="updBarFill" style="width:0%"></div></div>`;
+      <div class="upd-progress" id="updProgress" style="display:none">
+        <div class="upd-stage"><span id="updStage">Starting…</span><span id="updPct" class="muted"></span></div>
+        <div class="upd-track"><div class="upd-fill" id="updFill" style="width:0%"></div></div>
+        <div class="upd-meta muted" id="updMeta"></div>
+      </div>`;
     $("#updateResult").querySelector('a[data-ext="1"]').onclick = e => { e.preventDefault(); api.open_in_browser(r.url); };
     if (canAuto) $("#btnDoUpdate").onclick = () => startSelfUpdate(r.latest);
   } else {
@@ -2796,29 +2802,48 @@ async function startSelfUpdate(latest) {
     `Benchly ${latest} will download and install, then restart. Any unsaved work in the app will be lost.`,
     "Download & install");
   if (!go) return;
+  const fill = $("#updFill"), stage = $("#updStage"), pct = $("#updPct"), meta = $("#updMeta");
+  const STAGE = { starting: "Starting…", downloading: "Downloading update", verifying: "Verifying download" };
+  const fail = (msg) => {
+    stage.textContent = "Update failed"; pct.textContent = "";
+    meta.innerHTML = pill("bad", msg); fill.classList.remove("indet");
+    fill.classList.add("done"); fill.style.background = "var(--crit)";
+    $("#btnDoUpdate").disabled = false;
+  };
   $("#btnDoUpdate").disabled = true;
-  $("#updBar").style.display = "";
-  $("#updProg").textContent = "starting…";
+  $("#updProgress").style.display = "";
+  fill.classList.remove("done"); fill.style.background = "";
+  fill.classList.add("indet"); stage.textContent = "Starting…"; pct.textContent = ""; meta.textContent = "";
   const r = await api.download_update();
-  if (!r.ok) { $("#updProg").innerHTML = pill("bad", r.error); $("#btnDoUpdate").disabled = false; $("#updBar").style.display = "none"; return; }
+  if (!r.ok) { fail(r.error); return; }
   let fails = 0;
   const poll = async () => {
     const s = await api.update_status(r.job);
-    if (!s.ok) { if (++fails > 8) { $("#updProg").textContent = "lost track of the download"; return; } return void setTimeout(poll, 800); }
+    if (!s.ok) { if (++fails > 8) { fail("lost track of the download"); return; } return void setTimeout(poll, 800); }
     fails = 0;
-    $("#updBarFill").style.width = (s.progress || 0) + "%";
-    $("#updProg").textContent = s.stage === "downloading" ? `downloading… ${s.progress}%`
-      : s.stage === "verifying" ? "verifying…" : s.stage === "ready" ? "ready" : (s.stage || "");
-    if (s.error) { $("#updProg").innerHTML = pill("bad", s.error); $("#btnDoUpdate").disabled = false; $("#updBar").style.display = "none"; return; }
+    if (s.error) { fail(s.error); return; }
     if (s.done && s.ready) {
-      $("#updProg").textContent = "installing — Benchly will restart…";
+      fill.classList.remove("indet"); fill.classList.add("done"); fill.style.width = "100%";
+      stage.textContent = "Installing — Benchly will restart…"; pct.textContent = "";
+      meta.textContent = "The window will close and reopen on the new version.";
       const a = await api.apply_update();
-      if (!a.ok) { $("#updProg").innerHTML = pill("bad", a.error); $("#btnDoUpdate").disabled = false; return; }
-      // Portable: the window closes itself in a moment. Installed: Inno closes us.
-      return;
+      if (!a.ok) { fail(a.error); return; }
+      return;  // portable: window closes itself · installed: Inno closes us
     }
-    if (s.done) { $("#btnDoUpdate").disabled = false; $("#updBar").style.display = "none"; return; }
-    setTimeout(poll, 500);
+    if (s.stage === "downloading") {
+      const known = s.total_mb > 0;
+      fill.classList.toggle("indet", !known);
+      if (known) { fill.style.width = (s.progress || 0) + "%"; pct.textContent = (s.progress || 0) + "%"; }
+      else { pct.textContent = ""; }
+      stage.textContent = STAGE.downloading;
+      meta.textContent = known ? `${s.got_mb} of ${s.total_mb} MB` : `${s.got_mb} MB downloaded`;
+    } else if (s.stage === "verifying" || s.stage === "ready") {
+      fill.classList.remove("indet"); fill.classList.add("done"); fill.style.width = "100%";
+      stage.textContent = STAGE.verifying; pct.textContent = ""; meta.textContent = "Checking the download is intact…";
+    } else {
+      stage.textContent = STAGE[s.stage] || "Working…";
+    }
+    setTimeout(poll, 400);
   };
   poll();
 }

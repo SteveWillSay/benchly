@@ -168,6 +168,7 @@ def _run_download(job):
         req = urllib.request.Request(url, headers={"User-Agent": "Benchly"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             total = int(resp.headers.get("Content-Length") or 0)
+            job["total"] = total
             got = 0
             h = hashlib.sha256()
             with open(dest, "wb") as f:
@@ -178,6 +179,7 @@ def _run_download(job):
                     f.write(chunk)
                     h.update(chunk)
                     got += len(chunk)
+                    job["got"] = got
                     job["progress"] = int(got / total * 100) if total else 0
     except Exception as e:
         job["error"] = f"Download failed: {e}"
@@ -212,7 +214,8 @@ def download_update():
         return {"ok": False, "error": f"The latest release has no {'installer' if mode == 'installed' else 'portable'} download."}
     job_id = _jobs.start(_run_download, url=url, mode=mode, target=exe,
                          checksums=info.get("asset_checksums"),
-                         progress=0, stage="starting", ok=False, error=None)
+                         progress=0, stage="starting", ok=False, error=None,
+                         got=0, total=0)
     if job_id is None:
         return {"ok": False, "error": "A download is already running."}
     return {"ok": True, "job": job_id, "mode": mode}
@@ -223,7 +226,9 @@ def update_status(job_id):
     if not job:
         return {"ok": False, "error": "No such job."}
     return {"ok": True, "done": job["done"], "progress": job.get("progress", 0),
-            "stage": job.get("stage"), "ready": bool(job.get("ok")), "error": job.get("error")}
+            "stage": job.get("stage"), "ready": bool(job.get("ok")), "error": job.get("error"),
+            "got_mb": round(job.get("got", 0) / 1048576, 1),
+            "total_mb": round(job.get("total", 0) / 1048576, 1)}
 
 
 # --------------------------------------------------------------------------- #
