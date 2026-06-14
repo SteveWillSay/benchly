@@ -22,10 +22,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      defender, persistence, execevidence, hardening,
                      bitlocker, avcheck, helpercard, display, rescue,
                      links, netperf, virt,
-                     pendingreboot, wuhistory, boottime)
+                     pendingreboot, wuhistory, boottime,
+                     licensing, identity, grouppolicy, timesync, baseline_policy)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 
 
 def resource_path(rel: str) -> str:
@@ -255,6 +256,34 @@ class Api:
 
     def boot_performance(self):
         return boottime.boot_performance()
+
+    # --- workplace: identity, licensing, policy, time, managed baseline (Bundle F) ---
+    def licensing_status(self):
+        return licensing.licensing_status()
+
+    def identity_status(self):
+        return identity.identity_status()
+
+    def gpo_results(self):
+        return grouppolicy.gpo_results()
+
+    def time_status(self):
+        return timesync.time_status()
+
+    def time_resync(self):
+        return timesync.time_resync()
+
+    def baseline_read(self):
+        return baseline_policy.read_baseline()
+
+    def baseline_apply(self, key, value):
+        return baseline_policy.apply_policy(key, value)
+
+    def baseline_clear(self, key):
+        return baseline_policy.clear_policy(key)
+
+    def baseline_export(self):
+        return baseline_policy.export_baseline()
 
     # --- devices & printers ----------------------------------------------------------
     def get_problem_devices(self):

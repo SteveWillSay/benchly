@@ -117,6 +117,10 @@
         <svg class="ic" viewBox="0 0 24 24"><use href="#i-fleet"/></svg>
         Fleet
       </button>
+      <button class="nav-item" data-page="workplace">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg>
+        Workplace
+      </button>
     </nav>
 
     <div class="side-foot">
@@ -1032,6 +1036,26 @@
             <button class="btn primary" id="btnCmpRun" disabled>Compare</button>
           </div>
           <div id="cmpResult" class="mt"></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-workplace">
+        <div class="page-head">
+          <div><h2>Workplace</h2><div class="desc">Identity, licensing, policy &amp; a managed baseline for standalone PCs</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnWpRefresh"><svg class="ic"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div class="tabs" id="wpTabs">
+          <button class="tab active" data-wp="posture">Posture</button>
+          <button class="tab" data-wp="baseline">Managed baseline</button>
+        </div>
+        <div id="wpTabPosture">
+          <div class="dom-grid" id="wpPosture">
+            <div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div>
+          </div>
+        </div>
+        <div id="wpTabBaseline" style="display:none">
+          <div id="wpBaseline"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:60%"></div></div></div></div>
         </div>
       </section>
 

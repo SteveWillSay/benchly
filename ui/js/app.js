@@ -82,7 +82,8 @@ function showPage(name) {
     const loader = { system: loadSystem, storage: loadStorage, network: loadNetwork,
                      software: loadSoftware, health: loadHealth, events: loadEvents,
                      devices: loadDevices, toolbox: loadToolbox, security: loadSecurity,
-                     fleet: loadFleet, fixit: loadFixit, cleanup: loadCleanup }[name];
+                     fleet: loadFleet, fixit: loadFixit, cleanup: loadCleanup,
+                     workplace: loadWorkplace }[name];
     if (loader) Promise.resolve(loader()).catch(err => {
       loadedPages.delete(name);   // allow retry by re-navigating
       toast(`Failed to load ${name}: ${err}`, "bad", 6000);
@@ -93,7 +94,7 @@ function showPage(name) {
 $$(".nav-item").forEach(b => b.addEventListener("click", () => showPage(b.dataset.page)));
 
 const PAGES = ["dashboard", "system", "storage", "network", "processes", "software",
-               "devices", "health", "events", "toolbox", "security", "fleet", "fixit", "helper", "cleanup"];
+               "devices", "health", "events", "toolbox", "security", "fleet", "fixit", "helper", "cleanup", "workplace"];
 document.addEventListener("keydown", e => {
   if (e.key === "k" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); openPalette(); return; }
   if (e.key === "Escape" && e.target.tagName === "INPUT") {
@@ -2924,6 +2925,201 @@ $("#btnRepairRestartExplorer").onclick = async () => {
 };
 function loadCleanup() { /* junk tab is on-demand via button */ }
 
+/* ================= WORKPLACE page (identity, licensing, policy, baseline) ================= */
+let wpBaselineLoaded = false;
+function loadWorkplace() {
+  loadWpPosture();
+}
+$("#btnWpRefresh").onclick = () => { loadWpPosture(); if (wpBaselineLoaded) loadWpBaseline(); };
+$$("#wpTabs .tab").forEach(t => t.addEventListener("click", () => {
+  $$("#wpTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  const which = t.dataset.wp;
+  $("#wpTabPosture").style.display = which === "posture" ? "" : "none";
+  $("#wpTabBaseline").style.display = which === "baseline" ? "" : "none";
+  if (which === "baseline" && !wpBaselineLoaded) { wpBaselineLoaded = true; loadWpBaseline(); }
+}));
+
+const wpLevelPill = (lvl, txt) => pill(lvl === "good" ? "good" : lvl === "bad" ? "bad" : lvl === "warn" ? "warn" : "info", txt);
+const wpRow = (k, v) => `<div class="dr"><span class="dk">${esc(k)}</span><span class="dv">${v}</span></div>`;
+
+async function loadWpPosture() {
+  const el = $("#wpPosture");
+  el.innerHTML = `<div class="card"><div class="row"><span class="spin"></span><span class="muted">Reading machine posture…</span></div></div>`;
+  const [lic, idn, gpo, time] = await Promise.all([
+    api.licensing_status().catch(() => null),
+    api.identity_status().catch(() => null),
+    api.gpo_results().catch(() => null),
+    api.time_status().catch(() => null),
+  ]);
+
+  // Activation & licensing
+  let licCard = `<div class="card"><h3>Activation &amp; licensing</h3>`;
+  if (lic && lic.ok) {
+    licCard += `<div class="dom-flag ${lic.level}">${ico(lic.level === "good" ? "check" : "bang")}<span>${esc(lic.status)} — ${esc(lic.detail)}</span></div>
+      <div class="dom-sec" style="margin-top:8px">
+      ${wpRow("Edition", esc(lic.edition || "—"))}
+      ${wpRow("Channel", esc(lic.channel || "—"))}
+      ${lic.partial_key ? wpRow("Active key (last 5)", `<span class="mono copy">${esc(lic.partial_key)}</span>`) : ""}
+      ${lic.oem_key ? wpRow("Firmware (OEM) key", `<span class="mono copy" title="The product key embedded in this PC's firmware — its own key">${esc(lic.oem_key)}</span>`) : ""}
+      ${lic.kms_host ? wpRow("KMS host", esc(lic.kms_host)) : ""}
+      ${lic.grace_days != null ? wpRow("Grace remaining", lic.grace_days + " days") : ""}
+      </div>`;
+  } else { licCard += emptyState("bang", "Couldn't read licensing"); }
+  licCard += `</div>`;
+
+  // Identity & domain
+  let idCard = `<div class="card"><h3>Identity &amp; domain</h3>`;
+  if (idn && idn.ok) {
+    idCard += `<div class="row" style="margin-bottom:8px">${wpLevelPill(idn.level, idn.verdict)}${idn.managed ? pill("warn", "centrally managed") : ""}</div>
+      <div class="dom-sec">
+      ${wpRow("Signed-in user", esc(idn.user || "—"))}
+      ${idn.upn ? wpRow("UPN", esc(idn.upn)) : ""}
+      ${idn.domain ? wpRow("Domain", esc(idn.domain)) : wpRow("Workgroup", esc(idn.workgroup || "—"))}
+      ${idn.role ? wpRow("Role", esc(idn.role)) : ""}
+      ${idn.rows.map(r => wpRow(r.label, esc(r.value))).join("")}
+      </div>`;
+  } else { idCard += emptyState("bang", "Couldn't read identity"); }
+  idCard += `</div>`;
+
+  // Group policy
+  let gpoCard = `<div class="card"><h3>Group Policy</h3>`;
+  if (gpo && gpo.ok) {
+    const gpoList = (s) => s.applied.length
+      ? s.applied.map(g => `<div class="dr"><span class="dk strong">${esc(g)}</span><span class="dv good">applied</span></div>`).join("")
+      : `<div class="muted" style="font-size:12px">None applied.</div>`;
+    gpoCard += `<p class="muted" style="font-size:12.5px; margin-bottom:8px">${esc(gpo.summary)}</p>
+      <div class="dom-sec"><h4>Computer scope${gpo.computer_needs_admin ? ` ${pill("info", "needs admin")}` : ""}</h4>
+        ${gpo.computer.last_applied ? `<div class="muted" style="font-size:11px; margin-bottom:4px">Last applied ${esc(gpo.computer.last_applied)}</div>` : ""}
+        ${gpoList(gpo.computer)}</div>
+      <div class="dom-sec"><h4>User scope</h4>
+        ${gpo.user.last_applied ? `<div class="muted" style="font-size:11px; margin-bottom:4px">Last applied ${esc(gpo.user.last_applied)}</div>` : ""}
+        ${gpoList(gpo.user)}</div>`;
+  } else { gpoCard += emptyState("bang", "Couldn't read Group Policy"); }
+  gpoCard += `</div>`;
+
+  // Time sync
+  let timeCard = `<div class="card"><h3>Clock &amp; time sync <span class="right"><button class="btn small" id="btnTimeResync">Resync now</button></span></h3>`;
+  if (time && time.ok) {
+    timeCard += `<div class="dom-flag ${time.level}">${ico(time.level === "good" ? "check" : "bang")}<span>${esc(time.verdict)}</span></div>
+      <div class="dom-sec" style="margin-top:8px">
+      ${time.offset_s != null ? wpRow("Current offset", `<span class="mono">${time.offset_s > 0 ? "+" : ""}${time.offset_s}s</span>`) : ""}
+      ${wpRow("Source", esc(time.source || "—"))}
+      ${wpRow("Sync type", esc(time.sync_type || "—"))}
+      ${time.last_sync ? wpRow("Last sync", esc(time.last_sync)) : ""}
+      ${wpRow("Time service", `<span class="${time.service_concern ? "strong" : "muted"}">${esc(time.service)}</span>`)}
+      </div>`;
+  } else { timeCard += emptyState("bang", "Couldn't read time sync"); }
+  timeCard += `</div>`;
+
+  el.innerHTML = licCard + idCard + gpoCard + timeCard;
+  const rsBtn = $("#btnTimeResync");
+  if (rsBtn) rsBtn.onclick = async () => {
+    rsBtn.disabled = true; rsBtn.textContent = "Syncing…";
+    const r = await api.time_resync();
+    toast(r.ok ? (r.message || "Time resynced") : (r.error || "Resync failed"), r.ok ? "good" : "bad");
+    rsBtn.disabled = false; rsBtn.textContent = "Resync now";
+    if (r.ok) loadWpPosture();
+  };
+}
+
+/* ---- Managed baseline (F5 configurator) ---- */
+function wpBaselineWidget(c) {
+  const cur = c.current;
+  if (c.gated) return `<span class="muted" style="font-size:11.5px">${esc(c.gated)}</span>`;
+  if (c.type === "toggle") {
+    const on = cur === 1;
+    return `<select class="input small" id="bw_${c.key}" style="width:90px">
+      <option value="1"${on ? " selected" : ""}>On</option>
+      <option value="0"${cur === 0 ? " selected" : ""}>Off</option></select>`;
+  }
+  if (c.type === "number") {
+    const v = cur != null ? cur : c.recommended;
+    return `<input class="input small" type="number" id="bw_${c.key}" min="${c.min}" max="${c.max}" value="${v}" style="width:90px"> <span class="muted" style="font-size:11px">${esc(c.unit || "")}</span>`;
+  }
+  if (c.type === "choice") {
+    return `<select class="input small" id="bw_${c.key}" style="width:auto">${c.options.map(o => `<option value="${o[0]}"${cur === o[0] ? " selected" : ""}>${esc(o[1])}</option>`).join("")}</select>`;
+  }
+  // string
+  return `<input class="input small" type="text" id="bw_${c.key}" value="${esc(cur != null ? cur : "")}" placeholder="${esc(c.placeholder || "")}" style="width:120px">`;
+}
+function wpCurrentText(c) {
+  if (c.current == null) return `<span class="muted">not set — Windows default</span>`;
+  if (c.type === "toggle") return `<span class="strong">${c.current === 1 ? "On" : "Off"}</span>`;
+  if (c.type === "choice") { const o = c.options.find(o => o[0] === c.current); return `<span class="strong">${esc(o ? o[1] : String(c.current))}</span>`; }
+  return `<span class="strong">${esc(String(c.current))}${c.unit ? " " + esc(c.unit) : ""}</span>`;
+}
+async function loadWpBaseline() {
+  const el = $("#wpBaseline");
+  el.innerHTML = `<div class="card"><div class="row"><span class="spin"></span><span class="muted">Reading policy state…</span></div></div>`;
+  const r = await api.baseline_read().catch(() => null);
+  if (!r || !r.ok) { el.innerHTML = `<div class="card">${emptyState("bang", "Couldn't read the policy baseline")}</div>`; return; }
+  const ctx = r.context || {};
+  const banners = [];
+  if (!r.is_admin) banners.push(`<div class="dom-flag warn">${ico("bang")}<span>Run as admin to change any of these — they're machine-wide policies. You can read the current state without it.</span></div>`);
+  if (ctx.managed) banners.push(`<div class="dom-flag bad">${ico("bang")}<span>This machine is centrally managed (${esc(ctx.managed_verdict || "GPO/Intune")}). Setting policy here may be overwritten on the next policy refresh — this screen is meant for unmanaged PCs.</span></div>`);
+
+  // group controls by category
+  const cats = {};
+  r.controls.forEach(c => { (cats[c.cat] = cats[c.cat] || []).push(c); });
+  const catHtml = Object.entries(cats).map(([cat, items]) => `
+    <div class="card" style="margin-bottom:12px"><h3>${esc(cat)}</h3>
+    ${items.map(c => `<div class="b-ctrl" style="padding:10px 0; border-top:1px solid var(--line)">
+      <div class="row" style="justify-content:space-between; align-items:flex-start; gap:12px">
+        <div style="flex:1; min-width:0">
+          <div class="strong">${esc(c.label)}</div>
+          <div class="muted" style="font-size:11.5px; line-height:1.5; margin:2px 0">${esc(c.help)}</div>
+          <div style="font-size:11px">Current: ${wpCurrentText(c)} · <span class="mono" style="opacity:.6">${esc(c.where)}</span></div>
+        </div>
+        <div class="row" style="gap:6px; align-items:center; flex-shrink:0">
+          ${wpBaselineWidget(c)}
+          ${!c.gated ? `<button class="btn small primary b-apply" data-bkey="${c.key}" ${r.is_admin ? "" : "disabled"}>Apply</button>` : ""}
+          ${!c.gated && c.set ? `<button class="btn small ghost b-clear" data-bkey="${c.key}" ${r.is_admin ? "" : "disabled"} title="Delete the policy — back to Windows default">Clear</button>` : ""}
+        </div>
+      </div></div>`).join("")}
+    </div>`).join("");
+
+  const pw = (r.password_policy && r.password_policy.length) ? `<div class="card" style="margin-bottom:12px">
+    <h3>Password &amp; lockout policy <span class="right muted" style="font-size:11px">read-only</span></h3>
+    <div class="dom-sec">${r.password_policy.map(p => wpRow(p.label, `<span class="strong">${esc(p.value)}</span>`)).join("")}</div></div>` : "";
+
+  const head = `<div class="card" style="margin-bottom:12px">
+    <p class="muted" style="font-size:12.5px; line-height:1.55; margin-bottom:10px">
+      The policies an admin usually pushes via GPO or Intune — set them here on a standalone PC. Every change shows the
+      exact registry key, and <span class="strong">Clear</span> deletes the policy to return to the Windows default.
+      <span class="muted">Edition: ${esc(ctx.edition || "—")}${ctx.has_tpm ? " · TPM present" : " · no TPM detected"}</span>
+    </p>
+    ${banners.join("")}
+    <div class="row"><button class="btn ghost small" id="btnBaselineExport"><svg class="ic sm"><use href="#i-copy"/></svg>Export current state (JSON)</button></div>
+  </div>`;
+
+  el.innerHTML = head + catHtml + pw;
+
+  $$("#wpBaseline .b-apply").forEach(b => b.onclick = async () => {
+    const key = b.dataset.bkey;
+    const w = $("#bw_" + key);
+    const val = w ? w.value : "";
+    b.disabled = true;
+    const res = await api.baseline_apply(key, val);
+    toast(res.ok ? `Applied — ${res.where}` : (res.error || "Couldn't apply"), res.ok ? "good" : "bad", 3500);
+    b.disabled = false;
+    if (res.ok) loadWpBaseline();
+  });
+  $$("#wpBaseline .b-clear").forEach(b => b.onclick = async () => {
+    const key = b.dataset.bkey;
+    if (!confirm("Delete this policy and return the setting to its Windows default?")) return;
+    b.disabled = true;
+    const res = await api.baseline_clear(key);
+    toast(res.ok ? "Cleared — back to Windows default" : (res.error || "Couldn't clear"), res.ok ? "good" : "bad");
+    b.disabled = false;
+    if (res.ok) loadWpBaseline();
+  });
+  const exp = $("#btnBaselineExport");
+  if (exp) exp.onclick = async () => {
+    const e = await api.baseline_export();
+    if (e && e.ok) navigator.clipboard.writeText(JSON.stringify(e, null, 2)).then(() => toast("Baseline JSON copied", "good", 2000));
+  };
+}
+
 $("#btnJunkScan").onclick = async () => {
   $("#junkBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Measuring caches…</span></div>`;
   const r = await api.scan_junk();
@@ -3075,6 +3271,14 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.5.0", name: "Workplace — identity, licensing & a managed baseline", items: [
+    "New Workplace page, built for the corporate and small-business machines an IT pro actually looks after.",
+    "Activation & licensing — is Windows activated, on what channel (OEM / Retail / Volume), and the product key embedded in this PC's firmware (handy before a reinstall).",
+    "Identity & domain — Entra (Azure AD) joined, hybrid, AD domain or just a workgroup, plus SSO and tenant detail. The fast “why won't Teams/Outlook sign in” answer.",
+    "Group Policy results — which GPOs are actually applied (computer and user scope), when policy last refreshed, and what got filtered out.",
+    "Time sync health — where the clock gets its time, how far off it currently is, and a one-click resync. Clock drift quietly breaks HTTPS, Kerberos and sign-in.",
+    "Managed baseline — set the policies an admin usually pushes via GPO/Intune (Windows Update deferrals, BitLocker startup-PIN policy, telemetry level, auto-lock, UAC) on a standalone PC. Every change shows the exact registry key and is reversible — Clear returns it to the Windows default. Warns if the machine is already centrally managed.",
+  ] },
   { v: "2.4.0", name: "Won't update, won't boot, disk's full", items: [
     "Pending restart check (Toolbox) — reads every signal Windows leaves when it's waiting on a reboot (component servicing, Windows Update, files queued to move, a queued rename) and explains in plain English why updates and installers might be silently failing. One-click restart when you're ready.",
     "Update doctor (Toolbox) — the recent Windows Update history with the cryptic 0x800f… / 0x80070… error codes translated into plain English and what to do, plus the last successful scan/install and the health of the services updates depend on.",
@@ -3302,7 +3506,7 @@ $("#changelog-veil").addEventListener("click", e => { if (e.target.id === "chang
 const PAGE_LABELS = { dashboard: "Dashboard", system: "System", storage: "Storage",
   network: "Network", processes: "Processes", software: "Software", devices: "Devices",
   health: "Health audit", events: "Event log", toolbox: "Toolbox", security: "Security",
-  fleet: "Fleet", fixit: "Fix-It", helper: "Helper", cleanup: "Cleanup" };
+  fleet: "Fleet", fixit: "Fix-It", helper: "Helper", cleanup: "Cleanup", workplace: "Workplace" };
 const PALETTE_ITEMS = [
   ...PAGES.map((p, i) => ({
     cat: "Pages", icon: "chev", label: PAGE_LABELS[p] || p,
@@ -3340,6 +3544,11 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "bug", label: "Gremlin hunters (disk / USB / freeze)", run: () => { showPage("toolbox"); $("#btnGremDisk")?.scrollIntoView({ block: "center" }); } },
   { cat: "Actions", icon: "wrench", label: "Cache & shell repair (blank icons, fonts…)", run: () => { showPage("cleanup"); $(`#cleanTabs [data-clean="repair"]`).click(); } },
   { cat: "Actions", icon: "printer", label: "Printer doctor", run: () => { showPage("devices"); $("#prnBody")?.scrollIntoView({ block: "center" }); } },
+  { cat: "Actions", icon: "shield", label: "Activation & licensing status", run: () => { showPage("workplace"); $(`#wpTabs [data-wp="posture"]`)?.click(); } },
+  { cat: "Actions", icon: "shield", label: "Identity & domain join (Entra / AD)", run: () => { showPage("workplace"); $(`#wpTabs [data-wp="posture"]`)?.click(); } },
+  { cat: "Actions", icon: "shield", label: "Group Policy results", run: () => { showPage("workplace"); $(`#wpTabs [data-wp="posture"]`)?.click(); } },
+  { cat: "Actions", icon: "history", label: "Time sync health (clock drift)", run: () => { showPage("workplace"); $(`#wpTabs [data-wp="posture"]`)?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "Managed baseline (enterprise policy)", run: () => { showPage("workplace"); $(`#wpTabs [data-wp="baseline"]`)?.click(); } },
   { cat: "Actions", icon: "download", label: "Check for Benchly updates", run: () => openChangelog() },
   { cat: "Actions", icon: "copy", label: "Copy ticket summary", run: async () => { const t = await api.get_ticket_summary(); navigator.clipboard.writeText(t.text).then(() => toast("Ticket summary copied", "good", 2000)); } },
   { cat: "Actions", icon: "chev", label: "Remote snapshot…", run: () => { showPage("fleet"); $("#rmHost").focus(); } },
