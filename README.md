@@ -10,6 +10,10 @@ A single-window diagnostics, triage and repair bench for Windows —
 the one tool that replaces the USB stick full of half-trusted freeware
 you've been carrying around since 2014.
 
+<br>
+
+<img src="assets/screens/dashboard.png" width="820" alt="Benchly dashboard — live vitals, health score and top processes">
+
 </div>
 
 ---
@@ -79,6 +83,17 @@ apps through winget.
 those reports across machines and pulls remote snapshots over WinRM.
 
 The full, page-by-page reference lives in **[docs/features.md](docs/features.md)**.
+
+<table>
+<tr>
+<td width="50%"><img src="assets/screens/domain-lookup.png" alt="Domain & website lookup with a trust verdict"><br><sub><b>Domain & website lookup</b> — a plain-English trust verdict for any site, before you trust it.</sub></td>
+<td width="50%"><img src="assets/screens/security-certs.png" alt="Trusted root certificate audit"><br><sub><b>Root certificate audit</b> — interception and adware roots, surfaced and explained.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/tweaks.png" alt="Reversible Windows tweaks, each showing the registry key it writes"><br><sub><b>Tweaks</b> — reversible, and each one shows the exact registry key it writes.</sub></td>
+<td width="50%"><img src="assets/screens/dashboard-icloud.png" alt="The iCloud glass theme"><br><sub><b>iCloud theme</b> — the same app, in frosted glass. Switch live from the title bar.</sub></td>
+</tr>
+</table>
 
 ## The part most tools skip: transparency
 
