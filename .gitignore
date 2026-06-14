@@ -16,6 +16,9 @@ dist_installer/
 _dev/*.png
 *.log
 
+# Release binaries live on GitHub Releases, not in the tree
+release/**/*.exe
+
 # OS
 Thumbs.db
 desktop.ini

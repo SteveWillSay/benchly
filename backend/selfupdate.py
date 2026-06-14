@@ -15,6 +15,9 @@ from . import settings
 
 _API = "https://api.github.com/repos/{repo}/releases/latest"
 
+# Default release source; overridable via the `update_repo` setting.
+_DEFAULT_REPO = "SteveWillSay/benchly"
+
 
 def _parse_ver(s):
     """('1', '8', '0') tuple from a tag like 'v1.8.0' / '1.8'."""
@@ -23,7 +26,7 @@ def _parse_ver(s):
 
 
 def check_update(current_version):
-    repo = (settings.get("update_repo") or "").strip().strip("/")
+    repo = (settings.get("update_repo") or _DEFAULT_REPO).strip().strip("/")
     if not repo or "/" not in repo:
         return {"ok": True, "configured": False,
                 "message": "No update source set. Add a GitHub “owner/repo” in Settings to enable update checks.",
