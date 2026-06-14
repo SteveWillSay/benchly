@@ -2537,6 +2537,11 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "1.9.0", name: "One-click updates", items: [
+    "Benchly can now update itself. When a new version is out, “Check for updates” offers Download & install — it fetches the new build, verifies it, and restarts into the new version.",
+    "Works for both flavours: an installed copy updates in place via the installer, and a portable exe swaps itself out and relaunches.",
+    "Downloads are checked against the release's published SHA-256 sums before anything runs.",
+  ] },
   { v: "1.8.1", name: "Frosted Glass & friendlier docs", items: [
     "The glass theme is now called Frosted Glass — same look, clearer name. Switch it from the Appearance menu in the title bar.",
     "Rewrote the documentation in a friendlier, more conversational style, with a gallery of screenshots.",
@@ -2634,13 +2639,51 @@ async function runUpdateCheck() {
   if (!r.reachable) { $("#updateMsg").innerHTML = pill("warn", r.message); return; }
   if (r.newer) {
     $("#updateMsg").innerHTML = pill("good", `Update available: ${r.latest}`);
+    const canAuto = r.can_apply;
     $("#updateResult").innerHTML = `<div class="dom-flag good" style="margin-top:4px">${ico("download")}
-      <span>Benchly ${esc(r.latest)} is available (you have ${esc(r.current)}).
-      <a href="${esc(r.url)}" class="lnk" data-ext="1">Open the release page</a>.</span></div>`;
+      <span>Benchly ${esc(r.latest)} is available (you have ${esc(r.current)}).</span></div>
+      <div class="row" style="margin-top:8px; align-items:center">
+        ${canAuto ? `<button class="btn small primary" id="btnDoUpdate">Download &amp; install</button>` : ""}
+        <a href="${esc(r.url)}" class="lnk" data-ext="1" style="font-size:12px">View release page</a>
+        <span class="muted" id="updProg" style="font-size:12px"></span>
+      </div>
+      <div class="bar mt" id="updBar" style="display:none"><div class="fill" id="updBarFill" style="width:0%"></div></div>`;
     $("#updateResult").querySelector('a[data-ext="1"]').onclick = e => { e.preventDefault(); api.open_in_browser(r.url); };
+    if (canAuto) $("#btnDoUpdate").onclick = () => startSelfUpdate(r.latest);
   } else {
     $("#updateMsg").innerHTML = pill("good", `Up to date (${r.current})`);
   }
+}
+async function startSelfUpdate(latest) {
+  const go = await confirmModal("Update Benchly?",
+    `Benchly ${latest} will download and install, then restart. Any unsaved work in the app will be lost.`,
+    "Download & install");
+  if (!go) return;
+  $("#btnDoUpdate").disabled = true;
+  $("#updBar").style.display = "";
+  $("#updProg").textContent = "starting…";
+  const r = await api.download_update();
+  if (!r.ok) { $("#updProg").innerHTML = pill("bad", r.error); $("#btnDoUpdate").disabled = false; $("#updBar").style.display = "none"; return; }
+  let fails = 0;
+  const poll = async () => {
+    const s = await api.update_status(r.job);
+    if (!s.ok) { if (++fails > 8) { $("#updProg").textContent = "lost track of the download"; return; } return void setTimeout(poll, 800); }
+    fails = 0;
+    $("#updBarFill").style.width = (s.progress || 0) + "%";
+    $("#updProg").textContent = s.stage === "downloading" ? `downloading… ${s.progress}%`
+      : s.stage === "verifying" ? "verifying…" : s.stage === "ready" ? "ready" : (s.stage || "");
+    if (s.error) { $("#updProg").innerHTML = pill("bad", s.error); $("#btnDoUpdate").disabled = false; $("#updBar").style.display = "none"; return; }
+    if (s.done && s.ready) {
+      $("#updProg").textContent = "installing — Benchly will restart…";
+      const a = await api.apply_update();
+      if (!a.ok) { $("#updProg").innerHTML = pill("bad", a.error); $("#btnDoUpdate").disabled = false; return; }
+      // Portable: the window closes itself in a moment. Installed: Inno closes us.
+      return;
+    }
+    if (s.done) { $("#btnDoUpdate").disabled = false; $("#updBar").style.display = "none"; return; }
+    setTimeout(poll, 500);
+  };
+  poll();
 }
 function openChangelog() {
   renderChangelog();

@@ -77,11 +77,13 @@ The frontend has no build step — `ui/` ships as-is and gets bundled in via `--
    git tag -a v<version> -m "Benchly v<version>"
    git push origin master --tags
    ```
-6. **Publish the GitHub release** with the binaries attached:
+6. **Publish the GitHub release** with the binaries **and `SHA256SUMS.txt`** attached —
+   the in-app updater verifies downloads against that checksum file, so don't skip it:
    ```powershell
    gh release create v<version> `
      release\v<version>\Benchly-<version>-portable.exe `
      release\v<version>\Benchly-Setup-<version>.exe `
+     release\v<version>\SHA256SUMS.txt `
      --title "Benchly v<version>" --notes-file release\v<version>\RELEASE.md --latest
    ```
 

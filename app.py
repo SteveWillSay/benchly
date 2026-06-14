@@ -21,7 +21,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      selfupdate)
 
 APP_NAME = "Benchly"
-APP_VERSION = "1.8.1"
+APP_VERSION = "1.9.0"
 
 
 def resource_path(rel: str) -> str:
@@ -194,6 +194,15 @@ class Api:
     # --- self update ------------------------------------------------------------
     def check_update(self):
         return selfupdate.check_update(APP_VERSION)
+
+    def download_update(self):
+        return selfupdate.download_update()
+
+    def update_status(self, job_id):
+        return selfupdate.update_status(job_id)
+
+    def apply_update(self):
+        return selfupdate.apply_update()
 
     # --- audit / software / events ----------------------------------------------
     def get_health(self, refresh=False):
