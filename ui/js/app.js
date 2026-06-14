@@ -699,6 +699,98 @@ $("#btnFlushDns").onclick = flushDns;
 $("#btnNetCopy").onclick = () => {
   navigator.clipboard.writeText($("#netConsole").innerText).then(() => toast("Session log copied", "info", 1800));
 };
+
+/* ---- Sharing & firewall (Bundle G) ---- */
+const shLoaded = { profile: false, firewall: false, creds: false, dns: false };
+$("#btnSharing").onclick = () => { shLoaded.profile = false; loadShProfile(); };
+$$("#shTabs .tab").forEach(t => t.addEventListener("click", () => {
+  $$("#shTabs .tab").forEach(x => x.classList.toggle("active", x === t));
+  const w = t.dataset.sh;
+  for (const [k, id] of [["profile", "shProfile"], ["firewall", "shFirewall"], ["creds", "shCreds"], ["dns", "shDns"]])
+    $("#" + id).style.display = w === k ? "" : "none";
+  if (w === "profile" && !shLoaded.profile) loadShProfile();
+  if (w === "firewall" && !shLoaded.firewall) loadShFirewall();
+  if (w === "creds" && !shLoaded.creds) loadShCreds();
+  if (w === "dns" && !shLoaded.dns) loadShDns();
+}));
+async function loadShProfile() {
+  shLoaded.profile = true;
+  const el = $("#shProfile");
+  el.innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading network profile…</span></div>`;
+  const r = await api.network_profiles().catch(() => null);
+  if (!r || !r.ok || !r.profiles.length) { el.innerHTML = emptyState("bang", "No active network profile"); return; }
+  el.innerHTML = r.profiles.map(p => `<div class="dom-sec">
+    <div class="dr"><span class="dk strong">${esc(p.interface)}</span><span class="dv">
+      ${p.is_public ? pill("warn", "Public") : pill("good", esc(p.category))}
+      ${p.is_public ? `<button class="btn small primary" style="margin-left:8px" data-mkpriv="${esc(p.interface)}">Set Private</button>` : ""}</span></div>
+    ${p.is_public ? `<div class="muted" style="font-size:11.5px; margin-top:4px">On Public, Windows hides this PC and blocks file/printer sharing &amp; discovery. If this is a home or work network, set it Private.</div>` : ""}
+    </div>`).join("");
+  $$("#shProfile [data-mkpriv]").forEach(b => b.onclick = async () => {
+    if (!confirm("Set this network to Private? It enables network discovery and file/printer sharing on this connection.")) return;
+    b.disabled = true;
+    const res = await api.set_network_category(b.dataset.mkpriv, "Private");
+    toast(res.ok ? res.where : (res.error || "Couldn't change it"), res.ok ? "good" : "bad", 3500);
+    if (res.ok) loadShProfile();
+  });
+}
+async function loadShFirewall() {
+  shLoaded.firewall = true;
+  const el = $("#shFirewall");
+  el.innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading firewall rules…</span></div>`;
+  const [ov, ib] = await Promise.all([api.firewall_overview().catch(() => null), api.firewall_inbound().catch(() => null)]);
+  if (!ov || !ov.ok) { el.innerHTML = emptyState("bang", "Couldn't read the firewall"); return; }
+  const prof = `<div class="dom-sec"><h4>Profiles</h4>${ov.profiles.map(p =>
+    `<div class="dr"><span class="dk">${esc(p.name)}</span><span class="dv">${p.enabled ? pill("good", "on") : pill("bad", "OFF")} · inbound ${esc(p.inbound_default)}</span></div>`).join("")}</div>`;
+  let rules = "";
+  if (ib && ib.ok) {
+    const head = ib.flagged
+      ? `<div class="dom-flag warn">${ico("bang")}<span>${ib.flagged} inbound allow rule(s) worth a look — flagged below.</span></div>`
+      : `<div class="dom-flag good">${ico("check")}<span>${ib.total} inbound allow rules; nothing unusual.</span></div>`;
+    rules = head + `<div class="table-wrap" style="max-height:320px; margin-top:8px"><table>
+      <thead><tr><th>Rule</th><th>Program / port</th><th>Scope</th><th></th></tr></thead><tbody>
+      ${ib.rules.slice(0, 120).map(r => `<tr>
+        <td class="strong" style="max-width:220px">${esc(r.name)}</td>
+        <td class="mono" style="max-width:260px; font-size:11px">${esc(r.program !== "Any" ? r.program : (r.proto + " " + r.port))}</td>
+        <td>${r.public_any ? pill("info", "any / public") : esc(r.profiles)}</td>
+        <td>${r.flags.length ? `<span title="${esc(r.flags.join("; "))}">${pill("warn", "review")}</span>` : ""}</td>
+      </tr>`).join("")}</tbody></table></div>`;
+  }
+  el.innerHTML = prof + rules;
+}
+async function loadShCreds() {
+  shLoaded.creds = true;
+  const el = $("#shCreds");
+  el.innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading drives &amp; credentials…</span></div>`;
+  const [d, c] = await Promise.all([api.mapped_drives().catch(() => null), api.stored_credentials().catch(() => null)]);
+  const drives = (d && d.ok && d.drives.length)
+    ? `<div class="dom-sec"><h4>Mapped drives${d.stale ? ` ${pill("warn", d.stale + " stale")}` : ""}</h4>${d.drives.map(x =>
+        `<div class="dr"><span class="dk strong">${esc(x.local)} → ${esc(x.remote)}</span><span class="dv">${x.stale ? pill("warn", esc(x.status)) : pill("good", esc(x.status))}</span></div>`).join("")}</div>`
+    : `<div class="dom-sec"><h4>Mapped drives</h4><div class="muted" style="font-size:12px">No network drives mapped.</div></div>`;
+  const creds = (c && c.ok && c.credentials.length)
+    ? `<div class="dom-sec"><h4>Saved credentials (${c.total}) <span class="muted" style="font-size:11px">names only — no passwords are ever read</span></h4>
+        <div class="table-wrap" style="max-height:260px"><table><thead><tr><th>Target</th><th>Type</th><th>User</th></tr></thead><tbody>
+        ${c.credentials.map(x => `<tr><td class="copy" style="max-width:280px">${esc(x.display)}</td><td class="muted">${esc(x.type)}</td><td class="muted">${esc(x.user)}</td></tr>`).join("")}
+        </tbody></table></div></div>`
+    : `<div class="dom-sec"><h4>Saved credentials</h4><div class="muted" style="font-size:12px">None stored.</div></div>`;
+  el.innerHTML = `<div class="dom-grid">${drives}${creds}</div>`;
+}
+async function loadShDns() {
+  shLoaded.dns = true;
+  const el = $("#shDns");
+  el.innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading DNS cache &amp; Winsock…</span></div>`;
+  const [d, w] = await Promise.all([api.dns_cache().catch(() => null), api.winsock_catalog().catch(() => null)]);
+  const dns = (d && d.ok)
+    ? `<div class="dom-sec"><h4>DNS resolver cache (${d.total})</h4>
+        <div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Name</th><th>Data</th></tr></thead><tbody>
+        ${d.entries.map(e => `<tr><td class="copy" style="max-width:240px">${esc(e.name)}</td><td class="mono" style="max-width:240px; font-size:11px">${esc(e.data)}</td></tr>`).join("")}
+        </tbody></table></div></div>`
+    : `<div class="dom-sec"><h4>DNS resolver cache</h4>${emptyState("check", "Cache empty")}</div>`;
+  const win = (w && w.ok)
+    ? `<div class="dom-sec"><h4>Winsock / LSP providers ${w.third_party ? pill("warn", w.third_party + " third-party") : pill("good", "all built-in")}</h4>
+        ${w.providers.map(p => `<div class="dr"><span class="dk">${esc(p.description)}</span><span class="dv">${p.third_party ? pill("warn", "3rd-party") : `<span class="muted">built-in</span>`}</span></div>`).join("")}</div>`
+    : "";
+  el.innerHTML = `<div class="dom-grid">${dns}${win}</div>`;
+}
 $("#btnNetClear").onclick = () => {
   const c = $("#netConsole");
   c.dataset.used = "";
@@ -3271,6 +3363,13 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.6.0", name: "Network & sharing deep", items: [
+    "New Sharing & firewall section on the Network page, for the silent “can't see the printer / keeps asking me to sign in” problems.",
+    "Network profile — spots a connection left on Public (which blocks file/printer sharing and discovery) and flips it to Private in one click.",
+    "Firewall audit — the per-profile state plus the inbound allow rules that are actually enabled, with anything running from a user-writable folder flagged.",
+    "Drives & credentials — mapped network drives and their status (stale ones flagged), and the Credential Manager entries (names and types only — passwords are never read).",
+    "DNS & Winsock — the live DNS resolver cache (an unexpected address for a known site is a hijack hint) and the Winsock/LSP catalog, flagging any third-party layered providers.",
+  ] },
   { v: "2.5.0", name: "Workplace — identity, licensing & a managed baseline", items: [
     "New Workplace page, built for the corporate and small-business machines an IT pro actually looks after.",
     "Activation & licensing — is Windows activated, on what channel (OEM / Retail / Volume), and the product key embedded in this PC's firmware (handy before a reinstall).",
@@ -3517,6 +3616,10 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "shield", label: "Look up a domain / website", run: () => { showPage("network"); $("#domHost").focus(); } },
   { cat: "Actions", icon: "shield", label: "Unmask a URL / short link", run: () => { showPage("network"); $("#urlInput").focus(); } },
   { cat: "Actions", icon: "wrench", label: "Scan Wi-Fi networks", run: () => { showPage("network"); $("#btnWifiScan").click(); } },
+  { cat: "Actions", icon: "shield", label: "Firewall rules audit", run: () => { showPage("network"); $("#btnSharing")?.click(); $(`#shTabs [data-sh="firewall"]`)?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "Network profile (Public/Private)", run: () => { showPage("network"); $("#btnSharing")?.click(); } },
+  { cat: "Actions", icon: "shield", label: "Mapped drives & saved credentials", run: () => { showPage("network"); $("#btnSharing")?.click(); $(`#shTabs [data-sh="creds"]`)?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "DNS cache & Winsock catalog", run: () => { showPage("network"); $("#btnSharing")?.click(); $(`#shTabs [data-sh="dns"]`)?.click(); } },
   { cat: "Actions", icon: "download", label: "Check for app updates (winget)", run: () => { showPage("software"); $(`#swTabs [data-sw="appupdates"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Audit trusted root certificates", run: () => { showPage("security"); $(`#secTabs [data-sec="certs"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Listening ports", run: () => { showPage("security"); $(`#secTabs [data-sec="listeners"]`).click(); } },

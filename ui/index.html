@@ -399,6 +399,24 @@
           </div>
           <div class="console mt" id="netConsole"><span class="console-empty">Enter a target and press Run. The session log accumulates here.</span></div>
         </div>
+
+        <div class="card" id="sharingCard" style="margin-top:12px">
+          <h3>Sharing &amp; firewall <span class="right"><button class="btn small" id="btnSharing">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            The network-profile, firewall and saved-credential stuff behind the silent "can't see the printer /
+            keeps asking me to sign in" problems.
+          </p>
+          <div class="tabs" id="shTabs">
+            <button class="tab active" data-sh="profile">Network profile</button>
+            <button class="tab" data-sh="firewall">Firewall</button>
+            <button class="tab" data-sh="creds">Drives &amp; credentials</button>
+            <button class="tab" data-sh="dns">DNS &amp; Winsock</button>
+          </div>
+          <div id="shProfile"><div class="muted" style="font-size:12.5px">Press Check to read the network profile (Public/Private).</div></div>
+          <div id="shFirewall" style="display:none"></div>
+          <div id="shCreds" style="display:none"></div>
+          <div id="shDns" style="display:none"></div>
+        </div>
       </section>
 
       <!-- ==================== PROCESSES ==================== -->

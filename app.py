@@ -23,10 +23,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      bitlocker, avcheck, helpercard, display, rescue,
                      links, netperf, virt,
                      pendingreboot, wuhistory, boottime,
-                     licensing, identity, grouppolicy, timesync, baseline_policy)
+                     licensing, identity, grouppolicy, timesync, baseline_policy,
+                     firewall, credentials)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.5.0"
+APP_VERSION = "2.6.0"
 
 
 def resource_path(rel: str) -> str:
@@ -284,6 +285,37 @@ class Api:
 
     def baseline_export(self):
         return baseline_policy.export_baseline()
+
+    # --- network & sharing deep (Bundle G) -------------------------------------------
+    def firewall_overview(self):
+        return firewall.firewall_overview()
+
+    def firewall_inbound(self):
+        return firewall.inbound_allows()
+
+    def firewall_disable_rule(self, name):
+        return firewall.disable_rule(name)
+
+    def network_profiles(self):
+        return network.network_profiles()
+
+    def set_network_category(self, interface, category):
+        return network.set_network_category(interface, category)
+
+    def mapped_drives(self):
+        return credentials.mapped_drives()
+
+    def stored_credentials(self):
+        return credentials.stored_credentials()
+
+    def remove_credential(self, target):
+        return credentials.remove_credential(target)
+
+    def dns_cache(self):
+        return network.dns_cache()
+
+    def winsock_catalog(self):
+        return network.winsock_catalog()
 
     # --- devices & printers ----------------------------------------------------------
     def get_problem_devices(self):

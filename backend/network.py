@@ -226,3 +226,94 @@ def flush_dns():
         return {"ok": False, "error": out or f"ipconfig exited with code {result.returncode}."}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# --------------------------------------------------------------------------- #
+# Network category (Public/Private) — G2
+# --------------------------------------------------------------------------- #
+def network_profiles():
+    """Per-connection network category — the 'sharing fails because it's Public' check."""
+    rows = as_list(ps_json(
+        "Get-NetConnectionProfile -ErrorAction SilentlyContinue | "
+        "Select-Object InterfaceAlias,Name,@{n='Cat';e={[string]$_.NetworkCategory}}", timeout=20))
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        cat = str(r.get("Cat") or "")
+        out.append({
+            "interface": r.get("InterfaceAlias") or "—",
+            "name": r.get("Name") or "—",
+            "category": cat or "—",
+            "is_public": cat.lower() == "public",
+        })
+    return {"ok": True, "profiles": out}
+
+
+def set_network_category(interface, category):
+    """Flip a connection between Public and Private (confirmed in the UI)."""
+    if category not in ("Public", "Private"):
+        return {"ok": False, "error": "Category must be Public or Private."}
+    safe = str(interface).replace("'", "''")
+    out = run_ps(f"& {{ Set-NetConnectionProfile -InterfaceAlias '{safe}' "
+                 f"-NetworkCategory {category} -ErrorAction SilentlyContinue; 'OK' }}", timeout=20)
+    if "OK" in out:
+        note = ("Private enables file/printer sharing and network discovery."
+                if category == "Private" else
+                "Public hides this PC from other machines on the network.")
+        return {"ok": True, "where": f"'{interface}' set to {category}. {note}"}
+    return {"ok": False, "error": "Couldn't change the network category (may need admin)."}
+
+
+# --------------------------------------------------------------------------- #
+# DNS resolver cache + Winsock/LSP catalog — G4
+# --------------------------------------------------------------------------- #
+def dns_cache(limit=300):
+    """The live DNS resolver cache. An unexpected A-record for a known site = hijack hint."""
+    rows = as_list(ps_json(
+        "Get-DnsClientCache -ErrorAction SilentlyContinue | "
+        "Select-Object Entry,@{n='Type';e={[string]$_.Type}},Data,TimeToLive", timeout=25))
+    entries = []
+    for r in rows[:int(limit)]:
+        if not isinstance(r, dict):
+            continue
+        entries.append({
+            "name": r.get("Entry") or "—",
+            "type": r.get("Type") or "",
+            "data": r.get("Data") or "",
+            "ttl": r.get("TimeToLive"),
+        })
+    return {"ok": True, "entries": entries, "total": len(entries)}
+
+
+def winsock_catalog():
+    """Layered Service Providers — third-party entries are a classic adware/malware foothold."""
+    out = run_ps("netsh winsock show catalog", timeout=25) or ""
+    providers, cur = [], None
+    for line in out.splitlines():
+        s = line.strip()
+        if re.match(r"Winsock Catalog Provider Entry", s, re.I):
+            if cur:
+                providers.append(cur)
+            cur = {}
+            continue
+        if cur is not None and ":" in s:
+            k, _, v = s.partition(":")
+            k, v = k.strip().lower(), v.strip()
+            if k.startswith("description"):
+                cur["description"] = v
+            elif "provider path" in k or k == "provider":
+                cur["path"] = v
+    if cur:
+        providers.append(cur)
+    seen, out_p = set(), []
+    for p in providers:
+        desc = p.get("description") or "(unnamed)"
+        if desc in seen:
+            continue
+        seen.add(desc)
+        path = p.get("path", "")
+        third_party = bool(path) and "mswsock" not in path.lower() and "system32" not in path.lower()
+        out_p.append({"description": desc, "path": path, "third_party": third_party})
+    return {"ok": True, "providers": out_p,
+            "third_party": sum(1 for p in out_p if p["third_party"])}
