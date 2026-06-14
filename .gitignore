@@ -22,3 +22,4 @@ release/**/*.exe
 # OS
 Thumbs.db
 desktop.ini
+_commitmsg.txt
