@@ -21,10 +21,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      selfupdate, power, shellrepair, gremlins,
                      defender, persistence, execevidence, hardening,
                      bitlocker, avcheck, helpercard, display, rescue,
-                     links, netperf, virt)
+                     links, netperf, virt,
+                     pendingreboot, wuhistory, boottime)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.3.1"
+APP_VERSION = "2.4.0"
 
 
 def resource_path(rel: str) -> str:
@@ -238,6 +239,22 @@ class Api:
 
     def cancel_repair(self, job_id):
         return repair.cancel_job(job_id)
+
+    # --- pending reboot / WU history / boot time (Bundle E) -------------------------
+    def pending_reboot(self):
+        return pendingreboot.pending_reboot()
+
+    def restart_now(self):
+        return pendingreboot.restart_now()
+
+    def wu_history(self, limit=40):
+        return wuhistory.wu_history(int(limit))
+
+    def wu_health(self):
+        return wuhistory.wu_health()
+
+    def boot_performance(self):
+        return boottime.boot_performance()
 
     # --- devices & printers ----------------------------------------------------------
     def get_problem_devices(self):

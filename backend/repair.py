@@ -53,6 +53,34 @@ TOOLS = {
         "note": "Stops update services, clears SoftwareDistribution, restarts them.",
         "where": "Stops the wuauserv & bits services, deletes C:\\Windows\\SoftwareDistribution, then restarts them. Windows rebuilds the cache on the next update check.",
     },
+    "dism_analyze": {
+        "label": "Analyze component store (WinSxS)",
+        "cmd": ["DISM", "/Online", "/Cleanup-Image", "/AnalyzeComponentStore"],
+        "encoding": "mbcs",
+        "note": "Read-only — measures the WinSxS store and says whether a cleanup is worth it.",
+        "where": "Read-only analysis of C:\\Windows\\WinSxS. Reports actual size, reclaimable space, and 'Cleanup Recommended: Yes/No'. Makes no changes.",
+    },
+    "dism_cleanup": {
+        "label": "Clean up component store",
+        "cmd": ["DISM", "/Online", "/Cleanup-Image", "/StartComponentCleanup"],
+        "encoding": "mbcs",
+        "note": "Removes superseded component versions to reclaim disk space (5–20 min).",
+        "where": "Deletes superseded/old component versions from C:\\Windows\\WinSxS. Supported and safe; previously-installed updates can still be uninstalled afterwards.",
+    },
+    "dism_cleanup_resetbase": {
+        "label": "Clean up component store (Reset Base)",
+        "cmd": ["DISM", "/Online", "/Cleanup-Image", "/StartComponentCleanup", "/ResetBase"],
+        "encoding": "mbcs",
+        "note": "Deeper cleanup — but you can no longer uninstall updates installed so far.",
+        "where": "Like the cleanup above, plus /ResetBase: it also removes the backups of superseded updates. Reclaims the most space, but already-installed updates become permanent (can't be uninstalled). Use when space matters more than rollback.",
+    },
+    "reserved_storage": {
+        "label": "Reserved storage state",
+        "cmd": ["DISM", "/Online", "/Get-ReservedStorageState"],
+        "encoding": "mbcs",
+        "note": "Read-only — shows whether Windows is holding space reserved for updates.",
+        "where": "Read-only. Reports whether Reserved Storage is enabled (the ~7 GB Windows sets aside so updates don't fail for lack of space). Makes no changes.",
+    },
 }
 
 _WU_RESET = (

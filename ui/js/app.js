@@ -1233,9 +1233,57 @@ $$("#evTabs .tab").forEach(t => t.addEventListener("click", () => {
   $("#evTabLog").style.display = which === "log" ? "" : "none";
   $("#evTabCrashes").style.display = which === "crashes" ? "" : "none";
   $("#evTabTimeline").style.display = which === "timeline" ? "" : "none";
+  $("#evTabBoot").style.display = which === "boot" ? "" : "none";
   if (which === "crashes" && !crashesLoaded) { crashesLoaded = true; loadCrashes(); }
   if (which === "timeline" && !timelineLoaded) { timelineLoaded = true; loadTimeline(); }
+  if (which === "boot" && !bootLoaded) { bootLoaded = true; loadBoot(); }
 }));
+
+/* ---- events: boot-time breakdown ---- */
+let bootLoaded = false;
+async function loadBoot() {
+  const r = await api.boot_performance().catch(() => null);
+  const el = $("#bootBody");
+  if (!r || !r.ok) { el.innerHTML = `<div class="card">${emptyState("bang", "Couldn't read boot performance")}</div>`; return; }
+  const fs = r.fast_startup === true ? "on" : r.fast_startup === false ? "off" : "—";
+  const head = `<div class="card" style="margin-bottom:12px">
+    <div class="speed-row">
+      <div class="speed-kpi"><div class="v">${r.uptime_hours != null ? r.uptime_hours : "—"}<small> h</small></div><div class="l">Uptime</div></div>
+      <div class="speed-kpi"><div class="v" style="font-size:15px">${esc(r.last_boot || "—")}</div><div class="l">Last boot</div></div>
+      <div class="speed-kpi"><div class="v">${fs}</div><div class="l">Fast Startup</div></div>
+    </div></div>`;
+  if (r.needs_admin) {
+    el.innerHTML = head + `<div class="card">${emptyState("shield", "Run as admin for the full boot breakdown")}
+      <p class="muted" style="font-size:12px; text-align:center">${esc(r.note || "")}</p></div>`;
+    return;
+  }
+  const last = r.boots && r.boots[0];
+  const timing = last ? `<div class="card" style="margin-bottom:12px">
+    <h3>Most recent boot</h3>
+    <div class="speed-row">
+      <div class="speed-kpi"><div class="v">${last.total_s ?? "—"}<small> s</small></div><div class="l">Total to ready</div></div>
+      <div class="speed-kpi"><div class="v">${last.to_desktop_s ?? "—"}<small> s</small></div><div class="l">To desktop</div></div>
+      <div class="speed-kpi"><div class="v">${last.post_boot_s ?? "—"}<small> s</small></div><div class="l">Settling after</div></div>
+    </div>
+    ${last.degraded ? `<div class="dom-flag warn" style="margin-top:10px">${ico("bang")}<span>Windows flagged this boot as slower than usual.</span></div>` : ""}
+  </div>` : `<div class="card" style="margin-bottom:12px">${emptyState("check", "No boot-timing events recorded yet")}</div>`;
+  const deg = (r.degraders && r.degraders.length) ? `<div class="card" style="margin-bottom:12px">
+    <h3>What slowed boot down <span class="right muted" style="font-size:11px">named by Windows, worst first</span></h3>
+    <div class="table-wrap" style="max-height:300px"><table>
+      <thead><tr><th>Type</th><th>Name</th><th class="num">Added</th><th>When</th></tr></thead><tbody>
+      ${r.degraders.map(d => `<tr><td>${pill(d.kind === "Driver" || d.kind === "Device" ? "warn" : "info", d.kind)}</td>
+        <td class="strong copy">${esc(d.name)}</td><td class="num mono">${d.seconds}s</td>
+        <td class="mono muted">${esc(d.time || "—")}</td></tr>`).join("")}
+    </tbody></table></div></div>` : "";
+  const recent = (r.boots && r.boots.length > 1) ? `<div class="card">
+    <h3>Recent boots</h3>
+    <div class="table-wrap" style="max-height:240px"><table>
+      <thead><tr><th>When</th><th class="num">Total</th><th class="num">To desktop</th><th></th></tr></thead><tbody>
+      ${r.boots.map(b => `<tr><td class="mono">${esc(b.time || "—")}</td><td class="num mono">${b.total_s ?? "—"}s</td>
+        <td class="num mono">${b.to_desktop_s ?? "—"}s</td><td>${b.degraded ? pill("warn", "slow") : ""}</td></tr>`).join("")}
+    </tbody></table></div></div>` : "";
+  el.innerHTML = head + timing + deg + recent;
+}
 
 /* ---- events: triage knowledge base ----
    Curated explanations for the sources a bench tech meets constantly.
@@ -1581,6 +1629,66 @@ $("#btnPowerScan").onclick = async () => {
       ${sec("Sleep states available", `<div class="muted" style="font-size:12px">${esc(r.sleep_states.join(" · ") || "—")}${r.modern_standby ? " · Modern Standby (S0)" : ""}</div>`)}
       ${r.last_wake ? sec("Last wake", `<div class="muted" style="font-size:12px">${esc(r.last_wake)}</div>`) : ""}
     </div>`;
+};
+
+/* ---- Pending restart ---- */
+$("#btnRebootCheck").onclick = async () => {
+  $("#rebootBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Checking servicing signals…</span></div>`;
+  const r = await api.pending_reboot().catch(() => null);
+  if (!r || !r.ok) { $("#rebootBody").innerHTML = `<div class="muted">Couldn't read the reboot signals.</div>`; return; }
+  const verdict = r.pending
+    ? `<div class="dom-flag warn">${ico("bang")}<span>${esc(r.summary)}</span></div>`
+    : `<div class="dom-flag good">${ico("check")}<span>${esc(r.summary)}</span></div>`;
+  const rows = r.signals.map(s => `<div class="dr">
+    <span class="dk">${s.set ? ico("bang", "ic sm") : ico("check", "ic sm")} ${esc(s.label)}</span>
+    <span class="dv"><span class="${s.set ? "strong" : "muted"}">${s.set ? "waiting on reboot" : "clear"}</span>
+      <div class="muted" style="font-size:11px; line-height:1.45; margin-top:2px">${esc(s.detail)}</div>
+      <div class="mono" style="font-size:10.5px; opacity:.6; margin-top:2px">${esc(s.where)}</div></span></div>`).join("");
+  const action = r.pending
+    ? `<div class="row" style="margin-top:10px"><button class="btn danger small" id="btnRebootNow">Restart now…</button>
+        <span class="muted" style="font-size:11.5px">Saves nothing for you — close your work first.</span></div>`
+    : "";
+  $("#rebootBody").innerHTML = verdict + `<div class="dom-sec" style="margin-top:10px">${rows}</div>` + action;
+  const nowBtn = $("#btnRebootNow");
+  if (nowBtn) nowBtn.onclick = async () => {
+    if (!confirm("Restart this PC now? Make sure your work is saved — this gives a 10-second warning then restarts.")) return;
+    nowBtn.disabled = true;
+    const x = await api.restart_now();
+    toast(x.ok ? "Restarting in 10 seconds…" : (x.error || "Couldn't restart"), x.ok ? "good" : "bad");
+  };
+};
+
+/* ---- Update doctor (WU history + service health) ---- */
+$("#btnWuCheck").onclick = async () => {
+  $("#wuBody").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Reading update history…</span></div>`;
+  const [h, health] = await Promise.all([
+    api.wu_history(30).catch(() => null),
+    api.wu_health().catch(() => null),
+  ]);
+  if (!h || !h.ok) { $("#wuBody").innerHTML = `<div class="muted">Couldn't read the update history.</div>`; return; }
+  const hd = health && health.ok ? health : null;
+  const svcConcern = hd && hd.services.some(s => s.concern);
+  const healthRow = hd ? `<div class="dom-grid" style="margin-bottom:12px">
+    <div class="dom-sec"><h4>Last activity</h4>
+      <div class="dr"><span class="dk">Last successful scan</span><span class="dv mono">${esc(hd.last_search || "—")}</span></div>
+      <div class="dr"><span class="dk">Last successful install</span><span class="dv mono">${esc(hd.last_install || "—")}</span></div></div>
+    <div class="dom-sec"><h4>Update services ${svcConcern ? pill("warn", "check this") : pill("good", "ok")}</h4>
+      ${hd.services.map(s => `<div class="dr"><span class="dk">${esc(s.name)}</span>
+        <span class="dv ${s.concern ? "strong" : "muted"}">${esc(s.status)} · ${esc(s.start)}</span></div>`).join("")}</div>
+  </div>` : "";
+  const fails = h.items.filter(i => !i.ok);
+  const failNote = h.failures
+    ? `<div class="dom-flag warn" style="margin-bottom:10px">${ico("bang")}<span>${h.failures} of the last ${h.total} update attempts didn't succeed. The decoded reason is on each row below.</span></div>`
+    : `<div class="dom-flag good" style="margin-bottom:10px">${ico("check")}<span>No failures in the last ${h.total} update attempts.</span></div>`;
+  const table = `<div class="table-wrap" style="max-height:340px"><table>
+    <thead><tr><th>When</th><th>Result</th><th>Update</th></tr></thead><tbody>
+    ${h.items.map(i => `<tr>
+      <td class="mono" style="white-space:nowrap">${esc(i.date || "—")}</td>
+      <td>${i.ok ? pill("good", "ok") : pill("bad", esc(i.result))}</td>
+      <td><div class="strong copy" style="max-width:420px">${esc(i.title)}</div>
+        ${!i.ok ? `<div class="muted" style="font-size:11px; margin-top:2px"><span class="mono">${esc(i.hresult || "")}</span> — ${esc(i.meaning || "")}${i.advice ? ` <span style="opacity:.85">${esc(i.advice)}</span>` : ""}</div>` : ""}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+  $("#wuBody").innerHTML = healthRow + failNote + table;
 };
 
 /* ---- Gremlin hunters ---- */
@@ -2967,6 +3075,12 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.4.0", name: "Won't update, won't boot, disk's full", items: [
+    "Pending restart check (Toolbox) — reads every signal Windows leaves when it's waiting on a reboot (component servicing, Windows Update, files queued to move, a queued rename) and explains in plain English why updates and installers might be silently failing. One-click restart when you're ready.",
+    "Update doctor (Toolbox) — the recent Windows Update history with the cryptic 0x800f… / 0x80070… error codes translated into plain English and what to do, plus the last successful scan/install and the health of the services updates depend on.",
+    "Component store cleanup (Toolbox → repair tools) — analyzes the WinSxS folder, tells you how much is reclaimable, and cleans it up (with an optional deeper Reset Base). The honest answer to “where did the space on C: go?”",
+    "Boot-time breakdown (Event Log → Boot time) — how long the last boots actually took (to desktop and to settled), the specific apps, drivers and services Windows blamed for slowing it down, and a trend over time.",
+  ] },
   { v: "2.3.1", name: "Reliable self-update", items: [
     "Fixed the updater getting stuck on “closing application” for installed copies. Updates now swap the program file in place — the same proven method the portable build already used — and relaunch cleanly.",
     "Heads-up: this fix takes effect from the next update onward, so install v2.3.1 by hand once. After that, updates apply themselves.",
@@ -3219,6 +3333,10 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "shield", label: "Analyze email headers (phishing)", run: () => { showPage("security"); $(`#secTabs [data-sec="email"]`).click(); } },
   { cat: "Actions", icon: "zap", label: "Performance snapshot — why is it slow?", run: () => { showPage("toolbox"); $("#btnSnapStart").click(); } },
   { cat: "Actions", icon: "zap", label: "Power, sleep & wake doctor", run: () => { showPage("toolbox"); $("#btnPowerScan").click(); } },
+  { cat: "Actions", icon: "refresh", label: "Check for a pending restart", run: () => { showPage("toolbox"); $("#btnRebootCheck")?.click(); } },
+  { cat: "Actions", icon: "download", label: "Update doctor (why is Windows Update stuck?)", run: () => { showPage("toolbox"); $("#btnWuCheck")?.click(); } },
+  { cat: "Actions", icon: "history", label: "Boot-time breakdown", run: () => { showPage("events"); $(`#evTabs [data-ev="boot"]`)?.click(); } },
+  { cat: "Actions", icon: "drive", label: "Clean up the component store (WinSxS)", run: () => { showPage("toolbox"); $(`[data-run="dism_analyze"]`)?.scrollIntoView({ block: "center" }); } },
   { cat: "Actions", icon: "bug", label: "Gremlin hunters (disk / USB / freeze)", run: () => { showPage("toolbox"); $("#btnGremDisk")?.scrollIntoView({ block: "center" }); } },
   { cat: "Actions", icon: "wrench", label: "Cache & shell repair (blank icons, fonts…)", run: () => { showPage("cleanup"); $(`#cleanTabs [data-clean="repair"]`).click(); } },
   { cat: "Actions", icon: "printer", label: "Printer doctor", run: () => { showPage("devices"); $("#prnBody")?.scrollIntoView({ block: "center" }); } },

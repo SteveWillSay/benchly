@@ -493,6 +493,10 @@
           <button class="tab" data-ev="log">Raw log</button>
           <button class="tab" data-ev="crashes">Crashes &amp; BSODs</button>
           <button class="tab" data-ev="timeline">Reliability timeline</button>
+          <button class="tab" data-ev="boot">Boot time</button>
+        </div>
+        <div id="evTabBoot" style="display:none">
+          <div id="bootBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div></div>
         </div>
         <div id="evTabTimeline" style="display:none">
           <div id="timelineBody"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:75%"></div></div></div></div>
@@ -702,6 +706,25 @@
             <div id="bpBody"><button class="btn" id="btnBpCheck">Check backup posture</button></div>
           </div>
         </div>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Pending restart <span class="right"><button class="btn small" id="btnRebootCheck">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            Windows leaves breadcrumbs when it's waiting on a restart to finish servicing — and until you reboot,
+            new updates and some installers quietly fail. This reads every signal and explains it in plain English.
+          </p>
+          <div id="rebootBody"><div class="muted" style="font-size:12.5px">Press Check to see whether a restart is pending.</div></div>
+        </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <h3>Update doctor <span class="right"><button class="btn small" id="btnWuCheck">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            Why is Windows Update stuck? This shows the recent update history with the cryptic <span class="mono">0x800f…</span>
+            error codes translated into plain English, plus the health of the services updates depend on. Pairs with the
+            Update-cache reset below.
+          </p>
+          <div id="wuBody"><div class="muted" style="font-size:12.5px">Press Check to read the update history and decode any failures.</div></div>
+        </div>
+
         <div class="card" style="margin-bottom:12px">
           <h3>Performance snapshot <span class="right muted" id="snapStatus"></span></h3>
           <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
