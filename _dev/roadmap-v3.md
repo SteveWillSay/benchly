@@ -122,6 +122,57 @@ corporate/domain machine. Nothing here exists today.
 - **UI:** System or Security → "Group Policy" card.
 - **Risk:** low (read). **Effort:** Medium (gpresult / XML parse).
 
+### F5. Managed Baseline — enterprise-policy configurator — `backend/baseline_policy.py` (new) — *PROPOSED, pending review*
+The big one for the MSP / small-business audience: a screen that **reads the current state of
+the management-grade policies** an admin normally pushes via GPO or Intune, and lets a
+technician **view and optionally apply** them on a standalone or unmanaged machine — each
+item documented, reversible, with the exact registry/`secedit` target shown (same promise as
+the hardening scorecard, which this mirrors structurally — see `hardening.py`).
+
+- **Update management — Windows Update for Business** (`HKLM\SOFTWARE\Policies\Microsoft\
+  Windows\WindowsUpdate` + `\AU`): defer quality updates (`DeferQualityUpdates`,
+  `DeferQualityUpdatesPeriodInDays` 0–30) and feature updates (`DeferFeatureUpdates…` 0–365);
+  pin a release (`TargetReleaseVersion`=1 + `TargetReleaseVersionInfo` e.g. "23H2"); active
+  hours (`SetActiveHours`, `ActiveHoursStart/End`); restart deadline / `NoAutoRebootWithLogged
+  OnUsers`; pause updates; branch readiness (`BranchReadinessLevel`); exclude driver updates
+  (`ExcludeWUDriversInQualityUpdate`).
+- **BitLocker — startup PIN & encryption policy** (`HKLM\SOFTWARE\Policies\Microsoft\FVE`):
+  require startup auth (`UseAdvancedStartup`=1) + TPM+PIN (`UseTPMPIN`=1) + minimum PIN length
+  (`MinimumPINLength`); encryption strength (`EncryptionMethodWithXtsOs/Fdv/Rdv` → XTS-AES
+  256); allow BitLocker without a TPM (`EnableBDEWithNoTPM`). Actually enrolling a PIN on a
+  TPM-only machine is `manage-bde -protectors -add C: -TPMAndPIN` (admin, interactive — the
+  PIN is typed by the user and **never stored/logged**); the policy just makes it required.
+- **Password & lockout policy** (`net accounts` / `secedit /export`): min length, complexity,
+  max age, history; lockout threshold / duration / reset window.
+- **Screen lock / inactivity** (`…\Policies\System\InactivityTimeoutSecs`): auto-lock after N
+  minutes idle.
+- **Diagnostic data level** (`…\Policies\Microsoft\Windows\DataCollection\AllowTelemetry`):
+  Security (0, Enterprise/Education only) / Required / Enhanced / Full — edition-aware.
+- **UAC behaviour** (`…\Policies\System`: `ConsentPromptBehaviorAdmin`, `EnableLUA`,
+  `PromptOnSecureDesktop`).
+- *(Cross-link, don't duplicate, the security controls already in `hardening.py` — SMBv1,
+  LLMNR, AutoRun, NLA, etc. Managed Baseline = management policy; hardening = security
+  controls.)*
+
+- **UI:** a new **"Managed Baseline"** page grouped by the categories above. Each row: policy ·
+  plain-English description · **current value (read live)** · target value · an editable control
+  (dropdown / number / toggle) · per-item **Apply** (writes the key, logs the prior value) · the
+  exact key shown. A one-click **"Apply MSP baseline"** preset, plus **export current policy
+  state to JSON** (feeds the Fleet comparison and serves as client documentation).
+- **Risk:** high-power — these are HKLM policy keys + `secedit`. So: **read-first; apply is
+  opt-in per item; every write backs up the prior value and is reversible; offer a restore
+  point before a bulk apply.** Two specific guards:
+  - **Managed-machine detection** — if F2/F3 show the box is Intune/GPO-managed, warn that real
+    MDM/GPO will overwrite local changes on the next refresh (set policy here only for
+    *unmanaged* machines).
+  - **Edition/SKU awareness** — grey out settings the SKU won't honour (e.g. telemetry=Security
+    needs Enterprise); BitLocker PIN needs a TPM present; password/lockout changes get a strong
+    confirm (they can lock a user out).
+- **Effort:** Large — realistically its own focal feature within v2.5 (or a v2.5.x of its own),
+  not a quick add. **Positioning:** this is the feature that makes Benchly genuinely useful to
+  MSPs and small businesses running standalone/unmanaged machines without full Intune — a real
+  differentiator, which is why it's proposed as the F-bundle centrepiece pending sign-off.
+
 ### F4. Time sync health — `backend/timesync.py` (new)
 - **Mechanism:** `w32tm /query /status` (source, stratum, last sync, poll interval),
   `/query /source`, `/query /configuration`, and `w32tm /stripchart /computer:time.windows.com
