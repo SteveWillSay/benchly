@@ -55,9 +55,10 @@ Everything lives on the pages down the left. Tap a number key to jump to one, or
 **Get the lay of the land.** The **Dashboard** is your first ten-second glance — CPU, RAM,
 disk and network graphs that genuinely tick once a second, a per-core grid, a health-score
 ring, and whatever's hogging the machine right now. **System** is the full inventory, down
-to each RAM stick's part number. **Storage** reads honest SMART health, temperature and
-wear, then lets you dig into where the space actually went. **Processes** is a live,
-sortable table with end-task on hover.
+to each RAM stick's part number — and, for the overclockers, GPU clocks with the live
+throttle reason and a history of driver resets. **Storage** reads honest SMART health,
+temperature and wear, *forecasts* which drive is heading for failure, then lets you dig into
+where the space actually went. **Processes** is a live, sortable table with end-task on hover.
 
 **Poke at the network — and the web.** On top of the usual ping / traceroute / DNS / port
 tools, Benchly can **look up any domain** (how old it is, its certificate, who hosts it,
@@ -67,18 +68,31 @@ for signal and channel congestion.
 
 **Decide what you can trust.** **Security** shows your real antivirus (it reads Security
 Center, so a third-party AV isn't mistaken for "nothing's protecting this PC"), maps the
-whole **autostart** surface, audits the **trusted root certificates** for the kind of roots
-that quietly intercept your HTTPS, lists every **listening port** with the signed-or-not
-process behind it, and even reads **raw email headers** to sniff out phishing — all backed
-by a VirusTotal check that only ever sends a hash, never your file.
+whole **autostart** surface, hunts the quieter **persistence** spots (WMI subscriptions,
+services running encoded PowerShell, Defender exclusions), scores the machine against a
+**hardening checklist** with one-click reversible fixes, audits the **trusted root
+certificates** for the kind of roots that quietly intercept your HTTPS, lists every
+**listening port** with the signed-or-not process behind it, and even reads **raw email
+headers** to sniff out phishing — all backed by a VirusTotal check that only ever sends a
+hash, never your file.
 
 **Fix it and tidy it.** The **Toolbox** streams the heavy repair tools (SFC, DISM, chkdsk,
 winsock, Windows Update reset) live, snapshots a **baseline** so you can diff "before" and
-"after," and grabs a 30-second **"why is it slow right now?"** snapshot. **Fix-It** walks
-you through guided runbooks for the everyday complaints. **Cleanup** clears junk, hunts down
-big and duplicate files, debloats the preinstalled cruft, and gives you a shelf of
-documented, reversible **Windows tweaks**. **Software** will even update your installed apps
-through winget.
+"after," grabs a 30-second **"why is it slow right now?"** snapshot, and adds a **power, sleep
+& wake doctor** and a set of **gremlin hunters** for the intermittent stuff (what woke it at
+3 AM, what's secretly hammering the disk, the freeze you can mark the instant it happens).
+**Fix-It** walks you through guided runbooks for the everyday complaints. **Cleanup** clears
+junk, hunts down big and duplicate files, debloats the preinstalled cruft, repairs the
+cosmetic Windows breakages (blank icons, dead Store, broken Start search), and gives you a
+shelf of documented, reversible **Windows tweaks**. **Software** will even update your
+installed apps through winget.
+
+**Look after the not-so-technical.** The **Helper** page is for when you're the family's IT
+person: big friendly buttons that text you a plain-English health summary, calm a noisy PC
+down (ads, widgets, Start suggestions — all in one click), reset the text size when it's
+suddenly huge, fix the camera or mic that only fails in one app, surface the **BitLocker
+recovery key** so it's saved before a repair ever asks for it, and **copy** a relative's
+photos and documents safely off a dying drive without ever writing to it.
 
 **Hand it off, or scale it up.** One click spits out a clean, client-ready **HTML + PDF
 report** (built in the background, with a JSON twin for your own use). **Fleet** lines those
@@ -157,6 +171,12 @@ Anything you'd otherwise be retyping — serials, MACs, IPs, hashes — is click
 There are two looks: **Graphite** (the flat dark default) and **Frosted Glass** (glass with
 a gradient you can tweak), and you can flip between them live from the title bar. Click the
 version number whenever you're curious what's new.
+
+**It updates itself.** Click the version number (or Ctrl + K → "Check for Benchly updates")
+and, when there's a newer build, Benchly downloads it, checks it against the release's
+published SHA-256, swaps itself in place and relaunches — with an on-theme progress bar the
+whole way. Portable or installed, it's the same one click; an install under `Program Files`
+just adds a single UAC prompt.
 
 ## Building it yourself
 

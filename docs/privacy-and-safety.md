@@ -24,7 +24,8 @@ then it's the bare minimum, and it's named up front.
 | **Public IP** | A request to a public IP-echo service | — |
 | **Speed test** | Some transfer to and from speed.cloudflare.com | — |
 | **Fleet remote snapshot** | A WinRM connection to the host **you name**, using credentials **you type** | Those credentials are passed through the environment for that one call and **never written to disk**. |
-| **Check for updates** | A request to the GitHub Releases API for the configured repo | Just the version tag is read. It's read-only — it downloads nothing on its own. |
+| **Check for updates** | A request to the GitHub Releases API for the configured repo | Just the version tag is read. Nothing downloads until you click **Download & install**. |
+| **Download & install update** | Downloads the new Benchly build from the GitHub release you're updating to | The download is verified against the release's published **SHA-256** before it's ever run. It only fetches Benchly's own signed-by-checksum exe — nothing else. |
 
 If you add a VirusTotal API key, it's stored **encrypted at rest** with Windows DPAPI (tied
 to your user profile), never as plaintext.
@@ -45,6 +46,23 @@ the change spelled out before you make it.**
   default, so you can walk them back.
 - **Cleanup won't wander.** It refuses to follow reparse points and directory junctions, so it
   can't slip out of a temp folder and delete whatever a symlink was pointing at.
+- **Security hardening** (the hardening scorecard and Attack Surface Reduction rules) makes
+  real changes — but every fix is reversible, names what it sets, and the ASR rules can be put
+  in **Audit** (log-only) before you ever switch them to **Block**.
+- **Defender exclusion removal** takes an entry off Microsoft Defender's exclusion list (admin,
+  reversible). Benchly only ever *reads* the list to show it to you; it removes an entry when
+  you click, and never adds one.
+
+A couple of the Helper tools deserve their own note, because they touch sensitive things:
+
+- **The BitLocker recovery key is only ever read and shown to you.** It's never logged, never
+  written to Benchly's settings, never cached, and never sent anywhere — the whole point is to
+  let you copy it somewhere safe yourself before a repair demands it.
+- **Rescue my photos & documents only copies.** It reads from the source drive and writes to
+  the destination you plug in — it never moves or deletes, so a failing source disk is never
+  written to.
+- **Recover from a scam is read-only.** It surfaces remote-access tools, persistence, Defender
+  exclusions and admin accounts and hands you a checklist — it never removes anything for you.
 
 If a button changes something and *doesn't* tell you where — that's a bug. Tell me.
 
@@ -53,11 +71,12 @@ If a button changes something and *doesn't* tell you where — that's a bug. Tel
 Benchly runs perfectly well as a standard user; it just can't see or do *everything*.
 Elevation unlocks the things Windows keeps behind admin:
 
-- **Read-only, but privileged:** SMART drive wear and power-on hours, BitLocker status, TPM
-  and Secure Boot detail, the complete listening-port → process map, the machine-wide
-  certificate stores.
-- **Actual changes:** the repair tools, machine-scope tweaks (HKLM), creating a restore point,
-  and app updates that install machine-wide.
+- **Read-only, but privileged:** SMART drive wear and power-on hours, BitLocker status (and
+  revealing the recovery key), TPM and Secure Boot detail, the complete listening-port →
+  process map, the Defender exclusion list, the machine-wide certificate stores.
+- **Actual changes:** the repair tools, machine-scope tweaks (HKLM), the hardening fixes and
+  ASR rules, removing a Defender exclusion, creating a restore point, and app updates that
+  install machine-wide.
 
 Anything that needs elevation says so, and stays disabled until you give it. Use **Run as
 admin** in the title bar — Benchly relaunches elevated and pops you back on the same page.

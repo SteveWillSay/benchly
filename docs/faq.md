@@ -43,6 +43,16 @@ deletions to the Recycle Bin and won't follow directory junctions. Debloat only 
 per-user Store apps you can reinstall, and never touches system packages. The handful of
 riskier items (page file, hibernation) are flagged as such.
 
+### How does Benchly update itself — and is that safe?
+
+When a newer release is published, **Check for updates** (click the version number, or
+Ctrl + K → "Check for Benchly updates") offers a one-click **Download & install**. Benchly
+pulls the new build, **verifies it against the release's published SHA-256** before running
+anything, then quits, lets a tiny helper swap the new program file in over the old one, and
+relaunches into it — with a progress bar the whole time. It's the same single click whether
+you're on the portable exe or an installed copy; an install under `Program Files` adds one
+UAC prompt so the helper can write there. Nothing is downloaded or changed unless you click.
+
 ### "Check for updates" says there's nothing — but I know there's a newer version.
 
 If the repository's **private**, GitHub's Releases API hands back a "not found" to anonymous

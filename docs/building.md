@@ -70,13 +70,19 @@ The frontend has no build step — `ui/` ships as-is and gets bundled in via `--
      ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
      Out-File "$rel\SHA256SUMS.txt" -Encoding ascii
    ```
-5. **Commit, tag, push:**
+5. **Commit, *then* tag, then push** — in that order. The tag has to point at the finished
+   release commit, and the repo's tag-protection rule won't let you move or delete a tag
+   once it's pushed, so a tag placed on the wrong commit is a mess to unpick.
    ```powershell
    git add -A
-   git commit -m "Benchly v<version> — <headline>"
-   git tag -a v<version> -m "Benchly v<version>"
-   git push origin master --tags
+   git commit -F _commitmsg.txt    # write the message to a file first — see below
+   git tag v<version>
+   git push origin master
+   git push origin v<version>
    ```
+   Write the commit message into a throwaway file and use `git commit -F`. **Don't** pass a
+   multi-line message inline with `git commit -m` in PowerShell — `&`, `->` and embedded
+   double-quotes get mangled by the shell and the commit fails (or worse, half-succeeds).
 6. **Publish the GitHub release** with the binaries **and `SHA256SUMS.txt`** attached —
    the in-app updater verifies downloads against that checksum file, so don't skip it:
    ```powershell
@@ -101,3 +107,12 @@ release, not in the tree. `SHA256SUMS.txt`, `RELEASE.md` and `CHANGELOG.md` are 
 - The in-app updater reads its release source from the `update_repo` setting, falling back to
   the default baked into `backend/selfupdate.py`. A **private** repo answers the anonymous
   Releases API with a 404, so "Check for updates" stays quiet until the repo's public.
+- The updater **always swaps the portable exe in place** now — for both the portable build
+  and an installed copy. It downloads the portable asset, quits, and a detached helper waits
+  for the lock to clear, moves the new file over the old one, and relaunches. (Earlier
+  installed-copy updates handed off to the Inno installer, whose "close the running app" step
+  could hang on this onefile/pywebview app — that's fixed as of v2.3.1.) Because the fix lives
+  in the *running* version, any change to the update mechanic only takes effect from the next
+  update onward — so test a mechanic change by shipping it once, then updating *from* it.
+- That helper writes a `.cmd` into `%TEMP%` with `encoding="mbcs"`, so non-ASCII characters in
+  a username/path don't corrupt it.
