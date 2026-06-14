@@ -13,11 +13,12 @@ printer" complaints that the big rocks (already shipped in v1–v2.3) don't cove
 here is read-only fact-finding or one-click, reversible, documented changes, using only
 PowerShell/CIM, registry reads, and standard in-box Windows CLIs.
 
-Sequencing:
-- **v2.4** — Bundle E (Won't update, won't boot, disk's full) — *lead with this*
-- **v2.5** — Bundle F (Identity, licensing & policy) — opens the IT-pro / corporate audience
-- **v2.6** — Bundle G (Network & sharing deep)
-- **v2.7** — Bundle H (Power, storage & runtime forensics)
+Status: **all four bundles shipped** (v2.4.0 → v2.7.0). F5 (Managed Baseline) shipped as the
+centrepiece of v2.5.0. Sequencing as delivered:
+- **v2.4** — Bundle E (Won't update, won't boot, disk's full) ✅ shipped
+- **v2.5** — Bundle F (Identity, licensing & policy, incl. F5 Managed Baseline) ✅ shipped
+- **v2.6** — Bundle G (Network & sharing deep) ✅ shipped
+- **v2.7** — Bundle H (Power, storage & runtime forensics) ✅ shipped
 
 Reuses the v2 shared engines: `history.py` (boot-time + storage trends) and the streamed
 `JobStore` pattern (DISM component-store ops, energy traces).

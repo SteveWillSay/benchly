@@ -78,6 +78,16 @@ So your files never leave the machine. A SHA-256 is enough to look up something 
 has already seen, which covers the known-good and the known-bad. If a file's genuinely new to
 VT the hash just won't match — and Benchly won't quietly upload it to find out.
 
+### Can I use the Managed Baseline to set policies on a standalone PC?
+
+Yes — that's exactly what the **Workplace → Managed baseline** tab is for: the Windows Update
+deferrals, BitLocker startup-PIN policy, telemetry, auto-lock and UAC settings an admin would
+normally push via GPO or Intune, set here on an unmanaged machine. Every change shows the exact
+registry key, needs admin, and is reversible (**Clear** returns it to the Windows default). If
+Benchly sees the machine is *already* centrally managed it warns you first, because real
+GPO/MDM would overwrite anything you set locally — so this is meant for standalone PCs without
+Intune.
+
 ### Where did the "iCloud" theme go?
 
 It's still here — it's just called **Frosted Glass** now (same glass-and-gradient look, a name

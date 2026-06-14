@@ -100,6 +100,16 @@ release, not in the tree. `SHA256SUMS.txt`, `RELEASE.md` and `CHANGELOG.md` are 
 
 - **Never** rewrite a UTF-8 source file with PowerShell `Get-Content` / `-replace` /
   `Set-Content` — it quietly mangles em-dashes and other non-ASCII. Edit those files directly.
+- **Kill any leftover `dist\Benchly.exe` before rebuilding.** PyInstaller will report "Build
+  complete" but silently fail to overwrite `dist\Benchly.exe` if a previous run is still holding
+  it — so the new exe keeps the *old* FileVersion. After boot-testing the dist exe, kill its
+  whole tree by **PID** (`taskkill /F /T /PID <pid>`), never `/IM Benchly.exe` (that also kills
+  any *installed* copy that's running). Then confirm `(Get-Item dist\Benchly.exe).VersionInfo.
+  FileVersion` is fresh before you compile the installer (the installer bundles that exe).
+- **Sanity-check `ui/js/app.js` before shipping.** There's no Node here, so a quick
+  `pip install py_mini_racer` then `ctx.eval('new Function(<source>)')` forces a full V8 parse —
+  it catches any syntax error (which would blank the *whole* page, not just the new handler)
+  without running the DOM code. Uninstall it after; it's not an app dependency.
 - In `backend/ps.py`, multi-statement PowerShell has to be wrapped in `& { … }`, not `( … )`.
   `ps_json()` already handles that for you.
 - Don't go stripping CSS rules as "unused" too eagerly — a couple have come back to bite a

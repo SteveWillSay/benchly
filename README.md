@@ -94,6 +94,21 @@ suddenly huge, fix the camera or mic that only fails in one app, surface the **B
 recovery key** so it's saved before a repair ever asks for it, and **copy** a relative's
 photos and documents safely off a dying drive without ever writing to it.
 
+**Sort out the update, the boot and the disk.** When a machine won't behave, the **Toolbox**
+now answers the everyday "why": a **pending-restart** check (the breadcrumbs Windows leaves
+when it's waiting on a reboot — and why your updates keep failing), an **update doctor** that
+translates the cryptic `0x800f…` Windows Update errors into plain English, and a
+**component-store cleanup** for "where did the space on C: go?". **Event Log → Boot time**
+shows what's actually dragging out your boot.
+
+**Look after the work machines too.** The **Workplace** page is for the corporate and
+small-business PCs an IT pro manages: is Windows **activated** and on what licence, is it
+**Entra / domain joined or just a workgroup**, which **Group Policies** are applied, and is
+the **clock** drifting (the silent cause of sign-in and certificate errors). Its **managed
+baseline** even lets you set the policies an admin usually pushes via GPO or Intune — Windows
+Update deferrals, a BitLocker startup PIN, telemetry, auto-lock — on a standalone PC, each one
+reversible and showing the exact registry key.
+
 **Hand it off, or scale it up.** One click spits out a clean, client-ready **HTML + PDF
 report** (built in the background, with a JSON twin for your own use). **Fleet** lines those
 reports up across machines and pulls remote snapshots over WinRM.

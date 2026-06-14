@@ -24,6 +24,7 @@ then it's the bare minimum, and it's named up front.
 | **Public IP** | A request to a public IP-echo service | — |
 | **Speed test** | Some transfer to and from speed.cloudflare.com | — |
 | **Fleet remote snapshot** | A WinRM connection to the host **you name**, using credentials **you type** | Those credentials are passed through the environment for that one call and **never written to disk**. |
+| **Time sync check** (Workplace) | One NTP query to time.windows.com to measure the clock offset | Just a time sample — no identity, nothing about you. Only runs when you open the time check or resync. |
 | **Check for updates** | A request to the GitHub Releases API for the configured repo | Just the version tag is read. Nothing downloads until you click **Download & install**. |
 | **Download & install update** | Downloads the new Benchly build from the GitHub release you're updating to | The download is verified against the release's published **SHA-256** before it's ever run. It only fetches Benchly's own signed-by-checksum exe — nothing else. |
 
@@ -52,6 +53,16 @@ the change spelled out before you make it.**
 - **Defender exclusion removal** takes an entry off Microsoft Defender's exclusion list (admin,
   reversible). Benchly only ever *reads* the list to show it to you; it removes an entry when
   you click, and never adds one.
+- **The Workplace managed baseline** writes real Windows **policy** keys (Windows Update
+  deferrals, BitLocker startup-PIN policy, telemetry, auto-lock, UAC). Each one is opt-in,
+  shows the exact key it sets, and is fully reversible — **Clear** *deletes* the policy and
+  returns the setting to its unmanaged Windows default. It warns you first if the machine is
+  already centrally managed (where real GPO/MDM would overwrite your change).
+- **The other Workplace and Network actions** are small and reversible too: a one-click time
+  **resync**, flipping a network from **Public to Private**, disabling a single **firewall
+  rule**, removing a stale **saved credential** (Benchly never reads the password — only the
+  entry's name), and **cleaning broken/duplicate PATH entries** (the prior value is backed up
+  first). Restarting the **audio services** just starts them again.
 
 A couple of the Helper tools deserve their own note, because they touch sensitive things:
 

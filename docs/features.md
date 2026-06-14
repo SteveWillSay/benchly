@@ -46,6 +46,19 @@ For the overclockers and the home-lab crowd there's a deeper layer:
   `ext4.vhdx` files (with an optional, non-destructive compact to reclaim the space),
   Hyper-V switches, and whether hardware virtualization is actually switched on in firmware.
 
+And a few forensics cards for the awkward questions:
+
+- **Battery & power efficiency** — battery wear and cycle count, and a short `powercfg`
+  energy trace (admin) that names what's hurting efficiency: USB selective-suspend left off,
+  a device blocking sleep, a thirsty driver.
+- **Environment & PATH** — reads the Machine and User `PATH` straight from the registry and
+  flags every entry that points at a folder that no longer exists, is a duplicate, or has a
+  stray quote — the baffling "command not found / the wrong version runs" fixer. One click
+  cleans the broken and duplicate entries, backing up the prior value first.
+- **Installed runtimes** — the .NET Framework, .NET (Core/5+), Visual C++ redistributables
+  and DirectX a program quietly needs, all in one place: the "app won't start, missing
+  runtime" diagnosis.
+
 ## Storage
 
 Physical disks first — model, bus, and **real SMART health**: temperature, wear, and
@@ -59,6 +72,12 @@ actually matter — wear, and any read/write errors that are creeping up — ove
 scores each drive's risk so you can swap a dying disk before it takes your data with it.
 The trend sharpens the more you check; a small history is kept locally in
 `%APPDATA%\Benchly\history`.
+
+An **advanced storage health** card goes past SMART: whether **TRIM** is actually running on
+your SSDs, the health of any **Storage Spaces** pool, the drives' **reliability counters**
+(wear, temperature, read/write errors — wear and temperature want admin), how much space
+**System Restore's shadow copies** are eating, and the filesystem **dirty bit** (set means
+Windows wants a chkdsk at next boot).
 
 ## Network
 
@@ -82,6 +101,24 @@ and DNS. Then the tools, each logging to a console you can copy from:
 - **Bufferbloat test** — measures latency while the line's idle, then again while it's
   saturated, and grades the gap. It's the reason a video call falls apart the moment someone
   in the house starts a big download.
+
+Below the tools, a **Sharing & firewall** panel for the silent "can't see the printer / it
+keeps asking me to sign in" problems:
+
+- **Network profile** — catches a connection left on **Public** (which blocks file/printer
+  sharing and network discovery) and flips it to **Private** in a click, explaining what that
+  changes.
+- **Firewall** — the per-profile state (Domain/Private/Public, on/off, default inbound action)
+  and the inbound *allow* rules that are actually enabled — app or port, on which profile,
+  from where. Anything running from a user-writable folder (AppData/Temp/Downloads) gets
+  flagged; near-duplicate rules are folded together. You can disable a single rule (confirmed,
+  reversible).
+- **Drives & credentials** — mapped network drives and their status (stale ones flagged), and
+  the Credential Manager entries — **names and types only; the stored passwords are never read
+  or shown**.
+- **DNS & Winsock** — the live DNS resolver cache (an odd address for a site you know is a
+  hijack hint) and the Winsock/LSP catalog, flagging any third-party layered providers (a
+  classic adware foothold).
 
 ## Processes
 
@@ -109,6 +146,10 @@ The **printer doctor** goes past a stuck-queue purge: it catches printers Window
 "offline," spots a network printer that grabbed a new IP from DHCP (it actually pings the
 address to check), and flags duplicate drivers — then brings a printer back online or fires
 off a test page in a click.
+
+The **audio device doctor** is the "no sound / wrong output / can't pick a device" triage:
+the playback and recording endpoints with their state (active / disabled / unplugged), the
+two audio services everything depends on, and a one-click restart of them.
 
 ## Security
 
@@ -162,14 +203,30 @@ A **triage summary** that groups events by source and explains them in plain Eng
 remediation links — so you read "your disk reported three bad sectors" instead of squinting
 at Event ID 7. Then the raw log with level filters, a **Crashes** tab (BSOD bugchecks, dirty
 shutdowns, app crashes grouped by faulting module, with the minidumps), and a **Reliability
-timeline** that charts Windows' own stability index against crashes and updates.
+timeline** that charts Windows' own stability index against crashes and updates. A **Boot
+time** tab reads Windows' own boot-performance log: how long recent boots actually took (to
+desktop, and to fully settled), the specific apps, drivers and services Windows blamed for
+dragging it out, Fast Startup state and uptime, and a trend over time. (The detailed
+breakdown needs admin; uptime and Fast Startup show without it.)
 
 ## Toolbox
 
 The repair bench:
 
 - **Repair tools** — SFC, DISM scan/repair, chkdsk, winsock reset, Windows Update cache
-  reset, each streaming its output live and each spelling out exactly what it touches.
+  reset, each streaming its output live and each spelling out exactly what it touches. Two more
+  live here: a **component-store (WinSxS) analyzer** that measures the store, tells you how much
+  is reclaimable and cleans it up (with an optional, clearly-warned Reset Base) — the honest
+  answer to "where did the space on C: go?" — and a read-only **reserved-storage** check.
+- **Pending restart** — reads every signal Windows leaves when it's waiting on a reboot to
+  finish servicing (component servicing, Windows Update, files queued to move on boot, a queued
+  rename, the ConfigMgr client if there is one) and explains each in plain English. Until you
+  reboot, new updates and some installers quietly fail — so this is often the first thing to
+  check. One-click restart when you're ready.
+- **Update doctor** — the recent Windows Update history with the cryptic `0x800f…` / `0x80070…`
+  result codes **decoded into plain English and what to do**, the last successful scan and
+  install, and the health of the services updates rely on. It treats the cause where the
+  Update-cache reset treats the symptom.
 - **Configuration baseline** — snapshot installed software, services and startup while the
   machine's healthy, then compare later to see precisely what changed. The **"what changed?"**
   diff also catches everyday Windows settings that have drifted since the snapshot — display
@@ -243,6 +300,42 @@ friendly buttons, plain language, nothing that needs explaining over the phone.
 For when it's more than one machine: compare exported report JSONs side by side to spot
 drift, and pull **remote snapshots over WinRM** (credentials passed through the environment
 for that single call, never stored).
+
+## Workplace
+
+The page for the corporate and small-business machines an IT pro actually looks after. Two
+tabs.
+
+**Posture** is read-only — the "what kind of machine is this, and is it set up right?" view:
+
+- **Activation & licensing** — read through CIM (no slmgr pop-ups): whether Windows is
+  activated, the licence channel (OEM / Retail / Volume), and the product key embedded in the
+  machine's firmware — its own key, handy to recover before a reinstall.
+- **Identity & domain** — a one-line verdict from `dsregcmd`: Entra (Azure AD) joined, hybrid,
+  AD domain-joined, Entra-registered, or just an unmanaged workgroup PC, plus SSO (PRT) and
+  tenant detail. The fast "why won't Teams / Outlook / SSO sign in" answer.
+- **Group Policy** — which GPOs actually applied (computer and user scope), when policy last
+  refreshed, and any that were filtered out. Computer scope wants admin; user scope shows
+  without.
+- **Clock & time sync** — where the machine gets its time, how far off it is *right now*
+  (measured against an NTP server), the time-service state, and a one-click resync. Clock
+  drift quietly breaks HTTPS, Kerberos, MFA and licensing.
+
+**Managed baseline** is the configurator for standalone, unmanaged PCs — set the policies an
+admin normally pushes via GPO or Intune, right here:
+
+- **Windows Update for Business** — defer quality and feature updates, pin to a version, and
+  control restart and driver behaviour.
+- **BitLocker** — require a startup TPM+PIN and set a minimum PIN length.
+- **Diagnostic data**, **auto-lock timeout**, and **UAC**.
+
+Every control is read first; applying is opt-in per item, shows the exact registry key it
+writes, and is reversible — **Clear** deletes the policy and returns the setting to its
+Windows default. Two guards run alongside: a warning when the machine is already centrally
+managed (real GPO/MDM would overwrite local changes), and SKU/hardware awareness (a startup
+PIN needs a TPM; the "Security" telemetry level needs Enterprise). The local password and
+lockout policy is shown read-only for reference. Changes need admin; you can export the whole
+policy state to JSON for documentation.
 
 ## Export Report
 
