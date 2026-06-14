@@ -2967,6 +2967,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.3.1", name: "Reliable self-update", items: [
+    "Fixed the updater getting stuck on “closing application” for installed copies. Updates now swap the program file in place — the same proven method the portable build already used — and relaunch cleanly.",
+    "Heads-up: this fix takes effect from the next update onward, so install v2.3.1 by hand once. After that, updates apply themselves.",
+  ] },
   { v: "2.3.0", name: "Home lab & power user", items: [
     "GPU stability & throttle forensics (System) — live clocks, throttle reasons, and a 30-day history of GPU driver resets (TDRs): “is my overclock stable?”",
     "Display refresh check (System) — catches a monitor left below its best refresh rate (the classic “144 Hz panel stuck at 60”).",

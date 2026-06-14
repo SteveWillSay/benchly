@@ -87,8 +87,8 @@ def check_update(current_version):
     checksums = assets.get("SHA256SUMS.txt")
 
     mode = _install_mode()[0]
-    can_apply = bool(getattr(sys, "frozen", False)) and (
-        installer if mode == "installed" else portable) is not None
+    # we always update by swapping the portable exe in place
+    can_apply = bool(getattr(sys, "frozen", False)) and portable is not None
 
     return {
         "ok": True,
@@ -209,9 +209,12 @@ def download_update():
     info = check_update("0.0.0")  # just to fetch asset URLs
     if not info.get("ok") or not info.get("configured") or not info.get("reachable"):
         return {"ok": False, "error": info.get("message") or info.get("error") or "No release available."}
-    url = info["asset_installer"] if mode == "installed" else info["asset_portable"]
+    # Always update by swapping the single exe in place — works the same for the
+    # portable build and an installed one, and avoids the installer's unreliable
+    # "close the running app" step.
+    url = info["asset_portable"]
     if not url:
-        return {"ok": False, "error": f"The latest release has no {'installer' if mode == 'installed' else 'portable'} download."}
+        return {"ok": False, "error": "The latest release has no portable download to update from."}
     job_id = _jobs.start(_run_download, url=url, mode=mode, target=exe,
                          checksums=info.get("asset_checksums"),
                          progress=0, stage="starting", ok=False, error=None,
@@ -248,31 +251,53 @@ del "%~f0"
 """
 
 
+def _needs_admin_to_write(target):
+    """A target under Program Files needs elevation to overwrite; LocalAppData doesn't."""
+    pf = [os.environ.get("ProgramFiles", ""), os.environ.get("ProgramFiles(x86)", ""),
+          os.environ.get("ProgramW6432", "")]
+    t = os.path.normcase(os.path.abspath(target))
+    return any(p and t.startswith(os.path.normcase(p) + os.sep) for p in pf)
+
+
 def apply_update():
-    """Launch the downloaded update. Returns the mode; the caller then quits."""
+    """Swap the new exe in over the running one, then quit so it can complete.
+
+    The same helper handles the portable build and an installed one — it waits for
+    Benchly to exit (the exe unlocks), moves the new file into place and relaunches.
+    An installed copy under Program Files needs the helper elevated; the usual
+    per-user install (under %LocalAppData%) does not.
+    """
     if not _staged.get("path") or not os.path.isfile(_staged["path"]):
         return {"ok": False, "error": "No update has been downloaded."}
-    mode = _staged["mode"]
     new = _staged["path"]
+    target = _staged["target"]
+    if not target or not os.path.isfile(target):
+        return {"ok": False, "error": "Couldn't find the running program to update."}
     try:
-        if mode == "installed":
-            # Inno closes the running app, installs, then relaunches it.
-            subprocess.Popen(
-                [new, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
-                 "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS", "/NOCANCEL"],
-                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True)
-            return {"ok": True, "mode": "installed"}
+        bat = os.path.join(tempfile.gettempdir(), "benchly-update.cmd")
+        with open(bat, "w", encoding="mbcs", errors="replace") as f:
+            f.write(_SWAP_BAT.replace("__NEW__", new).replace("__TARGET__", target))
+        elevate = _needs_admin_to_write(target) and not _is_elevated()
+        if elevate:
+            # relaunch the helper through UAC so it can write into Program Files
+            ps = (f"Start-Process -FilePath cmd.exe -ArgumentList '/c',\"{bat}\" "
+                  "-Verb RunAs -WindowStyle Hidden")
+            subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                             creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True)
         else:
-            target = _staged["target"]
-            bat = os.path.join(tempfile.gettempdir(), "benchly-update.cmd")
-            with open(bat, "w", encoding="ascii") as f:
-                f.write(_SWAP_BAT.replace("__NEW__", new).replace("__TARGET__", target))
-            subprocess.Popen(
-                ["cmd", "/c", bat],
-                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
-                close_fds=True)
-            # Give the bridge a moment to return, then exit so the swap can happen.
-            threading.Timer(0.8, lambda: os._exit(0)).start()
-            return {"ok": True, "mode": "portable"}
+            subprocess.Popen(["cmd", "/c", bat],
+                             creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+                             close_fds=True)
+        # Give the bridge a moment to return, then exit so the swap can happen.
+        threading.Timer(1.0, lambda: os._exit(0)).start()
+        return {"ok": True, "mode": "portable", "elevate": elevate}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def _is_elevated():
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False

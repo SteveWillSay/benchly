@@ -24,7 +24,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      links, netperf, virt)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.3.1"
 
 
 def resource_path(rel: str) -> str:
