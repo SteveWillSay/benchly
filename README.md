@@ -87,13 +87,41 @@ The full, page-by-page reference lives in **[docs/features.md](docs/features.md)
 <table>
 <tr>
 <td width="50%"><img src="assets/screens/domain-lookup.png" alt="Domain & website lookup with a trust verdict"><br><sub><b>Domain & website lookup</b> — a plain-English trust verdict for any site, before you trust it.</sub></td>
+<td width="50%"><img src="assets/screens/email-headers.png" alt="Email header phishing analysis"><br><sub><b>Email header analyzer</b> — paste raw headers; every spoofing tell, lit up. Parsed locally.</sub></td>
+</tr>
+<tr>
 <td width="50%"><img src="assets/screens/security-certs.png" alt="Trusted root certificate audit"><br><sub><b>Root certificate audit</b> — interception and adware roots, surfaced and explained.</sub></td>
+<td width="50%"><img src="assets/screens/listeners.png" alt="Listening ports mapped to signed processes"><br><sub><b>Listening ports</b> — every open port, the process behind it, and whether it's signed.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/screens/tweaks.png" alt="Reversible Windows tweaks, each showing the registry key it writes"><br><sub><b>Tweaks</b> — reversible, and each one shows the exact registry key it writes.</sub></td>
 <td width="50%"><img src="assets/screens/dashboard-icloud.png" alt="The iCloud glass theme"><br><sub><b>iCloud theme</b> — the same app, in frosted glass. Switch live from the title bar.</sub></td>
 </tr>
 </table>
+
+<details>
+<summary><b>More screenshots</b> — system, storage, health, events, processes, app updates, toolbox</summary>
+
+<table>
+<tr>
+<td width="50%"><img src="assets/screens/system.png" alt="System inventory"><br><sub><b>System</b> — the deep inventory, down to each RAM module's part number.</sub></td>
+<td width="50%"><img src="assets/screens/storage.png" alt="Storage and SMART health"><br><sub><b>Storage</b> — real SMART health, temperature and wear, with a space analyzer.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/health.png" alt="Health audit score and weighted checks"><br><sub><b>Health audit</b> — 14 weighted checks → a score, each failure with a one-click fix.</sub></td>
+<td width="50%"><img src="assets/screens/events.png" alt="Event log triage summary"><br><sub><b>Event log</b> — events grouped and explained in plain English, not Event IDs.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/processes.png" alt="Live process table"><br><sub><b>Processes</b> — a live, sortable table; click a row for a Process-Explorer-style drawer.</sub></td>
+<td width="50%"><img src="assets/screens/app-updates.png" alt="App updates via winget"><br><sub><b>App updates</b> — newer versions of your installed apps, updated through winget.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/toolbox.png" alt="Toolbox repair tools"><br><sub><b>Toolbox</b> — streamed repair tools, a config baseline, and a perf snapshot.</sub></td>
+<td width="50%"></td>
+</tr>
+</table>
+
+</details>
 
 ## The part most tools skip: transparency
 
