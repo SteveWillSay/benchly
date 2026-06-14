@@ -80,6 +80,38 @@ def remote_access_audit():
     }
 
 
+def reset_proxy():
+    """Clear a hijacked system proxy / PAC URL (a common adware redirect)."""
+    import winreg
+    path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+    changed = []
+    try:
+        k = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_SET_VALUE)
+        try:
+            winreg.SetValueEx(k, "ProxyEnable", 0, winreg.REG_DWORD, 0)
+            changed.append("ProxyEnable=0")
+            for name in ("ProxyServer", "AutoConfigURL"):
+                try:
+                    winreg.DeleteValue(k, name)
+                    changed.append(f"cleared {name}")
+                except OSError:
+                    pass
+        finally:
+            winreg.CloseKey(k)
+    except OSError as e:
+        return {"ok": False, "error": str(e)}
+    import subprocess
+    from .ps import CREATE_NO_WINDOW
+    try:
+        subprocess.run(["netsh", "winhttp", "reset", "proxy"], capture_output=True,
+                       timeout=15, creationflags=CREATE_NO_WINDOW)
+        changed.append("netsh winhttp reset proxy")
+    except Exception:
+        pass
+    return {"ok": True, "detail": "; ".join(changed),
+            "where": r"HKCU\…\Internet Settings (ProxyEnable/ProxyServer/AutoConfigURL) + winhttp"}
+
+
 def post_scam_check():
     """One guided pass after a suspected scam / remote-access incident."""
     from . import persistence, defender

@@ -150,6 +150,11 @@ _TWEAKS = [
      "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
      "name": "SubscribedContent-338393Enabled", "kind": "dword", "on": 0, "off": 1,
      "extra": [("SubscribedContent-353694Enabled", 0, 1), ("SubscribedContent-353696Enabled", 0, 1)]},
+    {"key": "widgets", "cat": "Ads & noise", "label": "Hide the taskbar Widgets/news button",
+     "help": "Removes the weather/news Widgets button from the taskbar.",
+     "where": r"HKCU\…\Explorer\Advanced\TaskbarDa",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "TaskbarDa", "kind": "dword", "on": 0, "off": 1, "restart": "explorer"},
     {"key": "verbose_login", "cat": "Ads & noise", "label": "Verbose sign-in messages",
      "help": "Shows detailed “Applying settings…” status at sign-in/out — useful for diagnosing slow logons. Needs a reboot.",
      "where": r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\VerboseStatus",
@@ -330,6 +335,26 @@ def set_power_plan(which):
         return {"ok": False, "error": f"This plan isn't available on this machine ({label})."}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# Bulk "calm this computer down" — the noise-reducing tweaks, applied together
+_QUIET_KEYS = ["lockscreen_ads", "settings_ads", "tips", "start_suggestions", "widgets",
+               "bing_search", "advertising_id", "tailored"]
+
+
+def apply_quiet_mode():
+    applied, skipped = [], []
+    for key in _QUIET_KEYS:
+        t = _BY_KEY.get(key)
+        if not t:
+            continue
+        if t.get("admin") and not security.is_admin():
+            skipped.append(t["label"])
+            continue
+        r = set_tweak(key, True)
+        (applied if r.get("ok") else skipped).append(t["label"])
+    return {"ok": True, "applied": applied, "skipped": skipped,
+            "restart_explorer": True}
 
 
 def restart_explorer():

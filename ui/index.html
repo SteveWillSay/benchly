@@ -105,6 +105,10 @@
         <svg class="ic" viewBox="0 0 24 24"><use href="#i-aid"/></svg>
         Fix-It
       </button>
+      <button class="nav-item" data-page="helper">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M4.9 4.9l4.2 4.2M14.9 14.9l4.2 4.2M14.9 9.1l4.2-4.2M9.1 14.9l-4.2 4.2"/></svg>
+        Helper
+      </button>
       <button class="nav-item" data-page="cleanup">
         <svg class="ic" viewBox="0 0 24 24"><use href="#i-broom"/></svg>
         Cleanup
@@ -779,6 +783,90 @@
         </div>
         <div id="runbookList" class="grid cols-3"></div>
         <div id="runbookDetail" style="display:none"></div>
+      </section>
+
+      <!-- ==================== HELPER ==================== -->
+      <section class="page" id="page-helper">
+        <div class="page-head">
+          <div><h2>Helper</h2><div class="desc">Friendly tools for fixing a family member's PC — and handing it off</div></div>
+        </div>
+
+        <div class="grid cols-2" style="margin-bottom:12px">
+          <div class="card">
+            <h3>Text my tech person <span class="right"><button class="btn small primary" id="btnHelperCard">Build summary</button></span></h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+              A plain-English summary of what looks wrong, ready to copy into a text or email to whoever fixes this PC.
+            </p>
+            <div id="helperCardResult"></div>
+          </div>
+          <div class="card">
+            <h3>Calm this computer down <span class="right"><button class="btn small" id="btnQuietMode">Quiet mode</button></span></h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+              Silences the pop-ups, widgets, tips, lock-screen ads and web-search noise in one go. All reversible
+              from Cleanup → Tweaks.
+            </p>
+            <div id="quietResult" class="muted" style="font-size:12px"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <h3>Make it normal again <span class="right"><button class="btn small" id="btnDisplayCheck">Check display</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            “Everything's huge / tiny.” Adjust the text size instantly (and reversibly), and see if the screen
+            isn't at its best resolution.
+          </p>
+          <div class="row wrap" style="gap:6px; margin-bottom:8px">
+            <span class="muted" style="font-size:12px; align-self:center">Text size:</span>
+            <button class="btn ghost small" data-textscale="100">100%</button>
+            <button class="btn ghost small" data-textscale="125">125%</button>
+            <button class="btn ghost small" data-textscale="150">150%</button>
+            <button class="btn ghost small" data-textscale="175">175%</button>
+            <button class="btn ghost small" data-textscale="200">200%</button>
+            <button class="btn ghost small" id="btnOpenDisplay">Open display settings</button>
+          </div>
+          <div id="displayResult" class="muted" style="font-size:12px"></div>
+        </div>
+
+        <div class="grid cols-2" style="margin-bottom:12px">
+          <div class="card">
+            <h3>Camera &amp; microphone doctor <span class="right"><button class="btn small" id="btnAvCheck">Check</button></span></h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+              “Works everywhere but Zoom.” Checks the Windows privacy permission, which app is using the device,
+              and lets you allow a blocked app.
+            </p>
+            <div id="avResult"></div>
+          </div>
+          <div class="card">
+            <h3>BitLocker recovery key <span class="right"><button class="btn small" id="btnBitlocker">Check</button></span></h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+              If a drive is encrypted, make sure you've got the recovery key saved somewhere safe — before a repair
+              ever asks for it.
+            </p>
+            <div id="bitlockerResult"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <h3>Rescue my photos &amp; documents <span class="right"><button class="btn small" id="btnRescueScan">Find files</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            Copy the irreplaceable stuff (Desktop, Documents, Pictures) onto a drive you plug in. It only ever
+            <b>copies</b> — never moves — so a failing disk is never written to.
+          </p>
+          <div id="rescueResult"></div>
+        </div>
+
+        <div class="card">
+          <h3>Is this a scam? <span class="right muted" style="font-size:11px">paste an email or a link</span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+            Paste a suspicious email's text/headers, or a link, and get a simple traffic-light read. Never click the
+            link or call the number until you're sure.
+          </p>
+          <textarea class="input" id="scamInput" spellcheck="false" placeholder="Paste the email or link here…"
+            style="width:100%; min-height:90px; font-size:12.5px; resize:vertical"></textarea>
+          <div class="row mt"><button class="btn primary" id="btnScamCheck">Check it</button>
+            <button class="btn ghost" id="btnScamClear">Clear</button></div>
+          <div id="scamResult" class="mt"></div>
+        </div>
       </section>
 
       <!-- ==================== CLEANUP ==================== -->

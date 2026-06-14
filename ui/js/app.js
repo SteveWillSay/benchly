@@ -93,7 +93,7 @@ function showPage(name) {
 $$(".nav-item").forEach(b => b.addEventListener("click", () => showPage(b.dataset.page)));
 
 const PAGES = ["dashboard", "system", "storage", "network", "processes", "software",
-               "devices", "health", "events", "toolbox", "security", "fleet", "fixit", "cleanup"];
+               "devices", "health", "events", "toolbox", "security", "fleet", "fixit", "helper", "cleanup"];
 document.addEventListener("keydown", e => {
   if (e.key === "k" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); openPalette(); return; }
   if (e.key === "Escape" && e.target.tagName === "INPUT") {
@@ -2598,6 +2598,127 @@ function openRunbook(id) {
   });
 }
 
+/* ================= HELPER page ================= */
+function helperFlag(f) {
+  const i = f.level === "good" ? "check" : f.level === "warn" ? "bang" : "q";
+  return `<div class="dom-flag ${esc(f.level)}">${ico(i)}<span>${esc(f.text)}</span></div>`;
+}
+$("#btnHelperCard").onclick = async () => {
+  $("#helperCardResult").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const h = await api.helper_card();
+  if (!h.ok) { $("#helperCardResult").innerHTML = pill("bad", "Couldn't build the summary."); return; }
+  const issues = h.issues.length
+    ? h.issues.map(i => `<div class="dom-flag ${i.level === "bad" ? "warn" : "info"}">${ico(i.level === "bad" ? "bang" : "q")}<span>${esc(i.text)}</span></div>`).join("")
+    : `<div class="dom-flag good">${ico("check")}<span>Nothing obvious looks wrong.</span></div>`;
+  $("#helperCardResult").innerHTML = `<div style="font-weight:600; margin-bottom:6px">${esc(h.headline)} <span class="muted" style="font-weight:400">Score ${h.score}/100</span></div>
+    <div class="dom-verdict">${issues}</div>
+    ${h.facts.map(f => `<div class="muted" style="font-size:12px">${esc(f)}</div>`).join("")}
+    <div class="row mt"><button class="btn small" id="btnHelperCopy"><svg class="ic sm"><use href="#i-copy"/></svg>Copy to send</button></div>`;
+  $("#btnHelperCopy").onclick = () => navigator.clipboard.writeText(h.share_text).then(() => toast("Summary copied — paste it into a message", "good", 2500));
+};
+$("#btnQuietMode").onclick = async () => {
+  if (!await confirmModal("Calm this computer down?",
+    "Turns off taskbar widgets, tips, lock-screen ads, Start suggestions, web search in Start, the advertising ID and tailored experiences. All reversible in Cleanup → Tweaks.", "Quiet mode")) return;
+  const r = await api.apply_quiet_mode();
+  $("#quietResult").innerHTML = `<span style="color:var(--ok)">Silenced ${r.applied.length} source(s) of noise.</span>${r.skipped.length ? ` <span class="muted">(${r.skipped.length} need admin)</span>` : ""}`;
+  toast("Quiet mode applied — sign out or restart Explorer to see the taskbar change", "good", 4000);
+};
+$("#btnDisplayCheck").onclick = async () => {
+  const d = await api.detect_display();
+  $("#displayResult").innerHTML = (d.flags || []).map(f => esc(f.text)).join(" · ")
+    + (d.monitors.length ? `<div style="margin-top:4px">${d.monitors.map(m => `${esc(m.name)}: ${m.width}×${m.height}${m.refresh ? " @ " + m.refresh + "Hz" : ""}`).join(" · ")}</div>` : "");
+};
+$$("#page-helper [data-textscale]").forEach(b => b.onclick = async () => {
+  const r = await api.set_text_scale(+b.dataset.textscale);
+  toast(r.ok ? `Text size set to ${b.dataset.textscale}% — ${r.note}` : r.error, r.ok ? "good" : "bad", 4000);
+});
+$("#btnOpenDisplay").onclick = () => api.open_settings("ms-settings:display");
+$("#btnAvCheck").onclick = async () => {
+  $("#avResult").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const a = await api.av_check();
+  const dev = (label, cap, data) => {
+    const apps = data.apps.slice(0, 8).map(x => `<div class="dr"><span class="dk">${esc(x.name)}${x.in_use ? ` ${pill("info", "in use")}` : ""}</span>
+      <span class="dv">${x.allowed ? pill("good", "Allowed") : pill("warn", "Blocked")}
+      ${!x.allowed ? `<button class="btn ghost small" data-allow="${cap}|${esc(x.raw)}|${x.nonpackaged ? 1 : 0}">Allow</button>` : ""}</span></div>`).join("");
+    return `<div class="dom-sec"><h4>${label} ${data.global === "Deny" ? pill("warn", "off for all apps") : pill("good", "on")}</h4>${apps || `<div class="muted" style="font-size:12px">No apps listed.</div>`}</div>`;
+  };
+  $("#avResult").innerHTML = `<div class="dom-verdict">${(a.flags || []).map(helperFlag).join("")}</div>
+    <div class="dom-grid">${dev("Camera", "webcam", a.camera)}${dev("Microphone", "microphone", a.microphone)}</div>`;
+  $("#avResult").querySelectorAll("[data-allow]").forEach(b => b.onclick = async () => {
+    const [cap, raw, np] = b.dataset.allow.split("|");
+    const r = await api.set_av_permission(cap, raw, np === "1", true);
+    toast(r.ok ? "Allowed" : r.error, r.ok ? "good" : "bad", 3000);
+    if (r.ok) $("#btnAvCheck").click();
+  });
+};
+$("#btnBitlocker").onclick = async () => {
+  $("#bitlockerResult").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const b = await api.bitlocker_status();
+  const vols = b.volumes.map(v => `<div class="dr"><span class="dk strong">${esc(v.mount)}</span>
+    <span class="dv">${v.on ? pill("good", "Encrypted") : `<span class="muted">Off</span>`}
+    ${v.on ? (v.has_recovery ? `<button class="btn ghost small" data-bkey="${esc(v.mount)}">Show key</button>` : pill("warn", "no recovery key")) : ""}</span></div>`).join("");
+  $("#bitlockerResult").innerHTML = `<div class="dom-verdict">${(b.flags || []).map(helperFlag).join("")}</div>${vols}`;
+  $("#bitlockerResult").querySelectorAll("[data-bkey]").forEach(btn => btn.onclick = async () => {
+    const r = await api.get_recovery_key(btn.dataset.bkey);
+    if (!r.ok) { toast(r.error, "bad", 4000); return; }
+    btn.outerHTML = `<span class="mono copy" style="font-size:12px; user-select:all">${esc(r.key)}</span>`;
+    toast("Write this down and keep it somewhere safe — NOT only on this PC.", "info", 6000);
+  });
+};
+$("#btnRescueScan").onclick = async () => {
+  $("#rescueResult").innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Measuring your folders…</span></div>`;
+  const r = await api.rescue_scan();
+  const rows = r.folders.map(f => `<div class="dr"><span class="dk strong">${esc(f.name)}</span><span class="dv">${fmtBytes(f.bytes)} · ${f.files} files</span></div>`).join("");
+  $("#rescueResult").innerHTML = `<div class="dom-sec"><h4>What we'd copy <span class="right muted">${fmtBytes(r.total_bytes)} total</span></h4>${rows || `<div class="muted" style="font-size:12px">Nothing found in the usual folders.</div>`}</div>
+    <div class="row wrap mt"><input class="input" id="rescueDest" placeholder="Destination drive, e.g. E:\\" style="width:240px" spellcheck="false">
+      <button class="btn primary" id="btnRescueStart">Copy to that drive</button></div>
+    <div class="console mt" id="rescueConsole" style="max-height:220px; display:none"></div>`;
+  $("#btnRescueStart").onclick = async () => {
+    const dest = $("#rescueDest").value.trim();
+    const start = await api.rescue_start(dest);
+    if (!start.ok) { toast(start.error, "bad", 5000); return; }
+    const con = $("#rescueConsole"); con.style.display = ""; con.textContent = "";
+    let off = 0, fails = 0;
+    const poll = async () => {
+      const s = await api.rescue_status(start.job, off);
+      if (!s.ok) { if (++fails > 8) return; return void setTimeout(poll, 800); }
+      fails = 0;
+      if (s.lines.length) { off = s.total; con.textContent += s.lines.join("\n") + "\n"; con.scrollTop = con.scrollHeight; }
+      if (s.done) { toast("Rescue copy finished", "good", 3000); return; }
+      setTimeout(poll, 700);
+    };
+    poll();
+  };
+};
+$("#btnScamClear").onclick = () => { $("#scamInput").value = ""; $("#scamResult").innerHTML = ""; };
+$("#btnScamCheck").onclick = async () => {
+  const text = $("#scamInput").value.trim();
+  if (!text) return;
+  $("#scamResult").innerHTML = `<div class="row"><span class="spin"></span></div>`;
+  const looksUrl = /^https?:\/\/|^www\.|^[\w-]+\.[a-z]{2,}(\/|$)/i.test(text) && !/\s/.test(text);
+  if (looksUrl) {
+    const r = await api.unmask_url(text);
+    if (!r.ok) { $("#scamResult").innerHTML = pill("bad", r.error); return; }
+    const bad = (r.flags || []).some(f => f.level === "warn");
+    $("#scamResult").innerHTML = `${scamLight(bad ? "amber" : "green")}
+      <div style="margin-top:6px">${(r.flags || []).map(f => `<div class="muted" style="font-size:12px">• ${esc(f.text)}</div>`).join("")}</div>
+      <div class="muted" style="font-size:12px; margin-top:4px">Goes to: <span class="mono">${esc(r.final_host || "?")}</span></div>
+      <p class="muted" style="font-size:11.5px; margin-top:6px">Don't click the link unless you're sure. Type the company's address yourself instead.</p>`;
+  } else {
+    const r = await api.analyze_headers(text);
+    if (!r.ok) { $("#scamResult").innerHTML = pill("bad", r.error + " (paste the email's text or headers)"); return; }
+    const warns = (r.flags || []).filter(f => f.level === "warn");
+    $("#scamResult").innerHTML = `${scamLight(warns.length >= 2 ? "red" : warns.length ? "amber" : "green")}
+      <div style="margin-top:6px">${(r.flags || []).map(f => `<div class="muted" style="font-size:12px">• ${esc(f.text)}</div>`).join("")}</div>
+      <p class="muted" style="font-size:11.5px; margin-top:6px">If anything's red, don't reply, click links or call numbers in it. Contact the company through a number you already trust.</p>`;
+  }
+};
+function scamLight(c) {
+  const map = { green: ["good", "Looks OK — but still be careful"], amber: ["warn", "Be careful — some warning signs"], red: ["bad", "Looks like a scam — do not trust it"] };
+  const [cls, label] = map[c] || map.amber;
+  return `<div class="dom-flag ${cls}" style="font-size:13px; font-weight:600">${ico(c === "green" ? "check" : "bang")}<span>${label}</span></div>`;
+}
+
 /* ================= CLEANUP page ================= */
 $$("#cleanTabs .tab").forEach(t => t.addEventListener("click", () => {
   const which = t.dataset.clean;
@@ -2787,6 +2908,16 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.2.0", name: "Helper — for fixing the family PC", items: [
+    "New Helper page — friendly, big-button tools for fixing a relative's computer and handing it off.",
+    "Text my tech person — a plain-English health summary you can copy into a message.",
+    "Calm this computer down — silences pop-ups, widgets, tips, lock-screen ads and Start web-search in one click (all reversible).",
+    "Make it normal again — instant, reversible text-size presets for “everything's huge/tiny”.",
+    "Camera & microphone doctor — checks the Windows privacy permission and which app is using the device; allow a blocked app in one click.",
+    "BitLocker recovery key — see which drives are encrypted and reveal the recovery key so you can save it before a repair ever asks.",
+    "Rescue my photos & documents — copy Desktop/Documents/Pictures onto a drive you plug in (copies only, never moves).",
+    "Is this a scam? — paste an email or a link and get a simple red/amber/green read.",
+  ] },
   { v: "2.1.0", name: "Security & incident response", items: [
     "Persistence & exclusions (Security) — maps the hiding spots autoruns misses: WMI event subscriptions (fileless persistence), services and tasks with suspicious paths, Microsoft Defender exclusions, and what's run recently (from Prefetch).",
     "Hardening scorecard (Security) — high-value Windows hardening checks scored out of 100, each with a reversible one-click fix that documents exactly what it changes.",
@@ -2987,7 +3118,7 @@ $("#changelog-veil").addEventListener("click", e => { if (e.target.id === "chang
 const PAGE_LABELS = { dashboard: "Dashboard", system: "System", storage: "Storage",
   network: "Network", processes: "Processes", software: "Software", devices: "Devices",
   health: "Health audit", events: "Event log", toolbox: "Toolbox", security: "Security",
-  fleet: "Fleet", fixit: "Fix-It", cleanup: "Cleanup" };
+  fleet: "Fleet", fixit: "Fix-It", helper: "Helper", cleanup: "Cleanup" };
 const PALETTE_ITEMS = [
   ...PAGES.map((p, i) => ({
     cat: "Pages", icon: "chev", label: PAGE_LABELS[p] || p,
@@ -3004,6 +3135,12 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "bug", label: "Persistence & Defender exclusions", run: () => { showPage("security"); $(`#secTabs [data-sec="persist"]`).click(); $("#btnPersistScan")?.click(); } },
   { cat: "Actions", icon: "shield", label: "Hardening scorecard & ASR rules", run: () => { showPage("security"); $(`#secTabs [data-sec="harden"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Recover from a scam (post-incident check)", run: () => { showPage("fixit"); $("#btnPostScam")?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "Text my tech person (health summary)", run: () => { showPage("helper"); $("#btnHelperCard")?.click(); } },
+  { cat: "Actions", icon: "cpu2", label: "Calm this computer down (quiet mode)", run: () => { showPage("helper"); $("#btnQuietMode")?.scrollIntoView({ block: "center" }); } },
+  { cat: "Actions", icon: "q", label: "Camera & microphone doctor", run: () => { showPage("helper"); $("#btnAvCheck")?.click(); } },
+  { cat: "Actions", icon: "shield", label: "BitLocker recovery key", run: () => { showPage("helper"); $("#btnBitlocker")?.click(); } },
+  { cat: "Actions", icon: "download", label: "Rescue my photos & documents", run: () => { showPage("helper"); $("#btnRescueScan")?.click(); } },
+  { cat: "Actions", icon: "shield", label: "Is this a scam? (check email or link)", run: () => { showPage("helper"); $("#scamInput")?.focus(); } },
   { cat: "Actions", icon: "shield", label: "Analyze email headers (phishing)", run: () => { showPage("security"); $(`#secTabs [data-sec="email"]`).click(); } },
   { cat: "Actions", icon: "zap", label: "Performance snapshot — why is it slow?", run: () => { showPage("toolbox"); $("#btnSnapStart").click(); } },
   { cat: "Actions", icon: "zap", label: "Power, sleep & wake doctor", run: () => { showPage("toolbox"); $("#btnPowerScan").click(); } },

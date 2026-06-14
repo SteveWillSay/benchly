@@ -19,10 +19,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      reliability, cleanup, usbhistory, backupaudit, tweaks, domain,
                      winget, certaudit, mailcheck, urlcheck, listeners, wifi, slowsnap,
                      selfupdate, power, shellrepair, gremlins,
-                     defender, persistence, execevidence, hardening)
+                     defender, persistence, execevidence, hardening,
+                     bitlocker, avcheck, helpercard, display, rescue)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.2.0"
 
 
 def resource_path(rel: str) -> str:
@@ -313,6 +314,46 @@ class Api:
 
     def post_scam_check(self):
         return threats.post_scam_check()
+
+    def reset_proxy(self):
+        return threats.reset_proxy()
+
+    # --- helper (family) ----------------------------------------------------------------
+    def helper_card(self):
+        return helpercard.helper_card()
+
+    def bitlocker_status(self):
+        return bitlocker.bitlocker_status()
+
+    def get_recovery_key(self, mount):
+        return bitlocker.get_recovery_key(mount)
+
+    def av_check(self):
+        return avcheck.av_check()
+
+    def set_av_permission(self, cap, raw, nonpackaged, allow):
+        return avcheck.set_av_permission(cap, raw, nonpackaged, allow)
+
+    def set_av_global(self, cap, allow):
+        return avcheck.set_av_global(cap, allow)
+
+    def detect_display(self):
+        return display.detect_display()
+
+    def set_text_scale(self, percent):
+        return display.set_text_scale(percent)
+
+    def rescue_scan(self):
+        return rescue.rescue_scan()
+
+    def rescue_start(self, dest):
+        return rescue.rescue_start(dest)
+
+    def rescue_status(self, job_id, offset=0):
+        return rescue.rescue_status(job_id, offset)
+
+    def apply_quiet_mode(self):
+        return tweaks.apply_quiet_mode()
 
     # --- audits ------------------------------------------------------------------------
     def get_scheduled_tasks(self):
