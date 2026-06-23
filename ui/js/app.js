@@ -3481,6 +3481,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.7.1", name: "Security & maintenance", items: [
+    "Security hardening from a full code scan: the domain TLS inspector now requires TLS 1.2 or better explicitly, and page navigation can only ever dispatch to a known page loader.",
+    "Under the hood — pinned build dependencies and a documented dependency/CVE audit, so the toolchain stays clean release to release. No feature changes.",
+  ] },
   { v: "2.7.0", name: "Power, storage & runtime forensics", items: [
     "Battery & power efficiency (System) — battery wear and cycle count, plus a short powercfg trace that names what's hurting power efficiency (selective-suspend off, devices blocking sleep, thirsty drivers).",
     "Environment & PATH audit (System) — checks every Machine and User PATH entry for missing folders, duplicates and quoting issues — the baffling “command not found / wrong version runs” fixer. One-click clean of broken & duplicate entries, with the prior value backed up.",
