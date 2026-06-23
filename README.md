@@ -197,7 +197,7 @@ just adds a single UAC prompt.
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\pip install pywebview psutil pyinstaller pillow
+.venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\python app.py            # run it straight from source
 
 .\build_portable.ps1                   # → dist\Benchly.exe
@@ -205,7 +205,8 @@ python -m venv .venv
 ```
 
 The whole build-and-release routine — bumping the version, tagging, cutting a GitHub
-release — lives in **[docs/building.md](docs/building.md)**.
+release — lives in **[docs/building.md](docs/building.md)**. Keeping the dependencies clean
+of CVEs and not-too-stale is its own routine, in **[docs/dependency-audit.md](docs/dependency-audit.md)**.
 
 ## Under the hood
 

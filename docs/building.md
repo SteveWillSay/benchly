@@ -7,8 +7,11 @@ ship. Windows only, and everything below assumes PowerShell from the repo root.
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\pip install pywebview psutil pyinstaller pillow
+.venv\Scripts\pip install -r requirements.txt
 ```
+
+Dependencies are pinned in [`requirements.txt`](../requirements.txt); keeping them clean of
+CVEs is its own routine — see [dependency-audit.md](dependency-audit.md).
 
 You'll want [Inno Setup 6](https://jrsoftware.org/isdl.php) for the installer — it lands at
 `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`. The [GitHub CLI](https://cli.github.com/)
