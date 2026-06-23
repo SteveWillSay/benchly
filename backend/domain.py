@@ -215,6 +215,7 @@ def _tls_info(host: str):
     cert, verified, verify_error = None, True, None
     try:
         ctx = ssl.create_default_context()
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         with socket.create_connection((host, 443), timeout=8) as sock:
             with ctx.wrap_socket(sock, server_hostname=host) as ss:
                 cert = ss.getpeercert()
@@ -226,6 +227,7 @@ def _tls_info(host: str):
     if cert is None:  # fetch unverified so we can still show + flag the details
         try:
             uctx = ssl._create_unverified_context()
+            uctx.minimum_version = ssl.TLSVersion.TLSv1_2
             with socket.create_connection((host, 443), timeout=8) as sock:
                 with uctx.wrap_socket(sock, server_hostname=host) as ss:
                     cert = ss.getpeercert()

@@ -79,11 +79,13 @@ function showPage(name) {
   $$(".page").forEach(p => p.classList.toggle("active", p.id === `page-${name}`));
   if (!loadedPages.has(name)) {
     loadedPages.add(name);
-    const loader = { system: loadSystem, storage: loadStorage, network: loadNetwork,
-                     software: loadSoftware, health: loadHealth, events: loadEvents,
-                     devices: loadDevices, toolbox: loadToolbox, security: loadSecurity,
-                     fleet: loadFleet, fixit: loadFixit, cleanup: loadCleanup,
-                     workplace: loadWorkplace }[name];
+    const loaders = { system: loadSystem, storage: loadStorage, network: loadNetwork,
+                      software: loadSoftware, health: loadHealth, events: loadEvents,
+                      devices: loadDevices, toolbox: loadToolbox, security: loadSecurity,
+                      fleet: loadFleet, fixit: loadFixit, cleanup: loadCleanup,
+                      workplace: loadWorkplace };
+    // Only dispatch own, known page loaders — never an inherited prop like "constructor".
+    const loader = Object.prototype.hasOwnProperty.call(loaders, name) ? loaders[name] : null;
     if (loader) Promise.resolve(loader()).catch(err => {
       loadedPages.delete(name);   // allow retry by re-navigating
       toast(`Failed to load ${name}: ${err}`, "bad", 6000);
