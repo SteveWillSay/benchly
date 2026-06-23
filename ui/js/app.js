@@ -79,14 +79,17 @@ function showPage(name) {
   $$(".page").forEach(p => p.classList.toggle("active", p.id === `page-${name}`));
   if (!loadedPages.has(name)) {
     loadedPages.add(name);
-    const loaders = { system: loadSystem, storage: loadStorage, network: loadNetwork,
-                      software: loadSoftware, health: loadHealth, events: loadEvents,
-                      devices: loadDevices, toolbox: loadToolbox, security: loadSecurity,
-                      fleet: loadFleet, fixit: loadFixit, cleanup: loadCleanup,
-                      workplace: loadWorkplace };
-    // Only dispatch own, known page loaders — never an inherited prop like "constructor".
-    const loader = Object.prototype.hasOwnProperty.call(loaders, name) ? loaders[name] : null;
-    if (loader) Promise.resolve(loader()).catch(err => {
+    // A Map (not a plain object) so a page name can only ever resolve to one of these
+    // known loaders — never an inherited prop like "constructor" or "hasOwnProperty".
+    const loaders = new Map([
+      ["system", loadSystem], ["storage", loadStorage], ["network", loadNetwork],
+      ["software", loadSoftware], ["health", loadHealth], ["events", loadEvents],
+      ["devices", loadDevices], ["toolbox", loadToolbox], ["security", loadSecurity],
+      ["fleet", loadFleet], ["fixit", loadFixit], ["cleanup", loadCleanup],
+      ["workplace", loadWorkplace],
+    ]);
+    const loader = loaders.get(name);
+    if (typeof loader === "function") Promise.resolve(loader()).catch(err => {
       loadedPages.delete(name);   // allow retry by re-navigating
       toast(`Failed to load ${name}: ${err}`, "bad", 6000);
     });
