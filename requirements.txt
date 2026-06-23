@@ -1,0 +1,15 @@
+# Benchly dependencies — verified against v2.7.0 on Python 3.12.
+# Recreate the environment on a new machine:
+#   python -m venv .venv
+#   .venv\Scripts\pip install -r requirements.txt
+
+# --- Runtime ---
+pywebview==6.2.1
+psutil==7.2.2
+pillow==12.2.0
+
+# --- Build (portable exe via build_portable.ps1) ---
+pyinstaller==6.21.0
+
+# --- Dev / security tooling ---
+pip-audit==2.10.1
