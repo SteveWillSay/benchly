@@ -1,0 +1,4 @@
+ffc971366fcfb1d5bd7e66f86cad1fbac2051c17d418d210e8eb378864f1cbef  Benchly-2.11.1-portable.exe
+ff86ba55fd4dd59f5378aa5078c57821e371aefc4bc9d4010fbd5bf34097b769  Benchly-Setup-2.11.1.exe
+ede407c0018dbdc4f462a08f9ef3ab7ce70cb1de5147920cbd9922bbc559aaad  CHANGELOG.md
+3e37a7247939858267fe71ebf69e0cf7d98eea39e00cf0bb98be203d80dbd3d9  RELEASE.md

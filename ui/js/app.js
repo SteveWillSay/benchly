@@ -3732,6 +3732,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.11.1", name: "Reliable self-update for installed builds", items: [
+    "Fixed self-update for the machine-wide (Program Files) install — the case that 'closed but never installed'. The permission prompt that finishes the update is now branded Benchly and expected (the app tells you to click Yes), the swap is driven by Benchly itself, and it logs to %TEMP%\\benchly-update.log for diagnosis.",
+    "Note: the updater that runs is the one inside your installed version, so a copy stuck on an older build needs one manual install of this version to get onto the fixed path — then self-update is reliable.",
+  ] },
   { v: "2.11.0", name: "Hardening: elevated tools hidden until elevated", items: [
     "Anything that needs administrator rights to run is now hidden from the standard (non-elevated) view — repair tools, admin tweaks, hardening & ASR fixes, Defender exclusion management, restore points, the managed baseline, take-ownership, print-queue purge, and more.",
     "Privileged read-only data that can't load without elevation (SMART attributes, TPM / Secure Boot / BitLocker, advanced storage health, the Defender exclusion list, recent-execution, the full boot breakdown) is hidden too, rather than showing a 'needs admin' placeholder.",
@@ -3992,7 +3996,12 @@ async function startSelfUpdate(latest) {
       meta.textContent = "The window will close and reopen on the new version.";
       const a = await api.apply_update();
       if (!a.ok) { fail(a.error); return; }
-      return;  // portable: window closes itself · installed: Inno closes us
+      if (a.elevate) {
+        stage.textContent = "Approve the Windows prompt to finish";
+        meta.innerHTML = pill("warn", "Click <b>Yes</b> on the Windows permission prompt") +
+          " — it's needed to update the copy in Program Files. Benchly will close and reopen on the new version.";
+      }
+      return;  // the swap helper waits for this window to close, then relaunches
     }
     if (s.stage === "downloading") {
       const known = s.total_mb > 0;

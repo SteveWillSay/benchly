@@ -237,20 +237,6 @@ def update_status(job_id):
 # --------------------------------------------------------------------------- #
 # apply
 # --------------------------------------------------------------------------- #
-_SWAP_BAT = r"""@echo off
-set n=0
-:retry
-set /a n+=1
-move /y "__NEW__" "__TARGET__" >nul 2>&1 && goto done
-if %n% geq 180 exit /b 1
-timeout /t 1 /nobreak >nul
-goto retry
-:done
-start "" "__TARGET__"
-del "%~f0"
-"""
-
-
 def _needs_admin_to_write(target):
     """A target under Program Files needs elevation to overwrite; LocalAppData doesn't."""
     pf = [os.environ.get("ProgramFiles", ""), os.environ.get("ProgramFiles(x86)", ""),
@@ -274,23 +260,22 @@ def apply_update():
     if not target or not os.path.isfile(target):
         return {"ok": False, "error": "Couldn't find the running program to update."}
     try:
-        bat = os.path.join(tempfile.gettempdir(), "benchly-update.cmd")
-        with open(bat, "w", encoding="mbcs", errors="replace") as f:
-            f.write(_SWAP_BAT.replace("__NEW__", new).replace("__TARGET__", target))
         elevate = _needs_admin_to_write(target) and not _is_elevated()
+        # The freshly-downloaded build knows how to swap itself in (`--apply-update`). Run it
+        # to do the swap; when the target is under Program Files, launch it elevated via UAC —
+        # so the consent prompt is branded "Benchly" (expected), not a bare cmd.exe.
         if elevate:
-            # relaunch the helper through UAC so it can write into Program Files
-            ps = (f"Start-Process -FilePath cmd.exe -ArgumentList '/c',\"{bat}\" "
-                  "-Verb RunAs -WindowStyle Hidden")
+            ps = (f'Start-Process -FilePath "{new}" '
+                  f'-ArgumentList \'--apply-update\',"{new}","{target}" -Verb RunAs -WindowStyle Hidden')
             subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
                              creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True)
         else:
-            subprocess.Popen(["cmd", "/c", bat],
+            subprocess.Popen([new, "--apply-update", new, target],
                              creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
                              close_fds=True)
-        # Give the bridge a moment to return, then exit so the swap can happen.
+        # Give the bridge a moment to return, then exit so the swap can complete.
         threading.Timer(1.0, lambda: os._exit(0)).start()
-        return {"ok": True, "mode": "portable", "elevate": elevate}
+        return {"ok": True, "mode": _staged.get("mode"), "elevate": elevate}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

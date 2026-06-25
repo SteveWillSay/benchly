@@ -29,7 +29,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      errdecode, profiles, filehash, hosts, minidump)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.11.0"
+APP_VERSION = "2.11.1"
 
 
 def resource_path(rel: str) -> str:
@@ -747,7 +747,55 @@ def _instrument(api):
         setattr(api, name, wrapper)
 
 
+_DETACHED = 0x00000008 | 0x00000200   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+
+
+def _apply_update_mode():
+    """Relaunched as `--apply-update <new_exe> <target>` (possibly elevated via UAC) to
+    finish a self-update: wait for the old instance to release the exe, copy the freshly
+    downloaded build over it, and relaunch. Runs instead of the UI. Logs to
+    %TEMP%\\benchly-update.log so a failed swap can be diagnosed in the field."""
+    if "--apply-update" not in sys.argv:
+        return False
+    import time
+    import shutil
+    import tempfile
+    args = sys.argv[sys.argv.index("--apply-update") + 1:][:2]
+    logp = os.path.join(tempfile.gettempdir(), "benchly-update.log")
+
+    def log(msg):
+        try:
+            with open(logp, "a", encoding="mbcs", errors="replace") as f:
+                f.write(msg + "\n")
+        except Exception:
+            pass
+
+    if len(args) < 2:
+        log("apply-update: missing arguments"); return True
+    new_exe, target = args
+    log(f"apply-update: new={new_exe} target={target} pid={os.getpid()}")
+    for attempt in range(180):   # the old instance is exiting; retry until the exe unlocks
+        try:
+            shutil.copyfile(new_exe, target)
+            log("apply-update: swapped in the new build")
+            break
+        except Exception as e:
+            if attempt % 10 == 0:
+                log(f"apply-update: target still locked ({attempt}s): {e}")
+            time.sleep(1)
+    else:
+        log("apply-update: FAILED — target stayed locked for 180s"); return True
+    try:
+        subprocess.Popen([target], creationflags=_DETACHED, close_fds=True)
+        log("apply-update: relaunched")
+    except Exception as e:
+        log(f"apply-update: relaunch failed: {e}")
+    return True
+
+
 def main():
+    if _apply_update_mode():
+        return
     diag.install(APP_VERSION)
     threading.Thread(target=_prewarm, daemon=True).start()
     api = Api()
