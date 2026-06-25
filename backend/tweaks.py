@@ -14,6 +14,12 @@ from . import security
 
 HKCU = winreg.HKEY_CURRENT_USER
 HKLM = winreg.HKEY_LOCAL_MACHINE
+HKCR = winreg.HKEY_CLASSES_ROOT
+
+# "Take ownership" right-click verb — takeown + icacls, for files and folders.
+_TAKEOWN_FILE = r'cmd.exe /c takeown /f "%1" && icacls "%1" /grant *S-1-5-32-544:F'
+_TAKEOWN_DIR = r'cmd.exe /c takeown /f "%1" /r /d y && icacls "%1" /grant *S-1-5-32-544:F /t'
+# (*S-1-5-32-544 = the Administrators group SID — locale-independent, unlike "administrators")
 
 # Win11 classic right-click menu lives behind this CLSID
 _CLASSIC_MENU_CLSID = r"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}"
@@ -313,6 +319,31 @@ _TWEAKS = [
      "where": r"HKCU\…\Explorer\Advanced\Start_IrisRecommendations",
      "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
      "name": "Start_IrisRecommendations", "kind": "dword", "on": 0, "off": 1, "restart": "explorer"},
+
+    # ---- more interface / desktop ----
+    {"key": "desktop_thispc", "cat": "Interface", "label": "Show “This PC” on the desktop",
+     "help": "Puts the This PC icon back on the desktop (hidden by default on a clean install).",
+     "where": r"HKCU\…\Explorer\HideDesktopIcons\NewStartPanel\{20D04FE0-3AEA-1069-A2D8-08002B30309D}",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel",
+     "name": "{20D04FE0-3AEA-1069-A2D8-08002B30309D}", "kind": "dword", "on": 0, "off": 1, "restart": "explorer"},
+    {"key": "drive_letters_first", "cat": "Interface", "label": "Drive letters before names",
+     "help": "Shows volumes as “C: Windows” instead of “Windows (C:)” — easier to scan in Explorer.",
+     "where": r"HKLM\…\Explorer\ShowDriveLettersFirst",
+     "hive": HKLM, "path": r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer",
+     "name": "ShowDriveLettersFirst", "kind": "dword", "on": 4, "off": 0, "admin": True, "restart": "explorer"},
+
+    # ---- network & power ----
+    {"key": "disable_ipv6", "cat": "Network & power", "label": "Disable IPv6",
+     "help": "Disables the IPv6 components via DisabledComponents (0xFF). A troubleshooting step for "
+             "some VPN / connectivity faults — re-enable if anything that needs IPv6 breaks. Needs a reboot.",
+     "where": r"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\DisabledComponents",
+     "hive": HKLM, "path": r"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters",
+     "name": "DisabledComponents", "kind": "dword", "on": 0xFF, "off": 0, "admin": True, "restart": "reboot"},
+    {"key": "hibernate_menu", "cat": "Network & power", "label": "Show Hibernate in the power menu",
+     "help": "Adds Hibernate to the Start power menu (requires hibernation to be enabled — see the Performance tab).",
+     "where": r"HKLM\…\Explorer\FlyoutMenuSettings\ShowHibernateOption",
+     "hive": HKLM, "path": r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings",
+     "name": "ShowHibernateOption", "kind": "dword", "on": 1, "off": 0, "admin": True},
 ]
 
 # Special tweaks that aren't a simple registry value (handled explicitly below)
@@ -325,6 +356,11 @@ _SPECIAL = [
      "help": "Turns hibernation on (powercfg /hibernate on) and restores the Hibernate option / hiberfil.sys.",
      "where": r"powercfg /hibernate · HKLM\SYSTEM\CurrentControlSet\Control\Power\HibernateEnabled",
      "special": "hibernation", "admin": True},
+    {"key": "take_ownership", "cat": "Interface", "label": "Add “Take ownership” to right-click",
+     "help": "Adds a Take ownership item to the right-click menu for files and folders — grants your "
+             "Administrators group full control in one click (the “access denied, can't delete” fix).",
+     "where": r"HKCR\*\shell\TakeOwnership and HKCR\Directory\shell\TakeOwnership (takeown + icacls)",
+     "special": "take_ownership", "admin": True},
 ]
 
 _BY_KEY = {t["key"]: t for t in _TWEAKS}
@@ -365,7 +401,26 @@ def _special_enabled(key):
         return _key_exists(HKCU, _CLASSIC_MENU_INPROC)
     if key == "hibernation":
         return _read(HKLM, r"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", "dword") == 1
+    if key == "take_ownership":
+        return _key_exists(HKCR, r"*\shell\TakeOwnership\command")
     return False
+
+
+def _add_takeown_verb(parent, command):
+    """Create a 'TakeOwnership' shell verb under an HKCR class (e.g. '*' or 'Directory')."""
+    k = winreg.CreateKeyEx(HKCR, parent + r"\shell\TakeOwnership", 0, winreg.KEY_SET_VALUE)
+    try:
+        winreg.SetValueEx(k, "", 0, winreg.REG_SZ, "Take ownership")
+        winreg.SetValueEx(k, "HasLUAShield", 0, winreg.REG_SZ, "")        # admin shield icon
+        winreg.SetValueEx(k, "NoWorkingDirectory", 0, winreg.REG_SZ, "")
+    finally:
+        winreg.CloseKey(k)
+    c = winreg.CreateKeyEx(HKCR, parent + r"\shell\TakeOwnership\command", 0, winreg.KEY_SET_VALUE)
+    try:
+        winreg.SetValueEx(c, "", 0, winreg.REG_SZ, command)
+        winreg.SetValueEx(c, "IsolatedCommand", 0, winreg.REG_SZ, command)
+    finally:
+        winreg.CloseKey(c)
 
 
 def _set_special(key, enable):
@@ -385,6 +440,14 @@ def _set_special(key, enable):
         if r.returncode == 0:
             return {"ok": True}
         return {"ok": False, "error": "powercfg failed — hibernation may be blocked by firmware or policy."}
+    if key == "take_ownership":
+        if enable:
+            _add_takeown_verb("*", _TAKEOWN_FILE)             # files
+            _add_takeown_verb("Directory", _TAKEOWN_DIR)      # folders
+        else:
+            _delete_tree(HKCR, r"*\shell\TakeOwnership")
+            _delete_tree(HKCR, r"Directory\shell\TakeOwnership")
+        return {"ok": True}
     return {"ok": False, "error": "Unknown tweak."}
 
 

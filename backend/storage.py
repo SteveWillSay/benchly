@@ -225,6 +225,186 @@ def smart_predict():
 
 
 # --------------------------------------------------------------------------- #
+# Raw vendor SMART attribute table (MSStorageDriver_FailurePredictData)
+# --------------------------------------------------------------------------- #
+# Well-known SMART attribute IDs → human names. This is the raw vendor table
+# (read-only), complementing get_storage()/smart_predict() which trend the
+# normalised reliability counters. We never write to the drive — we only decode
+# the 512-byte VendorSpecific blob the driver already exposes.
+_SMART_NAMES = {
+    1: "Read Error Rate",
+    5: "Reallocated Sectors Count",
+    9: "Power-On Hours",
+    10: "Spin Retry Count",
+    12: "Power Cycle Count",
+    184: "End-to-End Error",
+    187: "Reported Uncorrectable Errors",
+    188: "Command Timeout",
+    190: "Temperature (airflow)",
+    194: "Temperature",
+    196: "Reallocation Event Count",
+    197: "Current Pending Sector Count",
+    198: "Offline Uncorrectable",
+    199: "UltraDMA CRC Error Count",
+    231: "SSD Life Left",
+    233: "Media Wearout / SSD Life",
+}
+
+# The "predictive failure" attributes — any non-zero raw value is worth a flag.
+_SMART_CONCERN_IDS = {5, 187, 197, 198, 199}
+
+
+def _smart_to_bytes(value):
+    """Normalise a VendorSpecific blob (JSON int array / list) → list of 0-255.
+
+    PowerShell's ConvertTo-Json renders the byte[] as an int array; a single
+    element collapses to a scalar. Return [] for anything we can't make sense
+    of, so the caller degrades instead of raising.
+    """
+    items = as_list(value)
+    out = []
+    for n in items:
+        try:
+            b = int(n)
+        except (TypeError, ValueError):
+            return []
+        out.append(b & 0xFF)
+    return out
+
+
+def _parse_smart_table(blob):
+    """Decode the 512-byte VendorSpecific attribute table → list of attr dicts.
+
+    Layout: attributes start at byte offset 2; each is a 12-byte record of
+    [id(1), flags(2 LE), current(1), worst(1), raw(6 LE), reserved(1)].
+    Stop at id==0 or when the buffer runs out. Only known ids are emitted.
+    """
+    attrs = []
+    i = 2
+    n = len(blob)
+    while i + 12 <= n:
+        attr_id = blob[i]
+        if attr_id == 0:
+            break
+        name = _SMART_NAMES.get(attr_id)
+        if name:
+            current = blob[i + 3]
+            worst = blob[i + 4]
+            raw = 0
+            for k in range(6):  # 6 raw bytes, little-endian
+                raw |= blob[i + 5 + k] << (8 * k)
+            concern = attr_id in _SMART_CONCERN_IDS and raw > 0
+            attrs.append({
+                "id": attr_id, "name": name,
+                "current": current, "worst": worst,
+                "raw": raw, "concern": concern,
+            })
+        i += 12
+    return attrs
+
+
+def smart_attributes():
+    """Per-physical-disk decoded raw SMART attributes (read-only).
+
+    Reads MSStorageDriver_FailurePredictData from root\\wmi and decodes the
+    512-byte VendorSpecific blob into named attributes. This class typically
+    needs admin and only ATA/SATA drives expose it — NVMe usually does not.
+    When a disk has no data we mark available=False with a reason rather than
+    raising; supported=False only when nothing at all is available.
+
+    Returns:
+        {"disks": [{"disk": str, "available": bool, "attributes": [...],
+                    "reason"?: str}],
+         "supported": bool, "note": str}
+    """
+    # Physical disks first, so we can label predict-data by its PNP/InstanceName.
+    physical = as_list(ps_json(
+        "Get-CimInstance -ClassName Win32_DiskDrive -ErrorAction SilentlyContinue | "
+        "Select-Object Index,Model,PNPDeviceID,InterfaceType", timeout=30))
+
+    # The failure-predict table (per ATA/SATA instance). NVMe drives are absent.
+    predict = as_list(ps_json(
+        "Get-CimInstance -Namespace root/wmi -ClassName MSStorageDriver_FailurePredictData "
+        "-ErrorAction SilentlyContinue | Select-Object InstanceName,VendorSpecific",
+        timeout=30, depth=3))
+
+    # Index predict rows by a normalised InstanceName (PNP id + "_0" suffix).
+    def _norm(s):
+        return (s or "").strip().upper().replace("\\", "#")
+
+    pred_by_inst = {}
+    for p in predict:
+        if isinstance(p, dict) and p.get("InstanceName"):
+            pred_by_inst[_norm(p["InstanceName"])] = p
+
+    def _match(pnp):
+        """Find the predict row whose InstanceName embeds this PNPDeviceID."""
+        key = _norm(pnp)
+        if not key:
+            return None
+        for inst, row in pred_by_inst.items():
+            # InstanceName is usually "<PNPDeviceID>_0"; match either direction.
+            if key and (key in inst or inst.rstrip("_0").endswith(key)):
+                return row
+        return None
+
+    disks = []
+    any_available = False
+    matched = set()
+
+    for d in physical:
+        if not isinstance(d, dict):
+            continue
+        label = (d.get("Model") or "").strip()
+        if not label:
+            idx = d.get("Index")
+            label = f"Disk {idx}" if idx is not None else "Unknown disk"
+        iface = (d.get("InterfaceType") or "").strip()
+
+        row = _match(d.get("PNPDeviceID"))
+        if row is None:
+            reason = "no SMART predict data (NVMe or needs admin)" if \
+                iface.upper() == "SCSI" or not iface else "no SMART predict data for this disk"
+            disks.append({"disk": label, "available": False, "attributes": [],
+                          "reason": reason})
+            continue
+
+        matched.add(id(row))
+        blob = _smart_to_bytes(row.get("VendorSpecific"))
+        attrs = _parse_smart_table(blob) if blob else []
+        if attrs:
+            any_available = True
+            disks.append({"disk": label, "available": True, "attributes": attrs})
+        else:
+            disks.append({"disk": label, "available": False, "attributes": [],
+                          "reason": "predict data present but no decodable attributes"})
+
+    # Predict rows we couldn't tie to a Win32_DiskDrive — still surface them.
+    for p in predict:
+        if not isinstance(p, dict) or id(p) in matched:
+            continue
+        label = (p.get("InstanceName") or "Unknown disk").split("\\")[-1]
+        blob = _smart_to_bytes(p.get("VendorSpecific"))
+        attrs = _parse_smart_table(blob) if blob else []
+        if attrs:
+            any_available = True
+            disks.append({"disk": label, "available": True, "attributes": attrs})
+        else:
+            disks.append({"disk": label, "available": False, "attributes": [],
+                          "reason": "predict data present but no decodable attributes"})
+
+    supported = any_available
+    if supported:
+        note = "Raw vendor SMART attributes decoded from the storage driver (read-only)."
+    elif predict:
+        note = "SMART predict data found but no attributes could be decoded."
+    else:
+        note = ("No SMART attribute data exposed — typically requires admin and "
+                "an ATA/SATA drive (NVMe drives don't provide this table).")
+    return {"disks": disks, "supported": supported, "note": note}
+
+
+# --------------------------------------------------------------------------- #
 # Deep storage health (H2): TRIM, Storage Spaces, reliability counters, VSS
 # --------------------------------------------------------------------------- #
 def storage_deep():

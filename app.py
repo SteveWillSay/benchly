@@ -26,10 +26,10 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      licensing, identity, grouppolicy, timesync, baseline_policy,
                      firewall, credentials,
                      envaudit, runtimes, audio,
-                     errdecode, profiles)
+                     errdecode, profiles, filehash, hosts, minidump)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.8.1"
+APP_VERSION = "2.9.0"
 
 
 def resource_path(rel: str) -> str:
@@ -621,6 +621,19 @@ class Api:
 
     def detect_profiles(self):
         return profiles.detect_profiles()
+
+    # --- quick tools / forensics (Bundle J) ----------------------------------------------------
+    def hash_file(self, path):
+        return filehash.hash_file(path)
+
+    def view_hosts(self):
+        return hosts.view_hosts()
+
+    def smart_attributes(self):
+        return storage.smart_attributes()
+
+    def analyze_minidumps(self):
+        return minidump.analyze_latest()
 
     # --- debloat / privacy ---------------------------------------------------------------------
     def list_appx(self):

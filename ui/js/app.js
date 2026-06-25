@@ -89,7 +89,7 @@ function showPage(name) {
       ["workplace", loadWorkplace],
     ]);
     const loader = loaders.get(name);
-    if (typeof loader === "function") Promise.resolve(loader()).catch(err => {
+    if (typeof loader === "function") Promise.resolve(loader()).then(() => labelInputs()).catch(err => {
       loadedPages.delete(name);   // allow retry by re-navigating
       toast(`Failed to load ${name}: ${err}`, "bad", 6000);
     });
@@ -97,6 +97,14 @@ function showPage(name) {
   if (name === "processes") startProcLoop(); else stopProcLoop();
 }
 $$(".nav-item").forEach(b => b.addEventListener("click", () => showPage(b.dataset.page)));
+
+/* a11y: give every text input an accessible name from its placeholder when it lacks one,
+   so screen readers announce a real label (placeholder alone isn't a reliable name). */
+function labelInputs(root = document) {
+  root.querySelectorAll("input[placeholder]:not([aria-label]):not([aria-labelledby])")
+    .forEach(i => i.setAttribute("aria-label", i.placeholder));
+}
+labelInputs();
 
 const PAGES = ["dashboard", "system", "storage", "network", "processes", "software",
                "devices", "health", "events", "toolbox", "security", "fleet", "fixit", "helper", "cleanup", "workplace"];
@@ -508,7 +516,28 @@ async function loadStorage(refresh = false) {
       </dl>
     </div>`).join("")}
   </div>
-  <div class="card mt"><h3>Volumes</h3>${st.volumes.map(v => volBar(v)).join("")}</div>`;
+  <div class="card mt"><h3>Volumes</h3>${st.volumes.map(v => volBar(v)).join("")}</div>
+  <div class="card mt"><h3>SMART attributes <span class="right"><button class="btn small" id="btnSmart">Show</button></span></h3>
+    <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
+      The raw drive self-monitoring counters — reallocated, pending and uncorrectable sectors are the
+      early warning signs of a failing disk. Mostly SATA/ATA drives; NVMe rarely exposes them, and reading needs admin.</p>
+    <div id="smartBody"></div></div>`;
+  const smartBtn = $("#btnSmart");
+  if (smartBtn) smartBtn.onclick = async () => {
+    $("#smartBody").innerHTML = `<div class="muted" style="font-size:12.5px">Reading SMART data…</div>`;
+    const s = await api.smart_attributes();
+    if (!s || !s.disks) { $("#smartBody").innerHTML = emptyState("bang", "Couldn't read SMART data"); return; }
+    const avail = s.disks.filter(d => d.available);
+    if (!avail.length) { $("#smartBody").innerHTML = `<div class="muted" style="font-size:12.5px">${esc(s.note || "No SMART attributes available (NVMe, or needs admin).")}</div>`; return; }
+    $("#smartBody").innerHTML = avail.map(d => `
+      <div style="margin-bottom:10px"><div class="strong" style="margin-bottom:4px">${esc(d.disk)}</div>
+        <div class="table-wrap" style="max-height:260px"><table>
+          <thead><tr><th>ID</th><th>Attribute</th><th class="num">Current</th><th class="num">Worst</th><th class="num">Raw</th></tr></thead>
+          <tbody>${d.attributes.map(a => `<tr${a.concern ? ' style="color:var(--crit)"' : ''}>
+            <td class="mono">${a.id}</td><td>${esc(a.name)}</td>
+            <td class="num">${a.current}</td><td class="num">${a.worst}</td><td class="num mono">${a.raw}</td></tr>`).join("")}</tbody>
+        </table></div></div>`).join("");
+  };
 }
 $("#btnStorRefresh").onclick = () => loadStorage(true);
 
@@ -1625,6 +1654,13 @@ async function loadCrashes() {
         <span class="sz">${fmtBytes(d.size)}</span></div>`).join("")}
       <button class="btn small mt" id="btnOpenDumps">Open minidump folder${ico("open", "ic sm")}</button></div>`
     : "";
+  // Parse the dumps for the third-party drivers loaded at crash time — the usual culprits.
+  const md = await api.analyze_minidumps().catch(() => null);
+  const suspects = (md && md.ok) ? [...new Set(md.dumps.flatMap(d => d.suspect_drivers || []))] : [];
+  const mdumpBlock = suspects.length
+    ? `<div class="mt"><div class="muted" style="font-size:12px; margin-bottom:4px">Third-party drivers loaded in the crash dumps — the usual BSOD suspects:</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px">${suspects.map(s => pill("warn", esc(s))).join("")}</div></div>`
+    : "";
   const apps = c.app_crashes.length
     ? `<div class="table-wrap" style="max-height:320px"><table>
         <thead><tr><th>Application</th><th class="num">Crashes</th><th>Faulting module</th><th>Most recent</th></tr></thead><tbody>
@@ -1635,7 +1671,7 @@ async function loadCrashes() {
     : emptyState("check", "No application crashes in the last 90 days");
   $("#crashBody").innerHTML = `
     <div class="grid cols-2">
-      <div class="card"><h3>Blue screens (90 days) <span class="right">${c.bugchecks.length ? pill("bad", c.bugchecks.length + " bugcheck(s)") : pill("good", "None")}</span></h3>${bsod}${dumps}</div>
+      <div class="card"><h3>Blue screens (90 days) <span class="right">${c.bugchecks.length ? pill("bad", c.bugchecks.length + " bugcheck(s)") : pill("good", "None")}</span></h3>${bsod}${dumps}${mdumpBlock}</div>
       <div class="card"><h3>Unexpected power loss <span class="right">${c.dirty_shutdowns ? pill("warn", c.dirty_shutdowns + " event(s)") : pill("good", "None")}</span></h3>
         <p class="muted" style="font-size:12.5px; line-height:1.5">Kernel-Power 41 events — the machine lost power or hung without a clean shutdown. Frequent occurrences point at PSU, sleep/firmware or forced power-offs.${(c.kernel_power || []).length ? " The events below carried a Stop code — a blue screen, not just a power cut." : ""}</p>${kpower}</div>
     </div>
@@ -1820,6 +1856,36 @@ $("#btnFindLockers").onclick = async () => {
     <thead><tr><th>Process</th><th class="num">PID</th><th>Open handle</th></tr></thead>
     <tbody>${r.lockers.map(l => `<tr><td class="strong">${esc(l.name)}</td>
       <td class="num mono">${l.pid}</td><td class="mono" style="font-size:11px">${esc(l.file)}</td></tr>`).join("")}</tbody></table></div>`;
+};
+
+/* ---- File hash ---- */
+$("#btnHashPick").onclick = async () => {
+  const pick = await api.pick_file();
+  if (!pick.ok) return;
+  $("#hashName").textContent = "hashing…";
+  $("#hashResult").innerHTML = "";
+  const r = await api.hash_file(pick.path);
+  if (!r.ok) { $("#hashName").textContent = ""; $("#hashResult").innerHTML = `<div class="muted" style="font-size:12.5px">${esc(r.error)}</div>`; return; }
+  $("#hashName").textContent = `${r.name} · ${fmtBytes(r.size)}`;
+  const row = (label, val) => `<div style="margin:4px 0; display:flex; gap:10px; align-items:baseline">
+    <span class="muted" style="width:58px; flex:none">${label}</span>
+    <span class="mono copy" style="font-size:11px; word-break:break-all">${esc(val)}</span></div>`;
+  $("#hashResult").innerHTML = row("MD5", r.md5) + row("SHA-1", r.sha1) + row("SHA-256", r.sha256);
+};
+
+/* ---- Hosts file viewer ---- */
+$("#btnHosts").onclick = async () => {
+  $("#hostsBody").innerHTML = `<div class="muted" style="font-size:12.5px">Reading…</div>`;
+  const r = await api.view_hosts();
+  if (!r.ok) { $("#hostsBody").innerHTML = `<div class="muted" style="font-size:12.5px">${esc(r.error)}</div>`; return; }
+  const rows = r.entries.length
+    ? `<div class="table-wrap" style="max-height:220px"><table>
+        <thead><tr><th>IP</th><th>Host</th></tr></thead><tbody>
+        ${r.entries.map(e => `<tr><td class="mono">${esc(e.ip)}</td>
+          <td class="mono">${esc(e.host)} ${e.flagged ? pill("warn", "non-default") : ""}</td></tr>`).join("")}
+        </tbody></table></div>`
+    : `<div class="muted" style="font-size:12.5px">${esc(r.summary)}</div>`;
+  $("#hostsBody").innerHTML = `<div style="margin-bottom:6px">${r.flagged ? pill("warn", r.flagged + " non-default") : pill("good", "Default")}</div>${rows}`;
 };
 
 /* ---- Performance snapshot ("why slow now") ---- */
@@ -3508,7 +3574,7 @@ async function loadDebloat() {
 
 async function loadTweaks() {
   const r = await api.get_tweaks();
-  const cats = ["Performance", "Gaming", "Privacy", "Interface", "Ads & noise"];
+  const cats = ["Performance", "Gaming", "Network & power", "Privacy", "Interface", "Ads & noise"];
   $("#tweaksBody").innerHTML = cats.map(cat => {
     const items = r.items.filter(i => i.cat === cat);
     if (!items.length) return "";
@@ -3519,7 +3585,7 @@ async function loadTweaks() {
           <div class="t-help">${esc(i.help)}</div>
           <div class="t-help mono copy" style="font-size:10.5px; margin-top:2px; opacity:0.8">${esc(i.where)}</div>
         </div>
-        <button class="switch ${i.enabled ? "on" : ""}" data-tweak="${i.key}" data-restart="${i.restart || ""}" ${i.admin && !r.is_admin ? "disabled" : ""}></button>
+        <button class="switch ${i.enabled ? "on" : ""}" role="switch" aria-checked="${i.enabled}" aria-label="${esc(i.label)}" data-tweak="${i.key}" data-restart="${i.restart || ""}" ${i.admin && !r.is_admin ? "disabled" : ""}></button>
       </div>`).join("") + `</div>`;
   }).join("");
   $("#tweaksBody").querySelectorAll("[data-tweak]").forEach(sw => sw.onclick = async () => {
@@ -3527,6 +3593,7 @@ async function loadTweaks() {
     const res = await api.set_tweak(sw.dataset.tweak, enable);
     if (!res.ok) { toast(res.error, "bad"); return; }
     sw.classList.toggle("on", enable);
+    sw.setAttribute("aria-checked", String(enable));
     toast(enable ? "Applied" : "Restored Windows default", "good", 1500);
     if (sw.dataset.restart === "explorer") $("#explorerRow").style.display = "";
     if (sw.dataset.restart === "reboot") toast("Takes effect after a reboot.", "info", 3000);
@@ -3548,6 +3615,14 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.9.0", name: "One-stop tools, deeper diagnostics & UI polish", items: [
+    "File hash (Toolbox) — MD5 / SHA-1 / SHA-256 of any file, computed locally; pairs with the VirusTotal check.",
+    "Hosts file viewer (Toolbox) — shows active host overrides and flags non-default entries (a redirect/hijack check).",
+    "SMART attributes (Storage) — the raw drive self-monitoring counters, with reallocated/pending/uncorrectable sectors flagged.",
+    "Crash-dump suspects (Event Log → Crashes) — the third-party drivers loaded in your minidumps, the usual BSOD culprits.",
+    "Five more tweaks (53 total): a new Network & power group (disable IPv6, show Hibernate), plus 'Take ownership' right-click, This PC on the desktop, and drive letters before names.",
+    "UI fixes from a full design + accessibility sweep: the sidebar number shortcuts now read in a clean 1–0 sequence, and tweak toggles and inputs are properly labelled for screen readers.",
+  ] },
   { v: "2.8.1", name: "23 more tweaks", items: [
     "Cleanup → Tweaks grew from 25 to 48 reversible toggles, including a new Gaming group.",
     "Gaming: disable mouse acceleration, Game DVR background recording, and network throttling.",
