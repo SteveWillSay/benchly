@@ -328,7 +328,7 @@
           <div id="anTypes" class="mt" style="display:none"></div>
         </div>
 
-        <div class="card" style="margin-top:12px">
+        <div class="card admin-only" style="margin-top:12px">
           <h3>Advanced storage health <span class="right"><button class="btn small" id="btnStorageDeep">Check</button></span></h3>
           <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
             Beyond SMART: is TRIM running on the SSDs, any Storage Spaces pool health, the drives' reliability
@@ -768,7 +768,7 @@
               Create a system restore point before making changes — a one-click rollback if something goes wrong.
             </p>
             <div class="row">
-              <button class="btn primary" id="btnRpCreate"><svg class="ic"><use href="#i-shield"/></svg>Create restore point</button>
+              <button class="btn primary admin-only" id="btnRpCreate"><svg class="ic"><use href="#i-shield"/></svg>Create restore point</button>
               <button class="btn" id="btnRpOpen">Open System Restore</button>
             </div>
             <div id="rpList" class="mt"></div>
@@ -939,7 +939,7 @@
               Schedules the built-in Windows Memory Diagnostic — the machine reboots into the test
               (about 10 minutes) and logs the verdict on the way back up. Past results appear below.
             </p>
-            <button class="btn primary" id="btnMemDiag">Schedule memory test</button>
+            <button class="btn primary admin-only" id="btnMemDiag">Schedule memory test</button>
             <div id="memResults" class="mt"></div>
           </div>
           <div class="card">

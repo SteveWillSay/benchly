@@ -220,6 +220,8 @@ async function boot() {
   } catch { /* default gradient */ }
   const info = await api.app_info();
   isAdmin = info.is_admin;
+  // Hide every elevation-gated control/field until elevated (see .admin-only in CSS).
+  document.body.classList.toggle("elevated", isAdmin);
   const ver = $("#appVersion");
   ver.textContent = `v${info.version}`;
   ver.classList.add("clickable");
@@ -233,6 +235,8 @@ async function boot() {
   const priv = $("#tbPriv");
   priv.textContent = isAdmin ? "Elevated" : "Standard";
   priv.classList.add(isAdmin ? "ok" : "warn");
+  priv.title = isAdmin ? "Running elevated — all tools available"
+                       : "Standard user — tools that need elevation are hidden. Use Run as admin to show them.";
   if (!isAdmin) {
     const btn = $("#btnElevate");
     btn.style.display = "";
@@ -457,8 +461,10 @@ async function loadSystem(refresh = false) {
       ["Board serial", inv.board.serial],
       ["BIOS / UEFI", `${inv.bios.vendor ?? "—"} ${inv.bios.version ?? ""}`],
       ["BIOS date", inv.bios.date], ["System serial", inv.bios.serial],
-      ["Secure Boot", inv.secure_boot === true ? "Enabled" : inv.secure_boot === false ? "Disabled" : "Unknown (needs admin)"],
-      ["TPM", inv.tpm ? `${inv.tpm.enabled ? "Enabled" : "Present, disabled"} — spec ${esc(String(inv.tpm.spec ?? "?")).split(",")[0]}` : "Unknown (needs admin)"],
+      ...(isAdmin ? [
+        ["Secure Boot", inv.secure_boot === true ? "Enabled" : inv.secure_boot === false ? "Disabled" : "Unknown"],
+        ["TPM", inv.tpm ? `${inv.tpm.enabled ? "Enabled" : "Present, disabled"} — spec ${esc(String(inv.tpm.spec ?? "?")).split(",")[0]}` : "Unknown"],
+      ] : []),
     ])}</div>
   </div>
 
@@ -494,7 +500,7 @@ async function loadStorage(refresh = false) {
     if (!d.health) return pill("unknown", "Unknown");
     return d.health === "Healthy" ? pill("good", "Healthy") : pill("bad", d.health);
   };
-  const needsAdmin = `<span class="muted">${isAdmin ? "not reported" : "needs admin"}</span>`;
+  const notRep = `<span class="muted">not reported</span>`;
 
   body.innerHTML = `
   <div class="grid cols-2">${st.disks.map(d => `
@@ -510,17 +516,17 @@ async function loadStorage(refresh = false) {
       <dl class="kv tight">
         <dt>Serial</dt><dd class="mono copy" style="font-size:11px">${esc(d.serial || "—")}</dd>
         <dt>Firmware</dt><dd class="copy">${esc(d.firmware || "—")}</dd>
-        <dt>Temperature</dt><dd>${d.temp_c ? d.temp_c + " °C" : needsAdmin}</dd>
-        <dt>Wear</dt><dd>${d.wear_pct !== null && d.wear_pct !== undefined ? d.wear_pct + " %" : needsAdmin}</dd>
-        <dt>Power-on hours</dt><dd>${d.power_on_hours ? d.power_on_hours.toLocaleString() + " h" : needsAdmin}</dd>
+        ${isAdmin ? `<dt>Temperature</dt><dd>${d.temp_c ? d.temp_c + " °C" : notRep}</dd>
+        <dt>Wear</dt><dd>${d.wear_pct !== null && d.wear_pct !== undefined ? d.wear_pct + " %" : notRep}</dd>
+        <dt>Power-on hours</dt><dd>${d.power_on_hours ? d.power_on_hours.toLocaleString() + " h" : notRep}</dd>` : ""}
       </dl>
     </div>`).join("")}
   </div>
   <div class="card mt"><h3>Volumes</h3>${st.volumes.map(v => volBar(v)).join("")}</div>
-  <div class="card mt"><h3>SMART attributes <span class="right"><button class="btn small" id="btnSmart">Show</button></span></h3>
+  <div class="card mt admin-only"><h3>SMART attributes <span class="right"><button class="btn small" id="btnSmart">Show</button></span></h3>
     <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:8px">
       The raw drive self-monitoring counters — reallocated, pending and uncorrectable sectors are the
-      early warning signs of a failing disk. Mostly SATA/ATA drives; NVMe rarely exposes them, and reading needs admin.</p>
+      early warning signs of a failing disk. Mostly SATA/ATA drives; NVMe rarely exposes them.</p>
     <div id="smartBody"></div></div>`;
   const smartBtn = $("#btnSmart");
   if (smartBtn) smartBtn.onclick = async () => {
@@ -866,7 +872,7 @@ async function loadShProfile() {
   el.innerHTML = r.profiles.map(p => `<div class="dom-sec">
     <div class="dr"><span class="dk strong">${esc(p.interface)}</span><span class="dv">
       ${p.is_public ? pill("warn", "Public") : pill("good", esc(p.category))}
-      ${p.is_public ? `<button class="btn small primary" style="margin-left:8px" data-mkpriv="${esc(p.interface)}">Set Private</button>` : ""}</span></div>
+      ${p.is_public ? `<button class="btn small primary admin-only" style="margin-left:8px" data-mkpriv="${esc(p.interface)}">Set Private</button>` : ""}</span></div>
     ${p.is_public ? `<div class="muted" style="font-size:11.5px; margin-top:4px">On Public, Windows hides this PC and blocks file/printer sharing &amp; discovery. If this is a home or work network, set it Private.</div>` : ""}
     </div>`).join("");
   $$("#shProfile [data-mkpriv]").forEach(b => b.onclick = async () => {
@@ -979,7 +985,7 @@ $("#btnEnvAudit").onclick = async () => {
     r.var_warnings.map(v => `<div class="dr"><span class="dk strong">${esc(v.name)}</span><span class="dv mono" style="font-size:11px">${esc(v.value)}</span></div>`).join("")}</div>` : "";
   const clean = r.problem_count ? `<div class="row" style="margin-top:8px">
     <button class="btn small primary" data-clean-path="User">Clean User PATH</button>
-    <button class="btn small ghost" data-clean-path="Machine">Clean Machine PATH (admin)</button>
+    <button class="btn small ghost admin-only" data-clean-path="Machine">Clean Machine PATH</button>
     <span class="muted" style="font-size:11px">Removes broken &amp; duplicate entries; backs up the prior value.</span></div>` : "";
   $("#envBody").innerHTML = head + `<div class="dom-sec" style="margin-top:8px">${rows}</div>` + vw + clean;
   $$("#envBody [data-clean-path]").forEach(b => b.onclick = async () => {
@@ -1037,7 +1043,7 @@ $("#btnAudioCheck").onclick = async () => {
     </tbody></table></div>` : emptyState("bang", "No audio endpoints found");
   const svc = `<div class="row" style="gap:6px; margin-top:8px">${r.services.map(s =>
     s.concern ? pill("warn", `${esc(s.name)}: ${esc(s.status)}`) : pill("good", `${esc(s.name)}: ${esc(s.status)}`)).join("")}
-    <button class="btn small ghost" id="btnAudioRestart" title="Restart the audio services">Restart audio</button></div>`;
+    <button class="btn small ghost admin-only" id="btnAudioRestart" title="Restart the audio services">Restart audio</button></div>`;
   $("#audioBody").innerHTML = notes + list + svc;
   const rb = $("#btnAudioRestart");
   if (rb) rb.onclick = async () => {
@@ -1602,9 +1608,8 @@ async function loadBoot() {
       <div class="speed-kpi"><div class="v" style="font-size:15px">${esc(r.last_boot || "—")}</div><div class="l">Last boot</div></div>
       <div class="speed-kpi"><div class="v">${fs}</div><div class="l">Fast Startup</div></div>
     </div></div>`;
-  if (r.needs_admin) {
-    el.innerHTML = head + `<div class="card">${emptyState("shield", "Run as admin for the full boot breakdown")}
-      <p class="muted" style="font-size:12px; text-align:center">${esc(r.note || "")}</p></div>`;
+  if (r.needs_admin) {   // keep the basic boot KPIs; the detailed breakdown needs elevation, so omit it
+    el.innerHTML = head;
     return;
   }
   const last = r.boots && r.boots[0];
@@ -1828,7 +1833,7 @@ async function loadDevices() {
         <span class="right row" style="gap:8px">
           ${spoolerOk ? pill("good", "Spooler running") : pill("bad", "Spooler " + esc(p.spooler))}
           <button class="btn small" id="btnPrnRescan">Re-check</button>
-          <button class="btn small danger" id="btnPurgeQueue" title="Stop spooler, delete stuck jobs, restart">Purge queue</button>
+          <button class="btn small danger admin-only" id="btnPurgeQueue" title="Stop spooler, delete stuck jobs, restart">Purge queue</button>
         </span>
       </h3>${banner}${printers}</div>`;
     $("#btnPrnRescan").onclick = loadDevices;
@@ -1886,7 +1891,8 @@ $("#btnDevRefresh").onclick = () => loadDevices();
 /* ================= TOOLBOX page ================= */
 let repairJob = null, repairOffset = 0, repairTimer = null;
 async function loadToolbox() {
-  const tools = await api.list_repair_tools();
+  // Repair tools all require elevation — don't render them at all until elevated.
+  const tools = isAdmin ? await api.list_repair_tools() : [];
   $("#toolGrid").innerHTML = tools.map(t => `
     <div class="tool-card" data-tool="${t.id}">
       <div class="t-name">${ico("wrench", "ic sm")}${esc(t.label)}</div>
@@ -2066,12 +2072,12 @@ $("#btnPowerScan").onclick = async () => {
     ? (r.requests.blockers.length
         ? r.requests.blockers.map(b => `<div class="dr"><span class="dk">${esc(b.category)}</span><span class="dv">${esc(b.what)}</span></div>`).join("")
         : `<div class="muted" style="font-size:12px">Nothing is keeping the PC awake right now.</div>`)
-    : `<div class="muted" style="font-size:12px">Run as admin to see this.</div>`;
+    : "";   // hide until elevated
   const timers = r.wake_timers.admin
     ? (r.wake_timers.timers.length
         ? r.wake_timers.timers.map(t => `<div class="dr"><span class="dk strong">timer</span><span class="dv">${esc(t.reason || t.owner)}</span></div>`).join("")
         : `<div class="muted" style="font-size:12px">No wake timers are armed.</div>`)
-    : `<div class="muted" style="font-size:12px">Run as admin to see this.</div>`;
+    : "";   // hide until elevated
   const devices = r.wake_devices.length
     ? `<div class="row wrap" style="gap:6px">${r.wake_devices.map(d => `<span class="pill info" title="Can wake the PC">${esc(d)}</span>`).join("")}</div>`
     : `<div class="muted" style="font-size:12px">No devices are armed to wake the PC.</div>`;
@@ -2352,7 +2358,7 @@ async function loadSecurity(refresh = false) {
     `<dt>${esc(f.name)} firewall</dt><dd>${f.enabled ? "Enabled" : `<span style="color:var(--crit)">Disabled</span>`}</dd>`).join("");
   const bl = (h.bitlocker_volumes || []).map(v =>
     `<dt>BitLocker ${esc(v.mount)}</dt><dd>${esc(v.protection)} (${esc(String(v.status ?? ""))})</dd>`).join("")
-    || `<dt>BitLocker</dt><dd class="muted">${h.is_admin ? "No volumes reported" : "Needs elevation"}</dd>`;
+    || (h.is_admin ? `<dt>BitLocker</dt><dd class="muted">No volumes reported</dd>` : "");
   const checkById = id => h.checks.find(c => c.id === id);
   const fmtCheck = id => {
     const c = checkById(id);
@@ -2361,8 +2367,8 @@ async function loadSecurity(refresh = false) {
   $("#secDefenses").innerHTML = `<h3>Defenses</h3><dl class="kv">
     ${fw}${bl}
     <dt>UAC</dt><dd>${fmtCheck("uac")}</dd>
-    <dt>Secure Boot</dt><dd>${inv.secure_boot === true ? "Enabled" : inv.secure_boot === false ? `<span style="color:var(--warn)">Disabled</span>` : "Unknown (needs admin)"}</dd>
-    <dt>TPM</dt><dd>${inv.tpm ? (inv.tpm.enabled ? "Enabled" : "Present, disabled") : "Unknown (needs admin)"}</dd>
+    ${isAdmin ? `<dt>Secure Boot</dt><dd>${inv.secure_boot === true ? "Enabled" : inv.secure_boot === false ? `<span style="color:var(--warn)">Disabled</span>` : "Unknown"}</dd>
+    <dt>TPM</dt><dd>${inv.tpm ? (inv.tpm.enabled ? "Enabled" : "Present, disabled") : "Unknown"}</dd>` : ""}
   </dl>`;
 }
 $("#btnSecRefresh").onclick = () => loadSecurity(true);
@@ -2826,8 +2832,8 @@ async function loadPersistence() {
       ${sec("WMI event subscriptions", wmi, p.wmi.length)}
       ${sec("Suspicious services", svc, p.services.length)}
       ${sec("Suspicious scheduled tasks", tasks, p.tasks.length)}
-      ${sec("Defender exclusions", defenderHtml, d.defender && !d.needs_admin ? d.exclusions.length : null)}
-      ${sec("Recently executed (last 14 days)", execHtml, e.ok ? e.recent_count : null)}
+      ${d.needs_admin ? "" : sec("Defender exclusions", defenderHtml, d.defender ? d.exclusions.length : null)}
+      ${(!e.ok && e.error === "no_admin") ? "" : sec("Recently executed (last 14 days)", execHtml, e.ok ? e.recent_count : null)}
     </div>`;
   if (d.exclusions) $("#persistBody").querySelectorAll("[data-excl]").forEach(b => b.onclick = async () => {
     const x = d.exclusions[+b.dataset.excl];
@@ -2853,7 +2859,7 @@ async function loadHardening() {
         <div class="t-help">${esc(c.help)}</div>
         <div class="t-help mono copy" style="font-size:10.5px; margin-top:2px; opacity:0.8">${esc(c.where)} · now: ${esc(c.current)}</div>
       </div>
-      ${c.ok ? "" : `<button class="btn small" data-harden="${esc(c.key)}" ${c.admin && !h.is_admin ? "disabled title='needs admin'" : ""}>Apply fix</button>`}
+      ${c.ok || (c.admin && !h.is_admin) ? "" : `<button class="btn small" data-harden="${esc(c.key)}">Apply fix</button>`}
     </div>`).join("");
   $("#hardenBody").querySelectorAll("[data-harden]").forEach(b => b.onclick = async () => {
     b.disabled = true; b.textContent = "Applying…";
@@ -2870,9 +2876,9 @@ async function loadAsr() {
   $("#asrBody").innerHTML = `<div class="table-wrap"><table><thead><tr><th>Rule</th><th>State</th><th></th></tr></thead><tbody>
     ${a.rules.map(r => `<tr><td class="strong">${esc(r.label)}</td><td>${modePill(r.state)}</td>
       <td style="white-space:nowrap">
-        <button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="audit" ${!a.is_admin ? "disabled" : ""}>Audit</button>
-        <button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="block" ${!a.is_admin ? "disabled" : ""}>Block</button>
-        ${r.state !== "off" ? `<button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="off" ${!a.is_admin ? "disabled" : ""}>Off</button>` : ""}
+        ${a.is_admin ? `<button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="audit">Audit</button>
+        <button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="block">Block</button>
+        ${r.state !== "off" ? `<button class="btn ghost small" data-asr="${esc(r.id)}" data-mode="off">Off</button>` : ""}` : `<span class="muted" style="font-size:11px">—</span>`}
       </td></tr>`).join("")}</tbody></table></div>`;
   $("#asrBody").querySelectorAll("[data-asr]").forEach(b => b.onclick = async () => {
     const r = await api.set_asr(b.dataset.asr, b.dataset.mode);
@@ -3133,8 +3139,8 @@ function openRunbook(id) {
           <div class="row" style="justify-content:space-between">
             <div><span style="font-weight:500; color:var(--text-1)">${esc(s.label)}</span>
               ${s.kind === "fix" ? pill("info", "fix") : `<span class="muted" style="font-size:11px">check</span>`}
-              ${s.admin ? `<span class="muted" style="font-size:11px"> · needs admin</span>` : ""}</div>
-            <button class="btn small ${s.kind === "fix" ? "danger" : ""}" data-runstep="${s.id}">${s.kind === "fix" ? "Run fix" : "Check"}</button>
+              ${s.admin && !isAdmin ? `<span class="muted" style="font-size:11px"> · needs admin</span>` : ""}</div>
+            ${s.admin && !isAdmin ? "" : `<button class="btn small ${s.kind === "fix" ? "danger" : ""}" data-runstep="${s.id}">${s.kind === "fix" ? "Run fix" : "Check"}</button>`}
           </div>
           ${s.note ? `<div class="muted" style="font-size:11.5px; margin-top:3px">${esc(s.note)}</div>` : ""}
           <div class="step-out" style="display:none"></div>
@@ -3218,7 +3224,7 @@ $("#btnBitlocker").onclick = async () => {
   const b = await api.bitlocker_status();
   const vols = b.volumes.map(v => `<div class="dr"><span class="dk strong">${esc(v.mount)}</span>
     <span class="dv">${v.on ? pill("good", "Encrypted") : `<span class="muted">Off</span>`}
-    ${v.on ? (v.has_recovery ? `<button class="btn ghost small" data-bkey="${esc(v.mount)}">Show key</button>` : pill("warn", "no recovery key")) : ""}</span></div>`).join("");
+    ${v.on ? (v.has_recovery ? `<button class="btn ghost small admin-only" data-bkey="${esc(v.mount)}">Show key</button>` : pill("warn", "no recovery key")) : ""}</span></div>`).join("");
   $("#bitlockerResult").innerHTML = `<div class="dom-verdict">${(b.flags || []).map(helperFlag).join("")}</div>${vols}`;
   $("#bitlockerResult").querySelectorAll("[data-bkey]").forEach(btn => btn.onclick = async () => {
     const r = await api.get_recovery_key(btn.dataset.bkey);
@@ -3302,7 +3308,7 @@ $("#btnVirt").onclick = async () => {
   let wsl = "";
   if (v.wsl.installed) {
     const distros = v.wsl.distros.map(d => `${esc(d.name)} (v${d.version}, ${esc(d.state)})`).join(", ") || "none";
-    const vhdx = v.wsl.vhdx.map((x, i) => `<div class="dr"><span class="dk mono" style="font-size:11px; word-break:break-all">${esc(x.path)}</span><span class="dv">${fmtBytes(x.bytes)} ${x.bytes > 21474836480 ? `<button class="btn ghost small" data-vhdx="${esc(x.path)}">Compact</button>` : ""}</span></div>`).join("");
+    const vhdx = v.wsl.vhdx.map((x, i) => `<div class="dr"><span class="dk mono" style="font-size:11px; word-break:break-all">${esc(x.path)}</span><span class="dv">${fmtBytes(x.bytes)} ${x.bytes > 21474836480 ? `<button class="btn ghost small admin-only" data-vhdx="${esc(x.path)}">Compact</button>` : ""}</span></div>`).join("");
     wsl = `<div class="dom-sec"><h4>WSL</h4><div class="muted" style="font-size:12px">Distros: ${distros}${v.wsl.mem_cap ? ` · memory cap ${esc(v.wsl.mem_cap)}` : " · no memory cap set"}</div>${vhdx}</div>`;
   } else wsl = `<div class="dom-sec"><h4>WSL</h4><div class="muted" style="font-size:12px">Not installed.</div></div>`;
   const sw = v.switches.length ? `<div class="dom-sec"><h4>Hyper-V switches</h4>${v.switches.map(s => `<div class="dr"><span class="dk">${esc(s.name)}</span><span class="dv muted">${esc(s.type)}${s.adapter ? " · " + esc(s.adapter) : ""}</span></div>`).join("")}</div>` : "";
@@ -3441,9 +3447,9 @@ async function loadWpPosture() {
       ? s.applied.map(g => `<div class="dr"><span class="dk strong">${esc(g)}</span><span class="dv good">applied</span></div>`).join("")
       : `<div class="muted" style="font-size:12px">None applied.</div>`;
     gpoCard += `<p class="muted" style="font-size:12.5px; margin-bottom:8px">${esc(gpo.summary)}</p>
-      <div class="dom-sec"><h4>Computer scope${gpo.computer_needs_admin ? ` ${pill("info", "needs admin")}` : ""}</h4>
+      ${gpo.computer_needs_admin ? "" : `<div class="dom-sec"><h4>Computer scope</h4>
         ${gpo.computer.last_applied ? `<div class="muted" style="font-size:11px; margin-bottom:4px">Last applied ${esc(gpo.computer.last_applied)}</div>` : ""}
-        ${gpoList(gpo.computer)}</div>
+        ${gpoList(gpo.computer)}</div>`}
       <div class="dom-sec"><h4>User scope</h4>
         ${gpo.user.last_applied ? `<div class="muted" style="font-size:11px; margin-bottom:4px">Last applied ${esc(gpo.user.last_applied)}</div>` : ""}
         ${gpoList(gpo.user)}</div>`;
@@ -3525,8 +3531,8 @@ async function loadWpBaseline() {
         </div>
         <div class="row" style="gap:6px; align-items:center; flex-shrink:0">
           ${wpBaselineWidget(c)}
-          ${!c.gated ? `<button class="btn small primary b-apply" data-bkey="${c.key}" ${r.is_admin ? "" : "disabled"}>Apply</button>` : ""}
-          ${!c.gated && c.set ? `<button class="btn small ghost b-clear" data-bkey="${c.key}" ${r.is_admin ? "" : "disabled"} title="Delete the policy — back to Windows default">Clear</button>` : ""}
+          ${!c.gated && r.is_admin ? `<button class="btn small primary b-apply" data-bkey="${c.key}">Apply</button>` : ""}
+          ${!c.gated && c.set && r.is_admin ? `<button class="btn small ghost b-clear" data-bkey="${c.key}" title="Delete the policy — back to Windows default">Clear</button>` : ""}
         </div>
       </div></div>`).join("")}
     </div>`).join("");
@@ -3686,7 +3692,8 @@ async function loadTweaks() {
   const r = await api.get_tweaks();
   const cats = ["Performance", "Gaming", "Network & power", "Privacy", "Interface", "Ads & noise"];
   $("#tweaksBody").innerHTML = cats.map(cat => {
-    const items = r.items.filter(i => i.cat === cat);
+    // hide elevation-gated tweaks entirely until elevated
+    const items = r.items.filter(i => i.cat === cat && (r.is_admin || !i.admin));
     if (!items.length) return "";
     return `<div class="card" style="margin-bottom:12px"><h3>${cat}</h3>` + items.map(i => `
       <div class="toggle-row">
@@ -3695,7 +3702,7 @@ async function loadTweaks() {
           <div class="t-help">${esc(i.help)}</div>
           <div class="t-help mono copy" style="font-size:10.5px; margin-top:2px; opacity:0.8">${esc(i.where)}</div>
         </div>
-        <button class="switch ${i.enabled ? "on" : ""}" role="switch" aria-checked="${i.enabled}" aria-label="${esc(i.label)}" data-tweak="${i.key}" data-restart="${i.restart || ""}" ${i.admin && !r.is_admin ? "disabled" : ""}></button>
+        <button class="switch ${i.enabled ? "on" : ""}" role="switch" aria-checked="${i.enabled}" aria-label="${esc(i.label)}" data-tweak="${i.key}" data-restart="${i.restart || ""}"></button>
       </div>`).join("") + `</div>`;
   }).join("");
   $("#tweaksBody").querySelectorAll("[data-tweak]").forEach(sw => sw.onclick = async () => {
@@ -3725,6 +3732,11 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.11.0", name: "Hardening: elevated tools hidden until elevated", items: [
+    "Anything that needs administrator rights to run is now hidden from the standard (non-elevated) view — repair tools, admin tweaks, hardening & ASR fixes, Defender exclusion management, restore points, the managed baseline, take-ownership, print-queue purge, and more.",
+    "Privileged read-only data that can't load without elevation (SMART attributes, TPM / Secure Boot / BitLocker, advanced storage health, the Defender exclusion list, recent-execution, the full boot breakdown) is hidden too, rather than showing a 'needs admin' placeholder.",
+    "Run as admin in the title bar reveals everything; the Standard badge explains elevated tools are hidden until then. The Health Audit and hardening scorecard stay visible and degrade honestly.",
+  ] },
   { v: "2.10.1", name: "Treemap: folders tinted by content", items: [
     "In the space-analyzer treemap, each folder is now coloured by the type of content that fills it — video purple, images teal, code green, and so on — so you can read what a drive is actually full of at a glance, not just where the big folders are.",
   ] },
@@ -4030,7 +4042,7 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "q", label: "Decode an error code", run: () => { showPage("toolbox"); setTimeout(() => $("#errInput")?.focus(), 60); } },
   { cat: "Actions", icon: "wrench", label: "Find what's locking a file", run: () => { showPage("toolbox"); setTimeout(() => $("#lockInput")?.focus(), 60); } },
   { cat: "Actions", icon: "aid", label: "Check user profile health", run: () => { showPage("toolbox"); $("#btnProfChk")?.click(); } },
-  { cat: "Actions", icon: "wrench", label: "Full network reset (Winsock + TCP/IP)", run: () => { showPage("toolbox"); setTimeout(() => $(`[data-run="net_full"]`)?.scrollIntoView({ block: "center" }), 60); } },
+  { cat: "Actions", icon: "wrench", admin: true, label: "Full network reset (Winsock + TCP/IP)", run: () => { showPage("toolbox"); setTimeout(() => $(`[data-run="net_full"]`)?.scrollIntoView({ block: "center" }), 60); } },
   { cat: "Actions", icon: "cpu2", label: "Battery wear & power efficiency", run: () => { showPage("system"); $("#btnBatteryReport")?.click(); } },
   { cat: "Actions", icon: "wrench", label: "Environment & PATH audit", run: () => { showPage("system"); $("#btnEnvAudit")?.click(); } },
   { cat: "Actions", icon: "cpu2", label: "Installed runtimes (.NET / VC++ / DirectX)", run: () => { showPage("system"); $("#btnRuntimes")?.click(); } },
@@ -4059,7 +4071,7 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "refresh", label: "Check for a pending restart", run: () => { showPage("toolbox"); $("#btnRebootCheck")?.click(); } },
   { cat: "Actions", icon: "download", label: "Update doctor (why is Windows Update stuck?)", run: () => { showPage("toolbox"); $("#btnWuCheck")?.click(); } },
   { cat: "Actions", icon: "history", label: "Boot-time breakdown", run: () => { showPage("events"); $(`#evTabs [data-ev="boot"]`)?.click(); } },
-  { cat: "Actions", icon: "drive", label: "Clean up the component store (WinSxS)", run: () => { showPage("toolbox"); $(`[data-run="dism_analyze"]`)?.scrollIntoView({ block: "center" }); } },
+  { cat: "Actions", icon: "drive", admin: true, label: "Clean up the component store (WinSxS)", run: () => { showPage("toolbox"); $(`[data-run="dism_analyze"]`)?.scrollIntoView({ block: "center" }); } },
   { cat: "Actions", icon: "bug", label: "Gremlin hunters (disk / USB / freeze)", run: () => { showPage("toolbox"); $("#btnGremDisk")?.scrollIntoView({ block: "center" }); } },
   { cat: "Actions", icon: "wrench", label: "Cache & shell repair (blank icons, fonts…)", run: () => { showPage("cleanup"); $(`#cleanTabs [data-clean="repair"]`).click(); } },
   { cat: "Actions", icon: "printer", label: "Printer doctor", run: () => { showPage("devices"); $("#prnBody")?.scrollIntoView({ block: "center" }); } },
@@ -4075,7 +4087,7 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "shield", label: "Browser hijack scan", run: () => { showPage("security"); $(`#secTabs [data-sec="hijack"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Remote-access / scam check", run: () => { showPage("security"); $(`#secTabs [data-sec="remote"]`).click(); } },
   { cat: "Actions", icon: "broom", label: "Scan for junk files", run: () => { showPage("cleanup"); $("#btnJunkScan").click(); } },
-  { cat: "Actions", icon: "shield", label: "Create a restore point", run: () => { showPage("toolbox"); $("#btnRpCreate").click(); } },
+  { cat: "Actions", icon: "shield", admin: true, label: "Create a restore point", run: () => { showPage("toolbox"); $("#btnRpCreate").click(); } },
   { cat: "Actions", icon: "aid", label: "Guided Fix-It runbooks", run: () => showPage("fixit") },
   { cat: "Actions", icon: "history", label: "What's new (changelog)", run: openChangelog },
   { cat: "Actions", icon: "cpu2", label: "Windows tweaks", run: () => { showPage("cleanup"); $(`#cleanTabs [data-clean="tweaks"]`).click(); } },
@@ -4099,7 +4111,7 @@ function openPalette() {
 function closePalette() { $("#palette-veil").classList.remove("open"); }
 function renderPalette() {
   const q = $("#paletteInput").value.trim().toLowerCase();
-  palMatches = PALETTE_ITEMS.filter(x => !q || x.label.toLowerCase().includes(q));
+  palMatches = PALETTE_ITEMS.filter(x => (isAdmin || !x.admin) && (!q || x.label.toLowerCase().includes(q)));
   palSel = Math.min(palSel, Math.max(0, palMatches.length - 1));
   let lastCat = "";
   $("#paletteList").innerHTML = palMatches.map((x, i) => {
