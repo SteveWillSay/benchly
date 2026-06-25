@@ -106,6 +106,64 @@ function labelInputs(root = document) {
 }
 labelInputs();
 
+/* ---- tooltips: one on-brand floating tip for any [data-tip]; upgrades native title= ---- */
+const PAGE_TIPS = {   // sentence-case here; the Chevron theme lower-cases all text itself
+  dashboard: "Live vitals — CPU, RAM, disk & network, a health-score ring and top processes.",
+  system: "Full hardware & OS inventory: CPU, RAM, GPU, monitor, board, BIOS and live sensors.",
+  storage: "Physical disks & SMART health, volumes, and a visual space analyzer.",
+  network: "Adapters, Wi-Fi, public IP, ping / traceroute / DNS, and a LAN toolkit.",
+  processes: "Live, sortable process list — end a task straight from the row.",
+  software: "Installed apps, startup items, services, hotfixes and pending updates.",
+  devices: "Problem (yellow-bang) devices, driver audit and printer triage.",
+  security: "Antivirus, firewall, autoruns, persistence and file / URL reputation.",
+  health: "A weighted health & security audit, scored out of 100.",
+  events: "Event-log triage in plain English, plus a crashes / BSOD tab.",
+  toolbox: "Repair tools (SFC, DISM…), an error-code decoder and quick diagnostics.",
+  fixit: "Guided, step-by-step runbooks for common problems.",
+  helper: "Family-IT tools — BitLocker key, photo rescue, scam-recovery checklist.",
+  cleanup: "Reclaim space, debloat, privacy toggles and reversible tweaks.",
+  fleet: "Snapshot remote machines over WinRM and compare reports.",
+  workplace: "Activation, identity / domain, applied policies and corporate IT.",
+};
+$$(".nav-item").forEach(b => { const t = PAGE_TIPS[b.dataset.page]; if (t) b.setAttribute("data-tip", t); });
+
+(function initTooltips() {
+  const tip = document.createElement("div");
+  tip.id = "tooltip"; tip.setAttribute("role", "tooltip"); tip.setAttribute("aria-hidden", "true");
+  document.body.appendChild(tip);
+  let current = null, timer = null;
+  const place = t => {
+    const r = t.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+    const left = Math.max(6, Math.min(r.left + r.width / 2 - tw / 2, innerWidth - tw - 6));
+    let top = r.top - th - 7;
+    if (top < 6) top = r.bottom + 7;   // flip below when there's no room above
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  };
+  const show = (t, text) => { current = t; tip.textContent = text; place(t); requestAnimationFrame(() => { place(t); tip.classList.add("show"); }); };
+  const hide = () => { current = null; clearTimeout(timer); tip.classList.remove("show"); };
+  const tipFor = el => {
+    const t = el && el.closest && el.closest("[data-tip],[title]");
+    if (!t) return null;
+    if (!t.hasAttribute("data-tip")) {   // upgrade a native title once — kills the slow OS tooltip
+      const v = t.getAttribute("title"); if (!v) return null;
+      t.setAttribute("data-tip", v); t.removeAttribute("title");
+    }
+    return t.getAttribute("data-tip") ? t : null;
+  };
+  document.addEventListener("mouseover", e => {
+    const t = tipFor(e.target);
+    if (!t) { if (current) hide(); return; }
+    if (t === current) return;
+    clearTimeout(timer); tip.classList.remove("show"); current = null;
+    timer = setTimeout(() => show(t, t.getAttribute("data-tip")), 350);
+  });
+  document.addEventListener("mouseout", e => { const t = e.target.closest && e.target.closest("[data-tip]"); if (t && t === current) hide(); });
+  document.addEventListener("mousedown", hide, true);
+  window.addEventListener("scroll", hide, true);
+  document.addEventListener("focusin", e => { const t = tipFor(e.target); if (t) show(t, t.getAttribute("data-tip")); });
+  document.addEventListener("focusout", hide);
+})();
+
 const PAGES = ["dashboard", "system", "storage", "network", "processes", "software",
                "devices", "health", "events", "toolbox", "security", "fleet", "fixit", "helper", "cleanup", "workplace"];
 document.addEventListener("keydown", e => {
@@ -3776,7 +3834,7 @@ async function loadTweaks() {
           <div class="t-help">${esc(i.help)}</div>
           <div class="t-help mono copy" style="font-size:10.5px; margin-top:2px; opacity:0.8">${esc(i.where)}</div>
         </div>
-        <button class="switch ${i.enabled ? "on" : ""}" role="switch" aria-checked="${i.enabled}" aria-label="${esc(i.label)}" data-tweak="${i.key}" data-restart="${i.restart || ""}"></button>
+        <button class="switch ${i.enabled ? "on" : ""}" role="switch" aria-checked="${i.enabled}" aria-label="${esc(i.label)}" data-tip="Toggle on to apply this tweak · off restores the Windows default${i.restart === "reboot" ? " (needs a reboot)" : i.restart === "explorer" ? " (restarts Explorer)" : ""}" data-tweak="${i.key}" data-restart="${i.restart || ""}"></button>
       </div>`).join("") + `</div>`;
   }).join("");
   $("#tweaksBody").querySelectorAll("[data-tweak]").forEach(sw => sw.onclick = async () => {
@@ -3806,6 +3864,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.13.0", name: "Hover tips on every control", items: [
+    "Hover almost anything in Benchly and a small plain-English tip now explains what it does — every sidebar page, the title-bar buttons (appearance, run-as-admin, export report, what's-new), each tweak toggle (including whether it needs a reboot or restarts Explorer), and the repair-tool and copy actions that already had hints.",
+    "The tip is one consistent, on-brand style across all appearances, appears after a brief pause so it never gets in the way, repositions to stay on screen, and is hidden for people who prefer reduced motion. It reads as a true tooltip to screen readers.",
+  ] },
   { v: "2.12.2", name: "Frosted Glass: smoked-glass contrast fix", items: [
     "The Frosted Glass theme's panels were white-tinted, which lightened the gradient behind them — so on bright backgrounds (and near the corner glow) the text and lighter accents, especially the yellow 'warn' pills, washed out. Panels are now a translucent dark 'smoked glass': the gradient reads as ambient glow around and through them, while text and the vivid accent colours sit on a dark backing and stay legible on any background.",
   ] },

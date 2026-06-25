@@ -1,0 +1,2 @@
+a1e8128d4b5ed9dabc9088857ea047f8495f42e71dbee5db163ae5fec40754ab  Benchly-2.13.0-portable.exe
+568de52fffa4c4395434c8d7c764cc39591a4aeb8073cbe89c0145c55ba40427  Benchly-Setup-2.13.0.exe
