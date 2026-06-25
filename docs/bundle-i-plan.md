@@ -7,11 +7,11 @@ about *depth and repair muscle*, not surface area.
 Proposed theme: **"Won't fix itself" — deeper repairs + error decoding**, with a small
 accessibility pass shipped first as its own patch.
 
-## Recommended sequencing
+## Sequencing — DECIDED (2026-06-23)
 
-1. **v2.7.2 — accessibility patch (ship first).** Small, low-risk, high-perceived-quality; no
-   new surface. Clears the critique's a11y findings. A few days.
-2. **v2.8.0 — Bundle I proper.** The repair + decoding features below.
+Accessibility is **folded into v2.8.0** (no separate v2.7.2). Building the **full** bundle —
+all P1 + P2 + the accessibility/design-system work. A further **Tweaks** expansion is deferred
+to **after v2.8.0** (separate exploration).
 
 ---
 

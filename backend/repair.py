@@ -46,9 +46,36 @@ TOOLS = {
         "note": "Resets the network socket catalog. A reboot completes it.",
         "where": "Resets the Winsock catalog in the registry (HKLM\\SYSTEM\\…\\WinSock2) to defaults. Removes layered providers from misbehaving software. Reboot to finish.",
     },
+    "netip_reset": {
+        "label": "TCP/IP stack reset",
+        "cmd": ["netsh", "int", "ip", "reset"],
+        "encoding": "mbcs",
+        "note": "Rewrites the TCP/IP stack to defaults. A reboot completes it.",
+        "where": "Rewrites the Tcpip and DHCP registry keys (SYSTEM\\CurrentControlSet\\Services\\Tcpip|DHCP\\Parameters) to defaults — the same effect as removing and reinstalling TCP/IP. Use for a wedged stack (no IP, can't renew). Reboot to finish.",
+    },
+    "net_full": {
+        "label": "Full network reset",
+        "cmd": None,  # composite, see shell_cmd
+        "shell_cmd": (
+            'echo Resetting Winsock catalog... & netsh winsock reset & '
+            'echo. & echo Resetting TCP/IP stack... & netsh int ip reset & '
+            'echo. & echo Flushing DNS cache... & ipconfig /flushdns & '
+            'echo. & echo Releasing and renewing DHCP lease... & '
+            'ipconfig /release & ipconfig /renew & '
+            'echo. & echo Full network reset complete - reboot to finish.'
+        ),
+        "encoding": "mbcs",
+        "note": "Winsock + TCP/IP reset, flush DNS, release/renew. A reboot completes it.",
+        "where": "Runs the full sequence in order: netsh winsock reset, netsh int ip reset, ipconfig /flushdns, ipconfig /release, ipconfig /renew. The 'nothing connects' last resort. A reboot finishes the Winsock/TCP-IP parts.",
+    },
     "wu_reset": {
         "label": "Windows Update cache reset",
-        "cmd": None,  # composite, see _WU_RESET
+        "cmd": None,  # composite, see shell_cmd
+        "shell_cmd": (
+            'net stop wuauserv & net stop bits & '
+            'rd /s /q "%SystemRoot%\\SoftwareDistribution" & '
+            'net start bits & net start wuauserv & echo Update cache reset complete.'
+        ),
         "encoding": "mbcs",
         "note": "Stops update services, clears SoftwareDistribution, restarts them.",
         "where": "Stops the wuauserv & bits services, deletes C:\\Windows\\SoftwareDistribution, then restarts them. Windows rebuilds the cache on the next update check.",
@@ -83,12 +110,6 @@ TOOLS = {
     },
 }
 
-_WU_RESET = (
-    'net stop wuauserv & net stop bits & '
-    'rd /s /q "%SystemRoot%\\SoftwareDistribution" & '
-    'net start bits & net start wuauserv & echo Update cache reset complete.'
-)
-
 _store = JobStore()
 
 
@@ -116,7 +137,7 @@ def _run(job):
     spec = TOOLS[job["tool"]]
     proc = None
     try:
-        cmd = ["cmd", "/c", _WU_RESET] if spec["cmd"] is None else spec["cmd"]
+        cmd = ["cmd", "/c", spec["shell_cmd"]] if spec["cmd"] is None else spec["cmd"]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 creationflags=CREATE_NO_WINDOW)
         job["proc"] = proc

@@ -1605,11 +1605,20 @@ async function loadCrashes() {
   const c = await api.get_crashes();
   const bsod = c.bugchecks.length
     ? `<div class="table-wrap" style="max-height:240px"><table>
-        <thead><tr><th>Time</th><th>Bugcheck</th><th>Dump</th></tr></thead><tbody>
+        <thead><tr><th>Time</th><th>Stop code</th><th>Name</th><th>Dump</th></tr></thead><tbody>
         ${c.bugchecks.map(b => `<tr><td class="mono">${esc(b.time)}</td>
-          <td class="mono copy">${esc(b.code)}</td><td class="mono copy">${esc(b.dump)}</td></tr>`).join("")}
+          <td class="mono copy">${esc(b.hex || b.code)}</td>
+          <td class="mono" style="font-size:11px">${esc(b.name || "—")}</td>
+          <td class="mono copy">${esc(b.dump)}</td></tr>`).join("")}
         </tbody></table></div>`
     : emptyState("check", "No blue screens in the last 90 days");
+  const kpower = (c.kernel_power || []).length
+    ? `<div class="table-wrap mt" style="max-height:180px"><table>
+        <thead><tr><th>Time</th><th>Stop code</th><th>Name</th></tr></thead><tbody>
+        ${c.kernel_power.map(k => `<tr><td class="mono">${esc(k.time)}</td>
+          <td class="mono copy">${esc(k.hex)}</td><td class="mono" style="font-size:11px">${esc(k.name || "—")}</td></tr>`).join("")}
+        </tbody></table></div>`
+    : "";
   const dumps = c.minidumps.length
     ? `<div class="mt">${c.minidumps.map(d => `<div class="an-row">${ico("file", "ic sm")}
         <span class="nm">${esc(d.file)}</span><span class="muted">${esc(d.date)}</span>
@@ -1628,7 +1637,7 @@ async function loadCrashes() {
     <div class="grid cols-2">
       <div class="card"><h3>Blue screens (90 days) <span class="right">${c.bugchecks.length ? pill("bad", c.bugchecks.length + " bugcheck(s)") : pill("good", "None")}</span></h3>${bsod}${dumps}</div>
       <div class="card"><h3>Unexpected power loss <span class="right">${c.dirty_shutdowns ? pill("warn", c.dirty_shutdowns + " event(s)") : pill("good", "None")}</span></h3>
-        <p class="muted" style="font-size:12.5px; line-height:1.5">Kernel-Power 41 events — the machine lost power or hung without a clean shutdown. Frequent occurrences point at PSU, sleep/firmware or forced power-offs.</p></div>
+        <p class="muted" style="font-size:12.5px; line-height:1.5">Kernel-Power 41 events — the machine lost power or hung without a clean shutdown. Frequent occurrences point at PSU, sleep/firmware or forced power-offs.${(c.kernel_power || []).length ? " The events below carried a Stop code — a blue screen, not just a power cut." : ""}</p>${kpower}</div>
     </div>
     <div class="card mt"><h3>Application crashes, grouped (90 days)</h3>${apps}</div>`;
   const openDumps = $("#btnOpenDumps");
@@ -1745,6 +1754,9 @@ async function loadToolbox() {
   loadTicketSummary();
   loadMemResults();
   loadRestoreCard();
+  // Auto-run the cheap, read-only pending-restart check on open — it's fast, needs no
+  // elevation, and is high-signal, so the page shows real data instead of a bare button.
+  $("#btnRebootCheck")?.click();
 }
 async function loadRestoreCard() {
   const s = await api.restore_status();
@@ -1755,6 +1767,61 @@ async function loadRestoreCard() {
       <td class="strong">${esc(p.description)}</td><td class="muted">${esc(p.type)}</td></tr>`).join("")}
     </tbody></table></div>` : `<p class="muted" style="font-size:12px">No restore points yet.</p>`;
 }
+/* ---- Error-code decoder ---- */
+const decodeErrCode = async () => {
+  const code = $("#errInput").value.trim();
+  if (!code) return;
+  $("#errResult").innerHTML = `<div class="muted" style="font-size:12.5px">Decoding…</div>`;
+  const r = await api.decode_error(code);
+  if (!r.ok) { $("#errResult").innerHTML = `<div class="muted" style="font-size:12.5px">${esc(r.error)}</div>`; return; }
+  const interps = r.interpretations.length
+    ? r.interpretations.map(i => `<div class="an-row">${ico("q", "ic sm")}
+        <span class="nm">${esc(i.source)}</span><span class="muted">${esc(i.text)}</span></div>`).join("")
+    : `<div class="muted" style="font-size:12.5px">No description found — it may not be a standard Windows code.</div>`;
+  $("#errResult").innerHTML = `
+    <div class="row" style="gap:12px; align-items:center; margin-bottom:8px; flex-wrap:wrap">
+      <span class="mono strong">${esc(r.hex)}</span>
+      <span class="muted">${r.decimal}</span>
+      ${pill(r.severity === "Failure" ? "bad" : "good", esc(r.severity))}
+      <span class="muted" style="font-size:12px">facility: ${esc(r.facility_name)}</span>
+    </div>${interps}`;
+};
+$("#btnErrDecode").onclick = decodeErrCode;
+$("#errInput").addEventListener("keydown", e => { if (e.key === "Enter") decodeErrCode(); });
+
+/* ---- User profile health ---- */
+$("#btnProfChk").onclick = async () => {
+  $("#profBody").innerHTML = `<div class="muted" style="font-size:12.5px">Scanning profiles…</div>`;
+  const r = await api.detect_profiles();
+  if (!r || !r.profiles) { $("#profBody").innerHTML = emptyState("bang", "Couldn't read profiles"); return; }
+  const rows = r.profiles.map(p => `<tr>
+    <td class="strong">${esc(p.account || "—")}</td>
+    <td class="mono" style="font-size:11px">${esc(p.path || "")}</td>
+    <td>${p.problem ? pill("bad", esc(p.issue || "problem")) : pill("good", "OK")}</td></tr>`).join("");
+  $("#profBody").innerHTML = `
+    <div style="margin-bottom:8px">${r.problems ? pill("bad", r.problems + " problem profile(s)") : pill("good", "All profiles healthy")}</div>
+    <div class="table-wrap" style="max-height:240px"><table>
+      <thead><tr><th>Account</th><th>Profile path</th><th>State</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+};
+
+/* ---- What's locking this file? ---- */
+$("#btnFindLockers").onclick = async () => {
+  const path = $("#lockInput").value.trim();
+  if (!path) return;
+  $("#lockResult").innerHTML = `<div class="muted" style="font-size:12.5px">Searching for open handles…</div>`;
+  const r = await api.find_lockers(path);
+  if (!r.ok) { $("#lockResult").innerHTML = `<div class="muted" style="font-size:12.5px">${esc(r.error)}</div>`; return; }
+  if (!r.lockers.length) {
+    $("#lockResult").innerHTML = emptyState("check", "Nothing is holding that open", "No process has an open handle to it");
+    return;
+  }
+  $("#lockResult").innerHTML = `<div class="table-wrap" style="max-height:240px"><table>
+    <thead><tr><th>Process</th><th class="num">PID</th><th>Open handle</th></tr></thead>
+    <tbody>${r.lockers.map(l => `<tr><td class="strong">${esc(l.name)}</td>
+      <td class="num mono">${l.pid}</td><td class="mono" style="font-size:11px">${esc(l.file)}</td></tr>`).join("")}</tbody></table></div>`;
+};
+
 /* ---- Performance snapshot ("why slow now") ---- */
 let lastSnapshot = null;
 $("#btnSnapStart").onclick = async () => {
@@ -3481,6 +3548,16 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.8.0", name: "The repair bench — fixes, decoding & accessibility", items: [
+    "Error-code decoder (Toolbox / Ctrl+K) — paste any 0x8007…, NTSTATUS, Stop code or decimal and get plain English: the meaning, the HRESULT severity/facility breakdown, and Windows-Update-specific advice.",
+    "What's locking this file? (Toolbox) — enter a path and see which processes hold it open: the 'can't delete, it's in use' answer.",
+    "Full network reset (Toolbox) — Winsock + TCP/IP stack reset, flush DNS and release/renew in one guided run, plus a standalone TCP/IP stack reset.",
+    "User profile health (Toolbox) — read-only detection of corrupted (.bak) and temporary user profiles.",
+    "Re-register Store & built-in apps (Toolbox) — the standard fix for a broken Start menu or Store; per-user and reversible.",
+    "Blue screens now name the Stop code (Event Log → Crashes) — e.g. 0x000000D1 DRIVER_IRQL_NOT_LESS_OR_EQUAL — and Kernel-Power 41 events that carried a bugcheck are shown as the crashes they were.",
+    "Wider autostart/persistence coverage (Security → Autoruns) — RunServices, policy Run keys, RunOnceEx, LSA providers and print monitors.",
+    "Accessibility: dim text lifted to meet WCAG AA contrast, the OS 'reduce motion' setting is honoured, and icon-only buttons got accessible labels.",
+  ] },
   { v: "2.7.1", name: "Security & maintenance", items: [
     "Security hardening from a full code scan: the domain TLS inspector now requires TLS 1.2 or better explicitly, and page navigation can only ever dispatch to a known page loader.",
     "Under the hood — pinned build dependencies and a documented dependency/CVE audit, so the toolchain stays clean release to release. No feature changes.",
@@ -3749,6 +3826,10 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "wrench", label: "Network profile (Public/Private)", run: () => { showPage("network"); $("#btnSharing")?.click(); } },
   { cat: "Actions", icon: "shield", label: "Mapped drives & saved credentials", run: () => { showPage("network"); $("#btnSharing")?.click(); $(`#shTabs [data-sh="creds"]`)?.click(); } },
   { cat: "Actions", icon: "wrench", label: "DNS cache & Winsock catalog", run: () => { showPage("network"); $("#btnSharing")?.click(); $(`#shTabs [data-sh="dns"]`)?.click(); } },
+  { cat: "Actions", icon: "q", label: "Decode an error code", run: () => { showPage("toolbox"); setTimeout(() => $("#errInput")?.focus(), 60); } },
+  { cat: "Actions", icon: "wrench", label: "Find what's locking a file", run: () => { showPage("toolbox"); setTimeout(() => $("#lockInput")?.focus(), 60); } },
+  { cat: "Actions", icon: "aid", label: "Check user profile health", run: () => { showPage("toolbox"); $("#btnProfChk")?.click(); } },
+  { cat: "Actions", icon: "wrench", label: "Full network reset (Winsock + TCP/IP)", run: () => { showPage("toolbox"); setTimeout(() => $(`[data-run="net_full"]`)?.scrollIntoView({ block: "center" }), 60); } },
   { cat: "Actions", icon: "cpu2", label: "Battery wear & power efficiency", run: () => { showPage("system"); $("#btnBatteryReport")?.click(); } },
   { cat: "Actions", icon: "wrench", label: "Environment & PATH audit", run: () => { showPage("system"); $("#btnEnvAudit")?.click(); } },
   { cat: "Actions", icon: "cpu2", label: "Installed runtimes (.NET / VC++ / DirectX)", run: () => { showPage("system"); $("#btnRuntimes")?.click(); } },

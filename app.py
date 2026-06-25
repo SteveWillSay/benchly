@@ -25,10 +25,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      pendingreboot, wuhistory, boottime,
                      licensing, identity, grouppolicy, timesync, baseline_policy,
                      firewall, credentials,
-                     envaudit, runtimes, audio)
+                     envaudit, runtimes, audio,
+                     errdecode, profiles)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.7.1"
+APP_VERSION = "2.8.0"
 
 
 def resource_path(rel: str) -> str:
@@ -613,6 +614,13 @@ class Api:
 
     def find_lockers(self, path):
         return metrics.find_lockers(path)
+
+    # --- error-code decoder / profile health (Bundle I) ----------------------------------------
+    def decode_error(self, code):
+        return errdecode.decode(code)
+
+    def detect_profiles(self):
+        return profiles.detect_profiles()
 
     # --- debloat / privacy ---------------------------------------------------------------------
     def list_appx(self):

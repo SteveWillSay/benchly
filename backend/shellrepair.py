@@ -10,7 +10,7 @@ import glob
 import os
 import subprocess
 
-from .ps import CREATE_NO_WINDOW
+from .ps import CREATE_NO_WINDOW, run_ps
 
 _LOCAL = os.environ.get("LOCALAPPDATA", "")
 _WIN = os.environ.get("SystemRoot", r"C:\Windows")
@@ -47,6 +47,24 @@ REPAIRS = {
         "where": r"Resets the Search index (HKLM\…\Windows Search\…\SetupCompletedSuccessfully); it re-indexes in the background.",
         "restart": False,
         "admin": True,
+    },
+    "appx": {
+        "label": "Re-register all built-in apps",
+        "fixes": "Fixes a broken Start menu, missing/crashing built-in apps, or a dead Store after an update.",
+        "where": ("Re-registers every built-in app package for the current user with "
+                  "Add-AppxPackage -Register against each package's AppXManifest.xml. "
+                  "Per-user, no admin needed; nothing is uninstalled or removed, so it's "
+                  "safe to re-run. Per-package errors are ignored as expected."),
+        "restart": True,
+    },
+    "appxstore": {
+        "label": "Re-register Store & Start menu",
+        "fixes": "Fixes just the Microsoft Store, Start menu and shell experience without touching other apps.",
+        "where": ("Re-registers only the Microsoft Store, Start menu and shell-experience "
+                  "packages (Microsoft.WindowsStore, Microsoft.Windows.ShellExperienceHost, "
+                  "Microsoft.Windows.StartMenuExperienceHost) with Add-AppxPackage -Register. "
+                  "Per-user, no admin needed; nothing is uninstalled, so it's safe to re-run."),
+        "restart": True,
     },
 }
 
@@ -116,6 +134,25 @@ def run_repair(key):
             _run(["net", "stop", "WSearch"], timeout=30)
             _run(["net", "start", "WSearch"], timeout=30)
             return {"ok": True, "message": "Search index reset — it re-indexes in the background.", "restart": False}
+        if key == "appx":
+            run_ps(
+                "Get-AppxPackage -AllUsers | ForEach-Object { "
+                "Add-AppxPackage -DisableDevelopmentMode -Register "
+                "\"$($_.InstallLocation)\\AppXManifest.xml\" -ErrorAction SilentlyContinue }",
+                timeout=300)
+            return {"ok": True, "message": "Re-registered built-in apps for this user. Restart Explorer to finish.",
+                    "restart": True}
+        if key == "appxstore":
+            run_ps(
+                "Get-AppxPackage -AllUsers | "
+                "Where-Object { $_.Name -in @('Microsoft.WindowsStore',"
+                "'Microsoft.Windows.ShellExperienceHost',"
+                "'Microsoft.Windows.StartMenuExperienceHost') } | ForEach-Object { "
+                "Add-AppxPackage -DisableDevelopmentMode -Register "
+                "\"$($_.InstallLocation)\\AppXManifest.xml\" -ErrorAction SilentlyContinue }",
+                timeout=120)
+            return {"ok": True, "message": "Re-registered the Store and Start menu. Restart Explorer to finish.",
+                    "restart": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
     return {"ok": False, "error": "Unknown repair."}

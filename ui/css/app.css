@@ -16,10 +16,11 @@
   --border-2: rgba(255, 255, 255, 0.10);
   --border-3: rgba(255, 255, 255, 0.18);
 
-  /* text tiers */
+  /* text tiers — text-3 lifted from #62666d to clear WCAG AA (≈4.5:1) on the card
+     surfaces it's used on (section headers, hints), where the old value was ~3.4:1 */
   --text-1: #e8eaed;
   --text-2: #9aa0a8;
-  --text-3: #62666d;
+  --text-3: #868c96;
 
   /* Benchly brand — warm sunset gradient on brand moments, solid accent for UI */
   --brand-grad: linear-gradient(45deg, #e9c46a 0%, #f4a261 50%, #e76f51 100%);
@@ -32,6 +33,7 @@
   --ok:   #4ade80;  --ok-bg:   rgba(74, 222, 128, 0.10);
   --warn: #e8b339;  --warn-bg: rgba(232, 179, 57, 0.10);
   --crit: #f0564f;  --crit-bg: rgba(240, 86, 79, 0.10);
+  --crit-solid: #c93f38;  --crit-solid-hover: #d8473f;  /* solid danger button */
   --info: #56a8ff;  --info-bg: rgba(86, 168, 255, 0.10);
   --unk:  #8b919a;  --unk-bg:  rgba(139, 145, 154, 0.10);
 
@@ -41,8 +43,9 @@
   --dsk: #e8b339;
   --net: #45c4b0;
 
-  --r1: 6px;     /* controls, chips, inputs */
-  --r2: 10px;    /* cards, panels, modals */
+  --r1: 6px;       /* controls, chips, inputs */
+  --r2: 10px;      /* cards, panels, modals */
+  --r-pill: 999px; /* fully-rounded pills, toggles */
 
   --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
@@ -178,8 +181,8 @@ body {
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.danger { color: var(--crit); border-color: rgba(240, 86, 79, 0.3); }
 .btn.danger:hover { background: var(--crit-bg); }
-.btn.danger.solid { background: #c93f38; border-color: transparent; color: #fff; }
-.btn.danger.solid:hover { background: #d8473f; }
+.btn.danger.solid { background: var(--crit-solid); border-color: transparent; color: #fff; }
+.btn.danger.solid:hover { background: var(--crit-solid-hover); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover { background: rgba(255, 255, 255, 0.04); color: var(--text-1); }
 .btn.small { padding: 3px 9px; font-size: 11px; }
@@ -674,4 +677,17 @@ tbody tr:hover .row-action, .row-action:focus-visible { opacity: 1; }
 .diff-row .tag.chg { color: var(--warn); background: var(--warn-bg); }
 .diff-row .d-name { color: var(--text-1); user-select: text; }
 .diff-row .d-val { color: var(--text-3); user-select: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============ accessibility: honour the OS "reduce motion" setting ============ */
+/* Maps to Windows 10/11 Settings → Accessibility → Visual effects → Animation effects.
+   Live telemetry sparklines are functional and keep updating; this drops the decorative
+   transitions and animations (nav slides, fades, the health-ring sweep, etc.). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 

@@ -432,8 +432,8 @@
             <button class="btn primary" id="btnNetRun">Run</button>
             <button class="btn" id="btnPortProfile" style="display:none" title="TCP-connect scan of 25 common service ports">Profile scan</button>
             <button class="btn" id="btnFlushDns" title="ipconfig /flushdns">Flush DNS</button>
-            <button class="btn ghost" id="btnNetCopy" title="Copy session log"><svg class="ic"><use href="#i-copy"/></svg></button>
-            <button class="btn ghost" id="btnNetClear" title="Clear session log"><svg class="ic"><use href="#i-x"/></svg></button>
+            <button class="btn ghost" id="btnNetCopy" title="Copy session log" aria-label="Copy session log"><svg class="ic"><use href="#i-copy"/></svg></button>
+            <button class="btn ghost" id="btnNetClear" title="Clear session log" aria-label="Clear session log"><svg class="ic"><use href="#i-x"/></svg></button>
           </div>
           <div class="console mt" id="netConsole"><span class="console-empty">Enter a target and press Run. The session log accumulates here.</span></div>
         </div>
@@ -793,6 +793,43 @@
           <div id="wuBody"><div class="muted" style="font-size:12.5px">Press Check to read the update history and decode any failures.</div></div>
         </div>
 
+        <div class="grid cols-2" style="margin-bottom:12px">
+          <div class="card">
+            <h3>Error-code decoder</h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+              Paste any Windows error or status code — <span class="mono">0x8007…</span>, an NTSTATUS, a Stop code,
+              or a decimal — for plain English: what it means, the HRESULT breakdown, and update-specific advice.
+            </p>
+            <div class="row">
+              <input class="input" id="errInput" placeholder="e.g. 0x80070005" style="flex:1" aria-label="Error or status code to decode">
+              <button class="btn primary" id="btnErrDecode">Decode</button>
+            </div>
+            <div id="errResult" class="mt"></div>
+          </div>
+          <div class="card">
+            <h3>User profile health <span class="right"><button class="btn small" id="btnProfChk">Check</button></span></h3>
+            <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+              “Signed in with a temporary profile”, or a profile that won't load? Reads the ProfileList registry for
+              corrupted (<span class="mono">.bak</span>) and temporary profiles. Read-only — migrating to a fresh
+              account stays your call.
+            </p>
+            <div id="profBody"><div class="muted" style="font-size:12.5px">Press Check to scan user profiles.</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <h3>What's locking this file?</h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            “Can't delete — it's open in another program.” Enter a file or folder path and Benchly lists the
+            processes holding an open handle to it.
+          </p>
+          <div class="row">
+            <input class="input" id="lockInput" placeholder="C:\path\to\file-or-folder" style="flex:1" aria-label="File or folder path to check for locking processes">
+            <button class="btn primary" id="btnFindLockers">Find lockers</button>
+          </div>
+          <div id="lockResult" class="mt"></div>
+        </div>
+
         <div class="card" style="margin-bottom:12px">
           <h3>Performance snapshot <span class="right muted" id="snapStatus"></span></h3>
           <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
@@ -1134,7 +1171,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#3a1808" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M3 12h4l2.5-7 4 14 2.5-7h5"/></svg>
       </div>
       <span style="flex:1">What's new in Benchly</span>
-      <button class="btn ghost small" id="clClose"><svg class="ic sm"><use href="#i-x"/></svg></button>
+      <button class="btn ghost small" id="clClose" aria-label="Close"><svg class="ic sm"><use href="#i-x"/></svg></button>
     </div>
     <div id="clBody"></div>
   </div>
@@ -1171,7 +1208,7 @@
   <aside id="proc-drawer">
     <div class="drawer-head">
       <span id="procDrawerTitle">Process</span>
-      <button class="btn ghost small" id="procDrawerClose"><svg class="ic sm"><use href="#i-x"/></svg></button>
+      <button class="btn ghost small" id="procDrawerClose" aria-label="Close"><svg class="ic sm"><use href="#i-x"/></svg></button>
     </div>
     <div id="procDrawerBody"></div>
   </aside>

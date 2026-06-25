@@ -22,7 +22,14 @@ $runKeys = @(
     @('Run (HKLM WOW64)','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run'),
     @('Run (HKCU)','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'),
     @('RunOnce (HKLM)','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'),
-    @('RunOnce (HKCU)','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce')
+    @('RunOnce (HKCU)','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'),
+    @('RunOnceEx (HKLM)','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnceEx'),
+    @('RunServices (HKLM)','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServices'),
+    @('RunServices (HKCU)','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServices'),
+    @('RunServicesOnce (HKLM)','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServicesOnce'),
+    @('RunServicesOnce (HKCU)','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServicesOnce'),
+    @('Policies\Explorer\Run (HKLM)','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run'),
+    @('Policies\Explorer\Run (HKCU)','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run')
 )
 foreach ($k in $runKeys) {
     $p = Get-ItemProperty -Path $k[1] -ErrorAction SilentlyContinue
@@ -54,6 +61,22 @@ Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {
 # WMI permanent event consumers (advanced persistence)
 Get-CimInstance -Namespace root/subscription -ClassName CommandLineEventConsumer -ErrorAction SilentlyContinue | ForEach-Object {
     Add-Entry 'WMI consumer' $_.Name ($_.CommandLineTemplate)
+}
+# LSA security/authentication providers (DLLs loaded by lsass)
+$lsaKeys = @(
+    @('LSA Security Packages','HKLM:\SYSTEM\CurrentControlSet\Control\Lsa','Security Packages'),
+    @('LSA Authentication Packages','HKLM:\SYSTEM\CurrentControlSet\Control\Lsa','Authentication Packages'),
+    @('LSA OSConfig Security Packages','HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\OSConfig','Security Packages')
+)
+foreach ($k in $lsaKeys) {
+    $p = Get-ItemProperty -Path $k[1] -ErrorAction SilentlyContinue
+    if ($p) { ($p.($k[2])) | Where-Object { $_ } | ForEach-Object { Add-Entry $k[0] $_ $_ } }
+}
+# Print monitor DLLs (non-default monitors are a known persistence vector)
+$defaultMonitors = @('Local Port','Standard TCP/IP Port','USB Monitor','WSD Port','BJ Language Monitor','Microsoft Shared Fax Monitor','LPR Port','AppMon')
+Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors' -ErrorAction SilentlyContinue | ForEach-Object {
+    $drv = (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).Driver
+    if ($drv -and ($defaultMonitors -notcontains $_.PSChildName)) { Add-Entry 'Print Monitor' ($_.PSChildName) $drv }
 }
 $out
 """
