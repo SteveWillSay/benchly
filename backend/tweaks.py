@@ -169,6 +169,150 @@ _TWEAKS = [
      "hive": HKCU, "path": r"Control Panel\Desktop",
      "name": "AutoEndTasks", "kind": "sz", "on": "1", "off": "0",
      "extra": [("HungAppTimeout", "2000", "5000"), ("WaitToKillAppTimeout", "2000", "20000")]},
+
+    # ---- more performance ----
+    {"key": "transparency", "cat": "Performance", "label": "Disable transparency effects",
+     "help": "Turns off the Acrylic/Mica transparency in the taskbar, Start and title bars — a little "
+             "less GPU work, and crisper on weak integrated graphics.",
+     "where": r"HKCU\…\Themes\Personalize\EnableTransparency",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+     "name": "EnableTransparency", "kind": "dword", "on": 0, "off": 1},
+    {"key": "window_animations", "cat": "Performance", "label": "Disable window animations",
+     "help": "Stops the minimise/maximise window animations for snappier-feeling windows. Sign out to apply.",
+     "where": r"HKCU\Control Panel\Desktop\WindowMetrics\MinAnimate",
+     "hive": HKCU, "path": r"Control Panel\Desktop\WindowMetrics",
+     "name": "MinAnimate", "kind": "sz", "on": "0", "off": "1", "restart": "explorer"},
+
+    # ---- more privacy ----
+    {"key": "activity_history", "cat": "Privacy", "label": "Disable Activity History / Timeline",
+     "help": "Stops Windows collecting and uploading your activity history (the Timeline feed).",
+     "where": r"HKLM\…\Policies\…\System\PublishUserActivities (+ EnableActivityFeed, UploadUserActivities)",
+     "hive": HKLM, "path": r"SOFTWARE\Policies\Microsoft\Windows\System",
+     "name": "PublishUserActivities", "kind": "dword", "on": 0, "off": 1, "admin": True,
+     "extra": [("EnableActivityFeed", 0, 1), ("UploadUserActivities", 0, 1)]},
+    {"key": "cortana", "cat": "Privacy", "label": "Disable Cortana",
+     "help": "Turns Cortana off via policy (mainly affects Windows 10; harmless on 11).",
+     "where": r"HKLM\…\Policies\…\Windows Search\AllowCortana",
+     "hive": HKLM, "path": r"SOFTWARE\Policies\Microsoft\Windows\Windows Search",
+     "name": "AllowCortana", "kind": "dword", "on": 0, "off": 1, "admin": True},
+
+    # ---- more interface ----
+    {"key": "taskview_button", "cat": "Interface", "label": "Hide the Task View button",
+     "help": "Removes the Task View (virtual desktops) button from the taskbar.",
+     "where": r"HKCU\…\Explorer\Advanced\ShowTaskViewButton",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "ShowTaskViewButton", "kind": "dword", "on": 0, "off": 1, "restart": "explorer"},
+    {"key": "compact_explorer", "cat": "Interface", "label": "Compact view in File Explorer",
+     "help": "Tightens the row spacing in File Explorer (the pre-Win11 density).",
+     "where": r"HKCU\…\Explorer\Advanced\UseCompactMode",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "UseCompactMode", "kind": "dword", "on": 1, "off": 0, "restart": "explorer"},
+    {"key": "aero_shake", "cat": "Interface", "label": "Disable Aero Shake",
+     "help": "Stops a title-bar shake from minimising every other window — handy if you trigger it by accident.",
+     "where": r"HKCU\…\Explorer\Advanced\DisallowShaking",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "DisallowShaking", "kind": "dword", "on": 1, "off": 0, "restart": "explorer"},
+
+    # ---- more ads & noise ----
+    {"key": "explorer_sync_ads", "cat": "Ads & noise", "label": "Hide File Explorer promo ads",
+     "help": "Stops the “sync provider” notifications — the OneDrive/Office ads that appear as banners in File Explorer.",
+     "where": r"HKCU\…\Explorer\Advanced\ShowSyncProviderNotifications",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "ShowSyncProviderNotifications", "kind": "dword", "on": 0, "off": 1, "restart": "explorer"},
+    {"key": "finish_setup", "cat": "Ads & noise", "label": "Stop “Finish setting up” nags",
+     "help": "Disables the full-screen “Let's finish setting up your device” prompt after updates.",
+     "where": r"HKCU\…\UserProfileEngagement\ScoobeSystemSettingEnabled",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement",
+     "name": "ScoobeSystemSettingEnabled", "kind": "dword", "on": 0, "off": 1},
+    {"key": "welcome_tips", "cat": "Ads & noise", "label": "Hide post-update “welcome” page",
+     "help": "Stops the “Get the most out of Windows” welcome experience shown after updates and on first sign-in.",
+     "where": r"HKCU\…\ContentDeliveryManager\SubscribedContent-310093Enabled",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
+     "name": "SubscribedContent-310093Enabled", "kind": "dword", "on": 0, "off": 1},
+
+    # ---- gaming ----
+    {"key": "mouse_accel", "cat": "Gaming", "label": "Disable mouse acceleration",
+     "help": "Turns off “enhance pointer precision” so cursor movement maps 1:1 — what most gamers want. Sign out to apply.",
+     "where": r"HKCU\Control Panel\Mouse\MouseSpeed (+ MouseThreshold1, MouseThreshold2)",
+     "hive": HKCU, "path": r"Control Panel\Mouse",
+     "name": "MouseSpeed", "kind": "sz", "on": "0", "off": "1",
+     "extra": [("MouseThreshold1", "0", "6"), ("MouseThreshold2", "0", "10")]},
+    {"key": "game_dvr", "cat": "Gaming", "label": "Disable Game DVR background recording",
+     "help": "Stops the Xbox Game Bar continuously recording in the background — frees CPU/GPU during games.",
+     "where": r"HKCU\System\GameConfigStore\GameDVR_Enabled",
+     "hive": HKCU, "path": r"System\GameConfigStore",
+     "name": "GameDVR_Enabled", "kind": "dword", "on": 0, "off": 1},
+    {"key": "net_throttle", "cat": "Gaming", "label": "Disable network throttling",
+     "help": "Lifts the multimedia network-throttling cap (helps online-game latency on fast links). Needs a reboot.",
+     "where": r"HKLM\…\Multimedia\SystemProfile\NetworkThrottlingIndex (+ SystemResponsiveness)",
+     "hive": HKLM, "path": r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+     "name": "NetworkThrottlingIndex", "kind": "dword", "on": 0xFFFFFFFF, "off": 10, "admin": True,
+     "restart": "reboot", "extra": [("SystemResponsiveness", 0, 20)]},
+
+    # ---- more interface ----
+    {"key": "menu_delay", "cat": "Interface", "label": "Snappier menus (no show delay)",
+     "help": "Removes the small delay before menus and submenus open. Sign out (or restart Explorer) to apply.",
+     "where": r"HKCU\Control Panel\Desktop\MenuShowDelay",
+     "hive": HKCU, "path": r"Control Panel\Desktop",
+     "name": "MenuShowDelay", "kind": "sz", "on": "0", "off": "400", "restart": "explorer"},
+    {"key": "nav_expand", "cat": "Interface", "label": "Expand nav pane to current folder",
+     "help": "Makes the Explorer folder tree expand to, and show all folders for, wherever you are.",
+     "where": r"HKCU\…\Explorer\Advanced\NavPaneExpandToCurrentFolder (+ NavPaneShowAllFolders)",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "NavPaneExpandToCurrentFolder", "kind": "dword", "on": 1, "off": 0, "restart": "explorer",
+     "extra": [("NavPaneShowAllFolders", 1, 0)]},
+
+    # ---- more privacy ----
+    {"key": "track_apps", "cat": "Privacy", "label": "Stop tracking most-used apps",
+     "help": "Turns off the “let Windows track app launches to improve Start and search” setting.",
+     "where": r"HKCU\…\Explorer\Advanced\Start_TrackProgs",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "Start_TrackProgs", "kind": "dword", "on": 0, "off": 1, "restart": "explorer"},
+    {"key": "inking_typing", "cat": "Privacy", "label": "Disable inking & typing personalization",
+     "help": "Stops Windows collecting your handwriting and typing samples to build a personal dictionary.",
+     "where": r"HKCU\Software\Microsoft\InputPersonalization\RestrictImplicitTextCollection (+ Ink)",
+     "hive": HKCU, "path": r"Software\Microsoft\InputPersonalization",
+     "name": "RestrictImplicitTextCollection", "kind": "dword", "on": 1, "off": 0,
+     "extra": [("RestrictImplicitInkCollection", 1, 0)]},
+    {"key": "lang_web", "cat": "Privacy", "label": "Don't share language list with sites",
+     "help": "Opts out of letting websites see your full preferred-language list (a fingerprinting signal).",
+     "where": r"HKCU\Control Panel\International\User Profile\HttpAcceptLanguageOptOut",
+     "hive": HKCU, "path": r"Control Panel\International\User Profile",
+     "name": "HttpAcceptLanguageOptOut", "kind": "dword", "on": 1, "off": 0},
+
+    # ---- power / startup ----
+    {"key": "fast_startup", "cat": "Performance", "label": "Disable Fast Startup",
+     "help": "Turns off hybrid shutdown so “Shut down” does a true full shutdown. Fixes dual-boot clock/driver "
+             "oddities and ensures a clean boot — the classic “did you really restart?” fix. Needs a reboot.",
+     "where": r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power\HiberbootEnabled",
+     "hive": HKLM, "path": r"SYSTEM\CurrentControlSet\Control\Session Manager\Power",
+     "name": "HiberbootEnabled", "kind": "dword", "on": 0, "off": 1, "admin": True, "restart": "reboot"},
+
+    # ---- more interface / file management ----
+    {"key": "full_path", "cat": "Interface", "label": "Show full path in the title bar",
+     "help": "Shows the complete folder path in the File Explorer title/address bar instead of just the folder name.",
+     "where": r"HKCU\…\Explorer\CabinetState\FullPath",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\CabinetState",
+     "name": "FullPath", "kind": "dword", "on": 1, "off": 0, "restart": "explorer"},
+    {"key": "taskbar_endtask", "cat": "Interface", "label": "Add “End task” to taskbar right-click",
+     "help": "Adds an End task item to the taskbar right-click menu to kill a hung app without Task Manager "
+             "(Windows 11 23H2 and later).",
+     "where": r"HKCU\…\Explorer\Advanced\TaskbarDeveloperSettings\TaskbarEndTask",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings",
+     "name": "TaskbarEndTask", "kind": "dword", "on": 1, "off": 0, "restart": "explorer"},
+
+    # ---- more ads & noise ----
+    {"key": "suggested_actions", "cat": "Ads & noise", "label": "Disable suggested actions",
+     "help": "Stops the pop-up that offers actions when you copy a date or phone number (Windows 11).",
+     "where": r"HKCU\…\SmartActionPlatform\SmartClipboard\Disabled",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\SmartActionPlatform\SmartClipboard",
+     "name": "Disabled", "kind": "dword", "on": 1, "off": 0},
+    {"key": "start_iris", "cat": "Ads & noise", "label": "Hide Start menu recommendations",
+     "help": "Removes the “Recommended for you” tips, shortcuts and new-app promos from the Start menu "
+             "(Windows 11 23H2 and later).",
+     "where": r"HKCU\…\Explorer\Advanced\Start_IrisRecommendations",
+     "hive": HKCU, "path": r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+     "name": "Start_IrisRecommendations", "kind": "dword", "on": 0, "off": 1, "restart": "explorer"},
 ]
 
 # Special tweaks that aren't a simple registry value (handled explicitly below)
@@ -339,7 +483,9 @@ def set_power_plan(which):
 
 # Bulk "calm this computer down" — the noise-reducing tweaks, applied together
 _QUIET_KEYS = ["lockscreen_ads", "settings_ads", "tips", "start_suggestions", "widgets",
-               "bing_search", "advertising_id", "tailored"]
+               "bing_search", "advertising_id", "tailored",
+               "explorer_sync_ads", "finish_setup", "welcome_tips",
+               "suggested_actions", "start_iris"]
 
 
 def apply_quiet_mode():

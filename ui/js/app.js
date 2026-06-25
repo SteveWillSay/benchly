@@ -3508,7 +3508,7 @@ async function loadDebloat() {
 
 async function loadTweaks() {
   const r = await api.get_tweaks();
-  const cats = ["Performance", "Privacy", "Interface", "Ads & noise"];
+  const cats = ["Performance", "Gaming", "Privacy", "Interface", "Ads & noise"];
   $("#tweaksBody").innerHTML = cats.map(cat => {
     const items = r.items.filter(i => i.cat === cat);
     if (!items.length) return "";
@@ -3548,6 +3548,14 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.8.1", name: "23 more tweaks", items: [
+    "Cleanup → Tweaks grew from 25 to 48 reversible toggles, including a new Gaming group.",
+    "Gaming: disable mouse acceleration, Game DVR background recording, and network throttling.",
+    "Performance: disable transparency effects, window animations, and Fast Startup (the true-full-shutdown fix).",
+    "Privacy: disable Activity History, Cortana, inking/typing personalization, most-used-app tracking, and language-list sharing.",
+    "Interface: hide Task View, compact Explorer, disable Aero Shake, snappier menus, full path in title bar, and 'End task' on the taskbar right-click.",
+    "Ads & noise: hide File Explorer promos, 'Finish setting up' nags, the post-update welcome page, suggested actions, and Start menu recommendations — the new ones also fold into the one-click 'calm this PC down'.",
+  ] },
   { v: "2.8.0", name: "The repair bench — fixes, decoding & accessibility", items: [
     "Error-code decoder (Toolbox / Ctrl+K) — paste any 0x8007…, NTSTATUS, Stop code or decimal and get plain English: the meaning, the HRESULT severity/facility breakdown, and Windows-Update-specific advice.",
     "What's locking this file? (Toolbox) — enter a path and see which processes hold it open: the 'can't delete, it's in use' answer.",
