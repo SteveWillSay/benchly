@@ -1,0 +1,58 @@
+/* ============================================================
+   Benchly — Chevron appearance
+   Warm amber-orange on a warm-dark steel, squared corners, and a
+   chevron hazard band across the title bar. Active only when
+   <html data-theme="chevron">. Token overrides + light tweaks; no logic.
+   ============================================================ */
+
+html[data-theme="chevron"] {
+  /* warm-dark surfaces */
+  --canvas:  #100d0b;
+  --surface: #1a1613;
+  --raised:  #221c17;
+  --overlay: #241d16;
+
+  /* warm hairlines */
+  --border-1: rgba(255, 200, 150, 0.08);
+  --border-2: rgba(255, 200, 150, 0.14);
+  --border-3: rgba(255, 200, 150, 0.24);
+
+  /* warm text tiers (text-3 clears WCAG AA on the card surfaces) */
+  --text-1: #f0ebe5;
+  --text-2: #b3a89c;
+  --text-3: #938778;
+
+  /* the colleague's amber-orange, with a warm sunset brand gradient */
+  --brand-grad: linear-gradient(45deg, #f0a868 0%, #e8893a 55%, #d3672a 100%);
+  --accent: #e8893a;
+  --accent-text: #f2a866;
+  --accent-bg: rgba(232, 137, 58, 0.15);
+  --on-accent: #2a1505;
+
+  /* squared corners — the industrial side of the look */
+  --r1: 3px;
+  --r2: 5px;
+}
+
+/* keep controls squared even where they pin a radius */
+html[data-theme="chevron"] .btn,
+html[data-theme="chevron"] .input,
+html[data-theme="chevron"] select.input,
+html[data-theme="chevron"] .seg,
+html[data-theme="chevron"] .seg button { border-radius: var(--r1); }
+
+/* uppercase, tracked wordmark + squared logo tile */
+html[data-theme="chevron"] .brand h1 { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+html[data-theme="chevron"] .brand .logo { border-radius: var(--r1); }
+html[data-theme="chevron"] .brand .logo svg { stroke: #2a1505; }
+
+/* the signature: a chevron hazard band across the very top of the title bar */
+html[data-theme="chevron"] #topbar { position: relative; }
+html[data-theme="chevron"] #topbar::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 6px; pointer-events: none;
+  background-repeat: repeat-x; background-size: 22px 6px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='6'><polygon points='0,0 11,0 17,3 11,6 0,6 6,3' fill='%23e8893a'/></svg>");
+}
+
+/* active nav reads in amber */
+html[data-theme="chevron"] .nav-item.active { background: var(--accent-bg); }

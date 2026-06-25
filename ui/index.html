@@ -6,6 +6,7 @@
 <title>Benchly</title>
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/theme-frosted-glass.css">
+<link rel="stylesheet" href="css/theme-chevron.css">
 </head>
 <body>
 
@@ -1178,12 +1179,20 @@
         </div>
         <div class="tabs" id="wpTabs">
           <button class="tab active" data-wp="posture">Posture</button>
+          <button class="tab" data-wp="policies">Applied policies</button>
+          <button class="tab" data-wp="corp">Corporate IT</button>
           <button class="tab" data-wp="baseline">Managed baseline</button>
         </div>
         <div id="wpTabPosture">
           <div class="dom-grid" id="wpPosture">
             <div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div>
           </div>
+        </div>
+        <div id="wpTabPolicies" style="display:none">
+          <div id="wpPolicies"></div>
+        </div>
+        <div id="wpTabCorp" style="display:none">
+          <div id="wpCorp"></div>
         </div>
         <div id="wpTabBaseline" style="display:none">
           <div id="wpBaseline"><div class="card"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:60%"></div></div></div></div>
@@ -1212,6 +1221,7 @@
   <div class="seg" id="themeSeg" style="width:100%; margin-bottom:4px">
     <button data-theme-choice="graphite" style="flex:1; justify-content:center">Graphite</button>
     <button data-theme-choice="frost" style="flex:1; justify-content:center">Frosted Glass</button>
+    <button data-theme-choice="chevron" style="flex:1; justify-content:center">Chevron</button>
   </div>
   <div id="bgPicker" style="display:none">
     <div class="pop-label">Background</div>

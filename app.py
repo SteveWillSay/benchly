@@ -26,10 +26,11 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      licensing, identity, grouppolicy, timesync, baseline_policy,
                      firewall, credentials,
                      envaudit, runtimes, audio,
-                     errdecode, profiles, filehash, hosts, minidump)
+                     errdecode, profiles, filehash, hosts, minidump,
+                     policies, corpagents, corpnet)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.11.1"
+APP_VERSION = "2.12.0"
 
 
 def resource_path(rel: str) -> str:
@@ -290,6 +291,16 @@ class Api:
 
     def baseline_export(self):
         return baseline_policy.export_baseline()
+
+    # --- corporate: applied policies, agents, update/proxy/network (read-only) ---------
+    def applied_policies(self):
+        return policies.applied_policies()
+
+    def corp_agents(self):
+        return corpagents.corp_agents()
+
+    def corp_network(self):
+        return corpnet.corp_network()
 
     # --- network & sharing deep (Bundle G) -------------------------------------------
     def firewall_overview(self):

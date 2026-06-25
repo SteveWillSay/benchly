@@ -148,6 +148,7 @@ const mixHex = (a, b, t) => {
 function applyTheme(name) {
   // "icloud" kept as a back-compat alias for the renamed Frosted Glass theme
   if (name === "frost" || name === "icloud") document.documentElement.dataset.theme = "frost";
+  else if (name === "chevron") document.documentElement.dataset.theme = "chevron";
   else delete document.documentElement.dataset.theme;
 }
 function applyBackground(c) {
@@ -159,6 +160,7 @@ function applyBackground(c) {
 }
 // Synchronous launch-flag theme to avoid a flash (#…,frost).
 if (location.hash.includes("frost") || location.hash.includes("icloud")) applyTheme("frost");
+else if (location.hash.includes("chevron")) applyTheme("chevron");
 
 function renderSwatches(selected) {
   $("#bgSwatches").innerHTML = BG_PRESETS.map((p, i) =>
@@ -166,9 +168,9 @@ function renderSwatches(selected) {
        style="background:linear-gradient(160deg, ${p.c[0]}, ${p.c[2]})"></button>`).join("");
 }
 function syncAppearanceUI() {
-  const theme = document.documentElement.dataset.theme === "frost" ? "frost" : "graphite";
+  const theme = document.documentElement.dataset.theme || "graphite";
   $$("#themeSeg button").forEach(b => b.classList.toggle("on", b.dataset.themeChoice === theme));
-  $("#bgPicker").style.display = theme === "frost" ? "" : "none";
+  $("#bgPicker").style.display = theme === "frost" ? "" : "none";   // gradient picker is frost-only
 }
 $("#btnTheme").onclick = () => {
   const pop = $("#appearance-pop");
@@ -207,7 +209,7 @@ $("#bgApplyCustom").onclick = async () => {
 /* ================= boot ================= */
 let isAdmin = false;
 async function boot() {
-  if (!location.hash.includes("frost") && !location.hash.includes("icloud")) {   // honour the saved choice
+  if (!/frost|icloud|chevron/.test(location.hash)) {   // no --theme flag → honour the saved choice
     try { applyTheme((await api.get_setting("theme")) || "graphite"); } catch { /* default */ }
   }
   try {
@@ -3390,16 +3392,88 @@ function loadWorkplace() {
   loadWpPosture();
 }
 $("#btnWpRefresh").onclick = () => { loadWpPosture(); if (wpBaselineLoaded) loadWpBaseline(); };
+let wpPoliciesLoaded = false, wpCorpLoaded = false;
 $$("#wpTabs .tab").forEach(t => t.addEventListener("click", () => {
   $$("#wpTabs .tab").forEach(x => x.classList.toggle("active", x === t));
   const which = t.dataset.wp;
   $("#wpTabPosture").style.display = which === "posture" ? "" : "none";
+  $("#wpTabPolicies").style.display = which === "policies" ? "" : "none";
+  $("#wpTabCorp").style.display = which === "corp" ? "" : "none";
   $("#wpTabBaseline").style.display = which === "baseline" ? "" : "none";
   if (which === "baseline" && !wpBaselineLoaded) { wpBaselineLoaded = true; loadWpBaseline(); }
+  if (which === "policies" && !wpPoliciesLoaded) { wpPoliciesLoaded = true; loadWpPolicies(); }
+  if (which === "corp" && !wpCorpLoaded) { wpCorpLoaded = true; loadWpCorp(); }
 }));
+$("#btnWpRefresh") && ($("#btnWpRefresh").onclick = () => {
+  loadWpPosture();
+  if (wpBaselineLoaded) loadWpBaseline();
+  if (wpPoliciesLoaded) loadWpPolicies();
+  if (wpCorpLoaded) loadWpCorp();
+});
+
+async function loadWpPolicies() {
+  const el = $("#wpPolicies");
+  el.innerHTML = `<div class="card"><div class="row"><span class="spin"></span><span class="muted">Reading applied policy settings…</span></div></div>`;
+  const r = await api.applied_policies().catch(() => null);
+  if (!r || !r.ok) { el.innerHTML = `<div class="card">${emptyState("bang", "Couldn't read applied policies")}</div>`; return; }
+  if (!r.count) { el.innerHTML = `<div class="card">${emptyState("check", "No machine policies applied", "This looks like an unmanaged PC — nothing imposed by Group Policy or MDM.")}</div>`; return; }
+  const groups = r.groups.map(g => `
+    <div class="card" style="margin-bottom:12px">
+      <h3>${esc(g.area)} <span class="right">${pill("info", g.count + " setting" + (g.count === 1 ? "" : "s"))}</span></h3>
+      <div class="table-wrap" style="max-height:300px"><table>
+        <thead><tr><th>Policy</th><th>Type</th><th>Value</th></tr></thead>
+        <tbody>${g.settings.map(s => `<tr>
+          <td><div class="strong" style="font-size:12.5px">${esc(s.name)}</div>
+            <div class="muted mono copy" style="font-size:10.5px">${esc(s.key)}</div></td>
+          <td class="muted" style="font-size:11px">${esc(s.type)}</td>
+          <td class="mono copy" style="font-size:11px; word-break:break-all">${esc(s.value)}</td></tr>`).join("")}
+        </tbody></table></div>
+    </div>`).join("");
+  el.innerHTML = `<div class="dom-flag info" style="margin-bottom:10px">${ico("shield")}<span>${esc(r.summary)}${r.truncated ? " (list capped)" : ""}</span></div>${groups}`;
+}
 
 const wpLevelPill = (lvl, txt) => pill(lvl === "good" ? "good" : lvl === "bad" ? "bad" : lvl === "warn" ? "warn" : "info", txt);
 const wpRow = (k, v) => `<div class="dr"><span class="dk">${esc(k)}</span><span class="dv">${v}</span></div>`;
+
+async function loadWpCorp() {
+  const el = $("#wpCorp");
+  el.innerHTML = `<div class="card"><div class="row"><span class="spin"></span><span class="muted">Reading corporate configuration…</span></div></div>`;
+  const [ag, net] = await Promise.all([api.corp_agents().catch(() => null), api.corp_network().catch(() => null)]);
+  let html = "";
+  if (ag && ag.ok) {
+    const rows = ag.present_count
+      ? ag.agents.map(a => `<div class="dr">
+          <span class="dk strong">${esc(a.name)} <span class="muted" style="font-size:11px">· ${esc(a.category)}</span></span>
+          <span class="dv">${a.running === true ? pill("good", "running") : a.running === false ? pill("warn", "stopped") : pill("info", "present")}${a.version ? ` <span class="muted mono" style="font-size:11px">v${esc(a.version)}</span>` : ""}${a.detail ? `<div class="muted" style="font-size:11px">${esc(a.detail)}</div>` : ""}</span></div>`).join("")
+      : `<div class="muted" style="font-size:12.5px">No corporate management or security agents detected — looks like a standalone PC.</div>`;
+    html += `<div class="card" style="margin-bottom:12px"><h3>Management &amp; security agents <span class="right">${ag.present_count ? pill("info", ag.present_count + " detected") : pill("good", "none")}</span></h3>
+      <div class="dom-flag info" style="margin-bottom:8px">${ico("shield")}<span>${esc(ag.summary)}</span></div>${rows}</div>`;
+  }
+  if (net && net.ok) {
+    const u = net.update, p = net.proxy, n = net.network;
+    html += `<div class="dom-grid">
+      <div class="card"><h3>Windows Update management</h3>
+        <div class="dom-flag info" style="margin-bottom:8px">${ico("download")}<span>${esc(u.mode)}</span></div>
+        <div class="dom-sec">
+          ${u.wsus ? wpRow("WSUS server", `<span class="mono copy">${esc(u.wsus)}</span>`) : ""}
+          ${u.defer_feature != null ? wpRow("Feature-update deferral", u.defer_feature + " days") : ""}
+          ${u.defer_quality != null ? wpRow("Quality-update deferral", u.defer_quality + " days") : ""}
+          ${u.target_version ? wpRow("Target version", esc(u.target_version)) : ""}
+          ${u.au_option ? wpRow("Automatic updates", esc(u.au_option)) : ""}
+        </div></div>
+      <div class="card"><h3>Network &amp; proxy</h3>
+        <div class="dom-sec">
+          ${wpRow("Domain", `${esc(n.domain)}${n.domain_joined ? "" : " · workgroup"}`)}
+          ${n.primary_suffix ? wpRow("Primary DNS suffix", esc(n.primary_suffix)) : ""}
+          ${n.search_list && n.search_list.length ? wpRow("DNS search list", esc(n.search_list.join(", "))) : ""}
+          ${wpRow("System (WinHTTP) proxy", esc(p.winhttp))}
+          ${p.user_enabled ? wpRow("User proxy", esc(p.user_proxy || "—")) : ""}
+          ${p.pac ? wpRow("Auto-config (PAC)", `<span class="mono copy">${esc(p.pac)}</span>`) : ""}
+        </div></div>
+    </div>`;
+  }
+  el.innerHTML = html || `<div class="card">${emptyState("bang", "Couldn't read corporate configuration")}</div>`;
+}
 
 async function loadWpPosture() {
   const el = $("#wpPosture");
@@ -3732,6 +3806,11 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.12.0", name: "Chevron theme + corporate expansion", items: [
+    "New 'Chevron' appearance (Appearance menu) — warm amber-orange on warm-dark steel, squared corners, an uppercase wordmark and a chevron hazard-band across the title bar.",
+    "Workplace → Applied policies: a read-only view of every Group Policy / MDM setting actually applied to this machine, grouped by area, with each setting's registry key, type and value.",
+    "Workplace → Corporate IT: the management & security agents present (SCCM, Intune, Defender for Endpoint, third-party EDR, VPN, backup) and their state, plus Windows Update management (WSUS / Update for Business), proxy and managed-network config. Read-only.",
+  ] },
   { v: "2.11.1", name: "Reliable self-update for installed builds", items: [
     "Fixed self-update for the machine-wide (Program Files) install — the case that 'closed but never installed'. The permission prompt that finishes the update is now branded Benchly and expected (the app tells you to click Yes), the swap is driven by Benchly itself, and it logs to %TEMP%\\benchly-update.log for diagnosis.",
     "Note: the updater that runs is the one inside your installed version, so a copy stuck on an older build needs one manual install of this version to get onto the fixed path — then self-update is reliable.",
