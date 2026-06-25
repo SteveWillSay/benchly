@@ -96,6 +96,26 @@ def list_drives():
     return drives
 
 
+# File-type categories — mirrors the UI's EXT_CATS so a folder can be tinted by the type
+# of content that dominates it (the treemap's dominant-type colouring). Keys match the UI.
+_EXT_CATEGORY = {}
+for _cat, _exts in {
+    "images": "jpg jpeg png gif bmp webp svg ico heic tif tiff raw psd",
+    "video": "mp4 mkv avi mov wmv flv webm m4v mpg mpeg",
+    "audio": "mp3 wav flac aac ogg m4a wma aiff",
+    "documents": "pdf doc docx xls xlsx ppt pptx txt rtf csv md epub",
+    "archives": "zip 7z rar tar gz bz2 xz iso cab msi",
+    "code": "js ts py c cpp cs java go rs html css json xml sql sh ps1 bat yml yaml",
+    "binaries": "exe dll sys bin dmp vhd vhdx dat db pak",
+}.items():
+    for _e in _exts.split():
+        _EXT_CATEGORY[_e] = _cat
+
+
+def _category(name: str) -> str:
+    return _EXT_CATEGORY.get(os.path.splitext(name)[1].lower().lstrip("."), "other")
+
+
 def analyze_folder(path: str, top: int = 20):
     """Sizes of the immediate children of `path` — a quick 'where did my disk go'.
 
@@ -118,10 +138,13 @@ def analyze_folder(path: str, top: int = 20):
                 continue
             if child.is_file(follow_symlinks=False):
                 entries.append({"name": child.name, "kind": "file",
-                                "size": child.stat(follow_symlinks=False).st_size})
+                                "size": child.stat(follow_symlinks=False).st_size,
+                                "dominant": _category(child.name)})
             elif child.is_dir(follow_symlinks=False):
+                size, cats = _dir_scan(child.path)
+                dominant = max(cats, key=cats.get) if cats else None
                 entries.append({"name": child.name, "kind": "dir",
-                                "size": _dir_size(child.path)})
+                                "size": size, "dominant": dominant})
         except (PermissionError, OSError):
             continue
 
@@ -171,8 +194,11 @@ def folder_types(path: str, top: int = 14):
             "other": other, "other_count": other_count}
 
 
-def _dir_size(path: str) -> int:
+def _dir_scan(path: str):
+    """Total bytes under `path` plus a per-category byte breakdown, in one walk.
+    Skips reparse points; tolerates access-denied. Returns (total, {category: bytes})."""
     total = 0
+    cats = {}
     stack = [path]
     while stack:
         current = stack.pop()
@@ -183,14 +209,17 @@ def _dir_size(path: str) -> int:
                         if entry.is_symlink():
                             continue
                         if entry.is_file(follow_symlinks=False):
-                            total += entry.stat(follow_symlinks=False).st_size
+                            sz = entry.stat(follow_symlinks=False).st_size
+                            total += sz
+                            cat = _category(entry.name)
+                            cats[cat] = cats.get(cat, 0) + sz
                         elif entry.is_dir(follow_symlinks=False):
                             stack.append(entry.path)
                     except (PermissionError, OSError):
                         continue
         except (PermissionError, OSError):
             continue
-    return total
+    return total, cats
 
 
 def smart_predict():

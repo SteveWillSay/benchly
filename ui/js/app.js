@@ -567,21 +567,24 @@ $("#anCrumbs").addEventListener("click", e => {
 });
 /* file-type → colour, using the existing chart/status palette (keeps the map on-brand) */
 const EXT_CATS = [
-  { c: "var(--net)",  name: "Images",    e: ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "heic", "tif", "tiff", "raw", "psd"] },
-  { c: "var(--ram)",  name: "Video",     e: ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg"] },
-  { c: "var(--info)", name: "Audio",     e: ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "aiff"] },
-  { c: "var(--warn)", name: "Documents", e: ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "csv", "md", "epub"] },
-  { c: "var(--dsk)",  name: "Archives",  e: ["zip", "7z", "rar", "tar", "gz", "bz2", "xz", "iso", "cab", "msi"] },
-  { c: "var(--ok)",   name: "Code/data", e: ["js", "ts", "py", "c", "cpp", "cs", "java", "go", "rs", "html", "css", "json", "xml", "sql", "sh", "ps1", "bat", "yml", "yaml"] },
-  { c: "var(--crit)", name: "Binaries",  e: ["exe", "dll", "sys", "bin", "dmp", "vhd", "vhdx", "dat", "db", "pak"] },
+  { k: "images",    c: "var(--net)",  name: "Images",    e: ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "heic", "tif", "tiff", "raw", "psd"] },
+  { k: "video",     c: "var(--ram)",  name: "Video",     e: ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg"] },
+  { k: "audio",     c: "var(--info)", name: "Audio",     e: ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "aiff"] },
+  { k: "documents", c: "var(--warn)", name: "Documents", e: ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "csv", "md", "epub"] },
+  { k: "archives",  c: "var(--dsk)",  name: "Archives",  e: ["zip", "7z", "rar", "tar", "gz", "bz2", "xz", "iso", "cab", "msi"] },
+  { k: "code",      c: "var(--ok)",   name: "Code/data", e: ["js", "ts", "py", "c", "cpp", "cs", "java", "go", "rs", "html", "css", "json", "xml", "sql", "sh", "ps1", "bat", "yml", "yaml"] },
+  { k: "binaries",  c: "var(--crit)", name: "Binaries",  e: ["exe", "dll", "sys", "bin", "dmp", "vhd", "vhdx", "dat", "db", "pak"] },
 ];
-const EXT_OTHER = { c: "var(--unk)", name: "Other" };
+const EXT_OTHER = { k: "other", c: "var(--unk)", name: "Other" };
+const CAT_COLOR = Object.fromEntries([...EXT_CATS, EXT_OTHER].map(c => [c.k, c.c]));
 function extCategory(ext) {
   const e = String(ext || "").replace(/^\./, "").toLowerCase();
   return EXT_CATS.find(c => c.e.includes(e)) || EXT_OTHER;
 }
 function tileColor(it) {
-  if (it.kind === "dir") return "var(--accent)";
+  // tint by the dominant content type — folders by what fills them, files by their own type
+  if (it.dominant && CAT_COLOR[it.dominant]) return CAT_COLOR[it.dominant];
+  if (it.kind === "dir") return "var(--accent)";   // empty / uncategorised folder
   return extCategory(it.name.includes(".") ? it.name.split(".").pop() : "").c;
 }
 
@@ -3722,6 +3725,9 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.10.1", name: "Treemap: folders tinted by content", items: [
+    "In the space-analyzer treemap, each folder is now coloured by the type of content that fills it — video purple, images teal, code green, and so on — so you can read what a drive is actually full of at a glance, not just where the big folders are.",
+  ] },
   { v: "2.10.0", name: "Visual space analyzer (treemap)", items: [
     "The space analyzer (Storage) gained a WinDirStat-style treemap — every folder and file is a tile sized by how much disk it uses and colour-coded by type, so the space hogs jump out at a glance. Click a folder tile to drill in; hover for the exact size.",
     "New 'File types' view — aggregates every file under the current folder by extension, so you can see whether it's video, images, archives or logs eating the disk.",

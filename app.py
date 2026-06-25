@@ -29,7 +29,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      errdecode, profiles, filehash, hosts, minidump)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.10.0"
+APP_VERSION = "2.10.1"
 
 
 def resource_path(rel: str) -> str:
