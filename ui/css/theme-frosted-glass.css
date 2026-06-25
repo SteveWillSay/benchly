@@ -12,11 +12,12 @@ html[data-theme="frost"] {
   --ic-bg3: #29184f;
   --ic-glow: 140, 90, 240;   /* rgb of the corner light, tracks bg1 */
 
-  /* glass surfaces — heavily translucent so the gradient reads through */
-  --canvas:  #2a1a5e;
-  --surface: rgba(255, 255, 255, 0.04);
-  --raised:  rgba(255, 255, 255, 0.09);
-  --overlay: rgba(46, 30, 86, 0.78);
+  /* smoked-glass surfaces — translucent DARK tint so the bright gradient reads as
+     ambient glow behind/around panels, but text always has a dark backing (contrast) */
+  --canvas:  #1c1142;
+  --surface: rgba(24, 15, 50, 0.74);
+  --raised:  rgba(40, 26, 78, 0.70);
+  --overlay: rgba(16, 9, 34, 0.93);
 
   --border-1: rgba(255, 255, 255, 0.10);
   --border-2: rgba(255, 255, 255, 0.18);
@@ -56,8 +57,8 @@ html[data-theme="frost"] {
 /* the signature frosted wash with soft diagonal light — colours are live vars */
 html[data-theme="frost"] body {
   background:
-    radial-gradient(1200px 820px at 82% -12%, rgba(var(--ic-glow), 0.45), transparent 60%),
-    radial-gradient(1000px 720px at -12% 112%, rgba(var(--ic-glow), 0.28), transparent 55%),
+    radial-gradient(1200px 820px at 82% -12%, rgba(var(--ic-glow), 0.30), transparent 60%),
+    radial-gradient(1000px 720px at -12% 112%, rgba(var(--ic-glow), 0.18), transparent 55%),
     linear-gradient(135deg, var(--ic-bg1) 0%, var(--ic-bg2) 48%, var(--ic-bg3) 100%);
   background-attachment: fixed;
 }
@@ -82,13 +83,13 @@ html[data-theme="frost"] .seg,
 html[data-theme="frost"] .vital,
 html[data-theme="frost"] .btn,
 html[data-theme="frost"] .console {
-  -webkit-backdrop-filter: blur(42px) saturate(180%);
-  backdrop-filter: blur(42px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(120%);
+  backdrop-filter: blur(40px) saturate(120%);
 }
 
 /* ---- sidebar: translucent rail, rounded selection ---- */
 html[data-theme="frost"] #sidebar {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(20, 12, 42, 0.76);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 html[data-theme="frost"] .brand .logo {
@@ -130,14 +131,14 @@ html[data-theme="frost"] .side-foot { border-top-color: rgba(255, 255, 255, 0.1)
 
 /* ---- topbar: float over the gradient ---- */
 html[data-theme="frost"] #topbar {
-  background: transparent;
+  background: rgba(18, 10, 38, 0.64);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 html[data-theme="frost"] .meta-item { border-left-color: rgba(255, 255, 255, 0.12); }
 
 /* ---- cards: frosted glass with a top sheen and soft depth ---- */
 html[data-theme="frost"] .card {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.025) 40%);
+  background: linear-gradient(160deg, rgba(42, 27, 78, 0.76), rgba(20, 13, 44, 0.72) 60%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 12px 40px rgba(12, 5, 40, 0.34),
               inset 0 1px 0 rgba(255, 255, 255, 0.18),
@@ -173,7 +174,7 @@ html[data-theme="frost"] .input, html[data-theme="frost"] select.input {
 html[data-theme="frost"] .input:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.12); }
 
 /* ---- tables: translucent, rounded ---- */
-html[data-theme="frost"] .table-wrap { background: rgba(255, 255, 255, 0.03); }
+html[data-theme="frost"] .table-wrap { background: rgba(18, 10, 38, 0.62); }
 html[data-theme="frost"] thead th { background: rgba(46, 30, 86, 0.7); color: var(--text-2); }
 html[data-theme="frost"] tbody tr:hover { background: rgba(255, 255, 255, 0.06); }
 
@@ -198,7 +199,7 @@ html[data-theme="frost"] .bar { background: rgba(255, 255, 255, 0.12); }
 html[data-theme="frost"] .ring .track { stroke: rgba(255, 255, 255, 0.14); }
 
 /* ---- tool cards ---- */
-html[data-theme="frost"] .tool-card { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.1); }
+html[data-theme="frost"] .tool-card { background: rgba(40, 26, 78, 0.62); border-color: rgba(255, 255, 255, 0.1); }
 
 /* ---- modal veil a touch warmer ---- */
 html[data-theme="frost"] #modal-veil, html[data-theme="frost"] #palette-veil { background: rgba(20, 10, 45, 0.5); }

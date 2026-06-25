@@ -3806,6 +3806,9 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.12.2", name: "Frosted Glass: smoked-glass contrast fix", items: [
+    "The Frosted Glass theme's panels were white-tinted, which lightened the gradient behind them — so on bright backgrounds (and near the corner glow) the text and lighter accents, especially the yellow 'warn' pills, washed out. Panels are now a translucent dark 'smoked glass': the gradient reads as ambient glow around and through them, while text and the vivid accent colours sit on a dark backing and stay legible on any background.",
+  ] },
   { v: "2.12.1", name: "Chevron theme: lower-case + tagline", items: [
     "The Chevron theme now renders all text in lower case (a personal preference — copied values keep their real case), shows a true double-chevron glyph in the logo tile, and adds a tagline under the wordmark: “it looks like you're trying to troubleshoot a pc, need some help?”. Other themes are unaffected.",
   ] },
