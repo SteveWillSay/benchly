@@ -678,6 +678,36 @@ tbody tr:hover .row-action, .row-action:focus-visible { opacity: 1; }
 .diff-row .d-name { color: var(--text-1); user-select: text; }
 .diff-row .d-val { color: var(--text-3); user-select: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ============ space-analyzer treemap (WinDirStat-style) ============ */
+.an-map {
+  position: relative; width: 100%; height: 380px;
+  border: 1px solid var(--border-1); border-radius: var(--r1);
+  background: var(--surface); overflow: hidden;
+}
+.an-tile {
+  position: absolute; box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  padding: 3px 5px; overflow: hidden;
+  display: flex; flex-direction: column; gap: 1px;
+  /* a dark scrim at the top keeps the white label legible on any tile colour */
+  background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.06) 40%, rgba(0, 0, 0, 0));
+  transition: filter 100ms ease-out;
+}
+.an-tile.dir { cursor: pointer; }
+.an-tile:hover { filter: brightness(1.18) saturate(1.08); z-index: 3; }
+.an-tile .tl {
+  font-size: 10.5px; line-height: 1.2; font-weight: 600; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+.an-tile .ts { font-size: 9.5px; color: rgba(255, 255, 255, 0.95); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85); }
+.an-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; }
+.an-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); }
+.an-legend i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.type-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.type-row .ext { width: 72px; flex: none; font-size: 12px; }
+.type-row .meta { width: 130px; flex: none; text-align: right; font-size: 11px; color: var(--text-2); }
+
 /* ============ accessibility: honour the OS "reduce motion" setting ============ */
 /* Maps to Windows 10/11 Settings → Accessibility → Visual effects → Animation effects.
    Live telemetry sparklines are functional and keep updating; this drops the decorative

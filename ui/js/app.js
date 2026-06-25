@@ -565,6 +565,117 @@ $("#anCrumbs").addEventListener("click", e => {
   const b = e.target.closest("[data-path]");
   if (b) analyzePath(b.dataset.path);
 });
+/* file-type → colour, using the existing chart/status palette (keeps the map on-brand) */
+const EXT_CATS = [
+  { c: "var(--net)",  name: "Images",    e: ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "heic", "tif", "tiff", "raw", "psd"] },
+  { c: "var(--ram)",  name: "Video",     e: ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg"] },
+  { c: "var(--info)", name: "Audio",     e: ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "aiff"] },
+  { c: "var(--warn)", name: "Documents", e: ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "csv", "md", "epub"] },
+  { c: "var(--dsk)",  name: "Archives",  e: ["zip", "7z", "rar", "tar", "gz", "bz2", "xz", "iso", "cab", "msi"] },
+  { c: "var(--ok)",   name: "Code/data", e: ["js", "ts", "py", "c", "cpp", "cs", "java", "go", "rs", "html", "css", "json", "xml", "sql", "sh", "ps1", "bat", "yml", "yaml"] },
+  { c: "var(--crit)", name: "Binaries",  e: ["exe", "dll", "sys", "bin", "dmp", "vhd", "vhdx", "dat", "db", "pak"] },
+];
+const EXT_OTHER = { c: "var(--unk)", name: "Other" };
+function extCategory(ext) {
+  const e = String(ext || "").replace(/^\./, "").toLowerCase();
+  return EXT_CATS.find(c => c.e.includes(e)) || EXT_OTHER;
+}
+function tileColor(it) {
+  if (it.kind === "dir") return "var(--accent)";
+  return extCategory(it.name.includes(".") ? it.name.split(".").pop() : "").c;
+}
+
+/* squarified treemap → absolutely-positioned tiles inside `el` */
+function squarify(items, X, Y, W, H) {
+  const out = [];
+  const total = items.reduce((s, it) => s + it.size, 0) || 1;
+  const scaled = items.map(it => ({ it, area: (it.size / total) * (W * H) }));
+  let rect = { x: X, y: Y, w: W, h: H }, idx = 0;
+  const worst = (row, side) => {
+    if (!row.length) return Infinity;
+    const sum = row.reduce((s, r) => s + r.area, 0);
+    const mx = Math.max(...row.map(r => r.area)), mn = Math.min(...row.map(r => r.area));
+    const s2 = sum * sum, side2 = side * side;
+    return Math.max((side2 * mx) / s2, s2 / (side2 * mn));
+  };
+  while (idx < scaled.length) {
+    const side = Math.min(rect.w, rect.h);
+    let row = [];
+    while (idx < scaled.length) {
+      const cand = row.concat([scaled[idx]]);
+      if (row.length === 0 || worst(cand, side) <= worst(row, side)) { row = cand; idx++; }
+      else break;
+    }
+    const rowSum = row.reduce((s, r) => s + r.area, 0);
+    const thickness = side ? rowSum / side : 0;
+    let off = 0;
+    for (const r of row) {
+      const len = thickness ? r.area / thickness : 0;
+      if (side === rect.h) out.push({ x: rect.x, y: rect.y + off, w: thickness, h: len, it: r.it });
+      else out.push({ x: rect.x + off, y: rect.y, w: len, h: thickness, it: r.it });
+      off += len;
+    }
+    if (side === rect.h) rect = { x: rect.x + thickness, y: rect.y, w: rect.w - thickness, h: rect.h };
+    else rect = { x: rect.x, y: rect.y + thickness, w: rect.w, h: rect.h - thickness };
+    if (rect.w < 0.5 || rect.h < 0.5) break;
+  }
+  return out;
+}
+function renderTreemap(el, items) {
+  const W = el.clientWidth || 600, H = el.clientHeight || 380;
+  const data = items.filter(i => i.size > 0);
+  if (!data.length) { el.innerHTML = `<div class="muted" style="padding:12px; font-size:12.5px">Nothing to map here.</div>`; return; }
+  el.innerHTML = squarify(data, 0, 0, W, H).map(r => {
+    const big = r.w > 54 && r.h > 26;
+    const label = big ? `<div class="tl">${esc(r.it.name)}</div><div class="ts">${fmtBytes(r.it.size)}</div>` : "";
+    return `<div class="an-tile ${r.it.kind}" ${r.it.kind === "dir" ? `data-dir="${esc(r.it.name)}"` : `data-open="${esc(r.it.name)}"`}
+      title="${esc(r.it.name)} · ${fmtBytes(r.it.size)}"
+      style="left:${r.x}px; top:${r.y}px; width:${Math.max(0, r.w - 1)}px; height:${Math.max(0, r.h - 1)}px; background-color:${tileColor(r.it)}">${label}</div>`;
+  }).join("");
+}
+
+let anLast = null, anView = "map";
+
+function renderAnList(r) {
+  const max = r.entries[0]?.size || 1;
+  $("#anResult").innerHTML = r.entries.map(e => `
+    <div class="an-row">
+      ${ico(e.kind === "dir" ? "folder" : "file", "ic sm")}
+      <span class="nm ${e.kind}" ${e.kind === "dir" ? `data-dir="${esc(e.name)}"` : ""} title="${esc(e.name)}">${esc(e.name)}</span>
+      <div class="bar" style="flex:1"><div class="fill" style="width:${Math.max(0.6, e.size / max * 100)}%"></div></div>
+      <span class="sz">${fmtBytes(e.size)}</span>
+      <button class="btn ghost small row-action" data-open="${esc(e.name)}" title="Reveal in Explorer">${ico("open", "ic sm")}</button>
+    </div>`).join("") || emptyState("folder", "Empty folder");
+}
+async function renderAnTypes(path) {
+  $("#anTypes").innerHTML = `<div class="muted" style="font-size:12.5px"><span class="spin"></span> Scanning every file under here by type…</div>`;
+  const r = await api.folder_types(path);
+  if (!r.ok) { $("#anTypes").innerHTML = `<div class="muted" style="font-size:12.5px">${esc(r.error)}</div>`; return; }
+  const rows = r.types.concat(r.other > 0 ? [{ ext: "(other)", size: r.other, count: r.other_count }] : []);
+  if (!rows.length) { $("#anTypes").innerHTML = emptyState("folder", "No files under here"); return; }
+  const max = rows[0]?.size || 1;
+  const legend = `<div class="an-legend">${[...EXT_CATS, EXT_OTHER].map(c => `<span><i style="background:${c.c}"></i>${c.name}</span>`).join("")}</div>`;
+  $("#anTypes").innerHTML = legend + rows.map(t => {
+    const col = t.ext === "(other)" ? "var(--unk)" : extCategory(t.ext).c;
+    return `<div class="type-row">
+      <span class="ext mono">${esc(t.ext)}</span>
+      <div class="bar" style="flex:1"><div class="fill" style="width:${Math.max(0.6, t.size / max * 100)}%; background:${col}"></div></div>
+      <span class="meta">${fmtBytes(t.size)} · ${t.count.toLocaleString()} file${t.count === 1 ? "" : "s"}</span>
+    </div>`;
+  }).join("");
+}
+function showAnView(view) {
+  anView = view;
+  $$("#anViewTabs .tab").forEach(t => t.classList.toggle("active", t.dataset.anview === view));
+  $("#anMap").style.display = view === "map" ? "" : "none";
+  $("#anResult").style.display = view === "list" ? "" : "none";
+  $("#anTypes").style.display = view === "types" ? "" : "none";
+  if (!anLast) return;
+  if (view === "map") renderTreemap($("#anMap"), anLast.entries);
+  if (view === "types") renderAnTypes(anLast.path);
+}
+$$("#anViewTabs .tab").forEach(t => t.onclick = () => showAnView(t.dataset.anview));
+
 async function analyzePath(path) {
   if (anBusy) return;
   anBusy = true;
@@ -574,27 +685,23 @@ async function analyzePath(path) {
   try {
     const r = await api.analyze_folder(path);
     if (!r.ok) { $("#anStatus").textContent = ""; toast(r.error, "bad"); return; }
+    anLast = r;
     renderCrumbs(r.path);
-    $("#anStatus").textContent = `${fmtBytes(r.total)} total`;
-    const max = r.entries[0]?.size || 1;
-    $("#anResult").innerHTML = r.entries.map(e => `
-      <div class="an-row">
-        ${ico(e.kind === "dir" ? "folder" : "file", "ic sm")}
-        <span class="nm ${e.kind}" ${e.kind === "dir" ? `data-dir="${esc(e.name)}"` : ""} title="${esc(e.name)}">${esc(e.name)}</span>
-        <div class="bar" style="flex:1"><div class="fill" style="width:${Math.max(0.6, e.size / max * 100)}%"></div></div>
-        <span class="sz">${fmtBytes(e.size)}</span>
-        <button class="btn ghost small row-action" data-open="${esc(e.name)}" title="Reveal in Explorer">${ico("open", "ic sm")}</button>
-      </div>`).join("") || emptyState("folder", "Empty folder");
-    $("#anResult").dataset.base = r.path;
+    $("#anStatus").textContent = `${fmtBytes(r.total)} total${r.hidden_count ? ` · +${r.hidden_count} smaller` : ""}`;
+    $("#anViewTabs").style.display = "";
+    renderAnList(r);            // keep the list rendered behind its tab
+    showAnView(anView);         // draw whichever view is active (Map by default)
   } finally { anBusy = false; $("#btnAnalyze").disabled = false; }
 }
-$("#anResult").addEventListener("click", e => {
-  const base = $("#anResult").dataset.base || "";
+function anNavClick(e) {
+  const base = (anLast?.path || "").replace(/\\+$/, "");
   const open = e.target.closest("[data-open]");
-  if (open) { api.open_path(base.replace(/\\+$/, "") + "\\" + open.dataset.open); return; }
+  if (open) { api.open_path(base + "\\" + open.dataset.open); return; }
   const dir = e.target.closest("[data-dir]");
-  if (dir) analyzePath(base.replace(/\\+$/, "") + "\\" + dir.dataset.dir);
-});
+  if (dir) analyzePath(base + "\\" + dir.dataset.dir);
+}
+$("#anResult").addEventListener("click", anNavClick);
+$("#anMap").addEventListener("click", anNavClick);
 $("#btnAnalyze").onclick = () => analyzePath($("#anPath").value.trim() || "C:\\");
 $("#anPath").addEventListener("keydown", e => { if (e.key === "Enter") $("#btnAnalyze").click(); });
 
@@ -3615,6 +3722,11 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.10.0", name: "Visual space analyzer (treemap)", items: [
+    "The space analyzer (Storage) gained a WinDirStat-style treemap — every folder and file is a tile sized by how much disk it uses and colour-coded by type, so the space hogs jump out at a glance. Click a folder tile to drill in; hover for the exact size.",
+    "New 'File types' view — aggregates every file under the current folder by extension, so you can see whether it's video, images, archives or logs eating the disk.",
+    "A Map / List / File types toggle switches views; the original list (with reveal-in-Explorer) is still there.",
+  ] },
   { v: "2.9.0", name: "One-stop tools, deeper diagnostics & UI polish", items: [
     "File hash (Toolbox) — MD5 / SHA-1 / SHA-256 of any file, computed locally; pairs with the VirusTotal check.",
     "Hosts file viewer (Toolbox) — shows active host overrides and flags non-default entries (a redirect/hijack check).",

@@ -318,7 +318,14 @@
             <button class="btn primary" id="btnAnalyze">Analyze</button>
           </div>
           <div class="crumbs mt" id="anCrumbs"></div>
+          <div class="tabs mt" id="anViewTabs" style="display:none">
+            <button class="tab active" data-anview="map">Map</button>
+            <button class="tab" data-anview="list">List</button>
+            <button class="tab" data-anview="types">File types</button>
+          </div>
+          <div id="anMap" class="an-map mt" style="display:none"></div>
           <div id="anResult" class="mt"></div>
+          <div id="anTypes" class="mt" style="display:none"></div>
         </div>
 
         <div class="card" style="margin-top:12px">

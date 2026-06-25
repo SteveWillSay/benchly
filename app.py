@@ -29,7 +29,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      errdecode, profiles, filehash, hosts, minidump)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.9.0"
+APP_VERSION = "2.10.0"
 
 
 def resource_path(rel: str) -> str:
@@ -131,6 +131,9 @@ class Api:
 
     def analyze_folder(self, path):
         return storage.analyze_folder(path)
+
+    def folder_types(self, path):
+        return storage.folder_types(path)
 
     # --- network ----------------------------------------------------------------
     def get_network_info(self):

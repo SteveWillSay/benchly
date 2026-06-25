@@ -131,6 +131,46 @@ def analyze_folder(path: str, top: int = 20):
             "hidden_count": max(0, len(entries) - top)}
 
 
+def folder_types(path: str, top: int = 14):
+    """Aggregate file sizes by extension under `path` (one walk) — 'what type is eating
+    the space'. Skips reparse points; tolerates access-denied. Read-only."""
+    path = os.path.abspath(path)
+    if not os.path.isdir(path):
+        return {"ok": False, "error": f"Not a directory: {path}"}
+
+    buckets = {}   # ext -> [size, count]
+    total = 0
+    stack = [path]
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as it:
+                for entry in it:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_file(follow_symlinks=False):
+                            sz = entry.stat(follow_symlinks=False).st_size
+                            ext = (os.path.splitext(entry.name)[1].lower() or "(no ext)")
+                            b = buckets.setdefault(ext, [0, 0])
+                            b[0] += sz
+                            b[1] += 1
+                            total += sz
+                        elif entry.is_dir(follow_symlinks=False):
+                            stack.append(entry.path)
+                    except (PermissionError, OSError):
+                        continue
+        except (PermissionError, OSError):
+            continue
+
+    items = sorted(({"ext": e, "size": v[0], "count": v[1]} for e, v in buckets.items()),
+                   key=lambda x: x["size"], reverse=True)
+    other = sum(x["size"] for x in items[top:])
+    other_count = sum(x["count"] for x in items[top:])
+    return {"ok": True, "path": path, "total": total, "types": items[:top],
+            "other": other, "other_count": other_count}
+
+
 def _dir_size(path: str) -> int:
     total = 0
     stack = [path]
