@@ -30,7 +30,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      policies, corpagents, corpnet)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.12.0"
+APP_VERSION = "2.12.1"
 
 
 def resource_path(rel: str) -> str:

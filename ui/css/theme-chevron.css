@@ -41,10 +41,30 @@ html[data-theme="chevron"] select.input,
 html[data-theme="chevron"] .seg,
 html[data-theme="chevron"] .seg button { border-radius: var(--r1); }
 
-/* uppercase, tracked wordmark + squared logo tile */
-html[data-theme="chevron"] .brand h1 { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-html[data-theme="chevron"] .brand .logo { border-radius: var(--r1); }
-html[data-theme="chevron"] .brand .logo svg { stroke: #2a1505; }
+/* this colleague despises capitals — render everything lower-case (visual only;
+   copied values keep their real case). !important beats per-element transforms. */
+html[data-theme="chevron"] body,
+html[data-theme="chevron"] body * { text-transform: lowercase !important; }
+
+/* tracked wordmark (lower-case via the rule above) */
+html[data-theme="chevron"] .brand h1 { letter-spacing: 0.04em; font-weight: 600; }
+
+/* a real double-chevron glyph in the logo tile (replaces the base mark) */
+html[data-theme="chevron"] .brand .logo {
+  border-radius: var(--r1);
+  border: 1px solid rgba(232, 137, 58, 0.55);
+  background: #211c17 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 5 L12 12 L5 19 M12 5 L19 12 L12 19' fill='none' stroke='%23e8893a' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 17px 17px no-repeat;
+}
+html[data-theme="chevron"] .brand .logo svg { display: none; }
+
+/* the Clippy-style tagline under the wordmark (Chevron only) */
+html[data-theme="chevron"] .brand-tag {
+  display: block !important;
+  margin: -6px 12px 14px; padding: 7px 9px;
+  font-size: 11px; line-height: 1.45; font-style: italic;
+  color: var(--accent-text); background: var(--accent-bg);
+  border-left: 2px solid var(--accent); border-radius: var(--r1);
+}
 
 /* the signature: a chevron hazard band across the very top of the title bar */
 html[data-theme="chevron"] #topbar { position: relative; }

@@ -3806,6 +3806,9 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.12.1", name: "Chevron theme: lower-case + tagline", items: [
+    "The Chevron theme now renders all text in lower case (a personal preference — copied values keep their real case), shows a true double-chevron glyph in the logo tile, and adds a tagline under the wordmark: “it looks like you're trying to troubleshoot a pc, need some help?”. Other themes are unaffected.",
+  ] },
   { v: "2.12.0", name: "Chevron theme + corporate expansion", items: [
     "New 'Chevron' appearance (Appearance menu) — warm amber-orange on warm-dark steel, squared corners, an uppercase wordmark and a chevron hazard-band across the title bar.",
     "Workplace → Applied policies: a read-only view of every Group Policy / MDM setting actually applied to this machine, grouped by area, with each setting's registry key, type and value.",
