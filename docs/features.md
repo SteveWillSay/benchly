@@ -8,6 +8,13 @@ is the page you actually want.
 Pages live down the left rail. Number keys **1–9** jump to the first nine, **0** lands on
 the Toolbox, and **Ctrl + K** searches every page and action by name.
 
+Two things hold across every page below. **Hover almost anything — a page, a button, a tweak
+toggle — and a plain-English tooltip explains what it does** before you click. And **anything
+that needs administrator rights stays hidden until you elevate** (via **Run as admin** in the
+title bar), rather than showing as a locked or greyed-out control — so the standard view is
+only ever the things you can actually use. Where a feature below notes that it *wants* or
+*needs* admin, that's one of the things that appears once you elevate.
+
 ---
 
 ## Dashboard
@@ -303,8 +310,8 @@ for that single call, never stored).
 
 ## Workplace
 
-The page for the corporate and small-business machines an IT pro actually looks after. Two
-tabs.
+The page for the corporate and small-business machines an IT pro actually looks after. Four
+tabs — three read-only, one that configures.
 
 **Posture** is read-only — the "what kind of machine is this, and is it set up right?" view:
 
@@ -320,6 +327,31 @@ tabs.
 - **Clock & time sync** — where the machine gets its time, how far off it is *right now*
   (measured against an NTP server), the time-service state, and a one-click resync. Clock
   drift quietly breaks HTTPS, Kerberos, MFA and licensing.
+
+**Applied policies** is read-only — the honest answer to "what is my management *actually*
+doing to this machine?" Benchly walks the policy registry hives and lists **every Group Policy
+and MDM setting that's genuinely in force**, grouped by area (Windows Update, BitLocker,
+Defender, Edge, privacy/telemetry, security options, and so on). Each row shows the setting's
+**registry key, value type and value**, so you're reading what was applied rather than trusting
+that *something* was. It works without admin — these policy hives are world-readable — and you
+can export the lot to JSON for documentation. (This is the receipts; the *Posture → Group
+Policy* card just tells you which GPO objects applied.)
+
+**Corporate IT** is read-only — the management and security stack layered onto the machine:
+
+- **Management agents** — the ConfigMgr / SCCM client (with its version), the Intune Management
+  Extension, and MDM enrolment (provider and the enrolled account), each shown present/running.
+- **Security & EDR** — Microsoft Defender for Endpoint (the Sense sensor) and the common
+  third-party endpoint agents (CrowdStrike Falcon, SentinelOne, VMware Carbon Black, Sophos,
+  Cylance), with their running state.
+- **VPN & ZTNA** — Cisco AnyConnect / Secure Client, Palo Alto GlobalProtect, Zscaler,
+  Tailscale, OpenVPN.
+- **Backup** — Veeam, Acronis, Cohesity, CrashPlan / Code42.
+- **Update management & network** — whether Windows Update is pointed at **WSUS** or governed by
+  **Update for Business** policy, the system **proxy** (and any PAC), and managed-network signals.
+
+It's pure detection and reporting — Benchly reads what's installed and what state it's in, and
+changes none of it.
 
 **Managed baseline** is the configurator for standalone, unmanaged PCs — set the policies an
 admin normally pushes via GPO or Intune, right here:

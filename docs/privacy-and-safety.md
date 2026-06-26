@@ -89,9 +89,11 @@ Elevation unlocks the things Windows keeps behind admin:
   ASR rules, removing a Defender exclusion, creating a restore point, and app updates that
   install machine-wide.
 
-Anything that needs elevation says so, and stays disabled until you give it. Use **Run as
-admin** in the title bar — Benchly relaunches elevated and pops you back on the same page.
-Nothing ever escalates behind your back.
+Anything that needs elevation is simply **hidden until you give it** — the standard view shows
+only what a standard user can actually use, rather than greyed-out controls you can't press
+(both the actions *and* the privileged read-only fields above). Use **Run as admin** in the
+title bar — Benchly relaunches elevated, reveals everything that was gated, and pops you back on
+the same page. Nothing ever escalates behind your back.
 
 ## Where your stuff lives
 

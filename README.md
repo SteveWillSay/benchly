@@ -39,9 +39,13 @@ Head to the [**Releases**](../../releases/latest) page and take your pick:
 | **A tidy install** | `Benchly-Setup-x.y.z.exe` | Start-menu entry, an optional desktop shortcut, and a clean uninstaller. |
 
 Double-click and you're in. A handful of checks — SMART drive wear, BitLocker, TPM,
-Secure Boot, the system-wide tweaks — need admin rights. When one does, just hit **Run as
-admin** in the title bar; Benchly relaunches elevated and drops you right back where you
-were.
+Secure Boot, the system-wide tweaks — need admin rights, and until you grant them those
+features stay **hidden** rather than sitting there greyed-out and teasing. When you want
+them, hit **Run as admin** in the title bar; Benchly relaunches elevated, reveals everything
+that was gated, and drops you right back on the page you were reading.
+
+> **New to it?** The two-minute [**getting-started guide**](docs/getting-started.md) walks you
+> through your first run and the handful of jobs people reach for Benchly to do.
 
 > Runs on **Windows 10 or 11**, 64-bit. It rides on the WebView2 runtime, which is already
 > on every Windows 11 and current Windows 10. On a stripped-down LTSC image that's missing
@@ -102,12 +106,19 @@ translates the cryptic `0x800f…` Windows Update errors into plain English, and
 shows what's actually dragging out your boot.
 
 **Look after the work machines too.** The **Workplace** page is for the corporate and
-small-business PCs an IT pro manages: is Windows **activated** and on what licence, is it
-**Entra / domain joined or just a workgroup**, which **Group Policies** are applied, and is
-the **clock** drifting (the silent cause of sign-in and certificate errors). Its **managed
-baseline** even lets you set the policies an admin usually pushes via GPO or Intune — Windows
-Update deferrals, a BitLocker startup PIN, telemetry, auto-lock — on a standalone PC, each one
-reversible and showing the exact registry key.
+small-business PCs an IT pro manages, in four tabs. **Posture** answers "what kind of machine
+is this?": is Windows **activated** and on what licence, is it **Entra / domain joined or just
+a workgroup**, and is the **clock** drifting (the silent cause of sign-in and certificate
+errors). **Applied policies** lists every **Group Policy / MDM setting actually in force**,
+grouped by area, each with the registry key, type and value behind it — so you can see what
+your management really pushed, not just that *something* did. **Corporate IT** detects the
+**management and security agents** present and whether they're running — SCCM, Intune, Defender
+for Endpoint, third-party EDR (CrowdStrike, SentinelOne, Carbon Black…), VPN clients and backup
+agents — alongside how Windows Update is managed (WSUS / Update for Business), the proxy and the
+managed network. All three of those are **read-only**. The fourth tab, **Managed baseline**,
+flips the other way: on a *standalone* PC it lets you set the policies an admin would usually
+push via GPO or Intune — Windows Update deferrals, a BitLocker startup PIN, telemetry, auto-lock
+— each one opt-in, reversible, and showing the exact registry key.
 
 **Hand it off, or scale it up.** One click spits out a clean, client-ready **HTML + PDF
 report** (built in the background, with a JSON twin for your own use). **Fleet** lines those
@@ -182,10 +193,13 @@ anything destructive.
 | `--page <name>` | Boot straight onto a page |
 | `--theme frost` | Boot in the Frosted Glass theme |
 
-Anything you'd otherwise be retyping — serials, MACs, IPs, hashes — is click-to-copy.
-There are two looks: **Graphite** (the flat dark default) and **Frosted Glass** (glass with
-a gradient you can tweak), and you can flip between them live from the title bar. Click the
-version number whenever you're curious what's new.
+Anything you'd otherwise be retyping — serials, MACs, IPs, hashes — is click-to-copy. And
+if you're ever unsure what a button, toggle or page does, just hover it: **every interactive
+piece has a plain-English tooltip** explaining itself before you click.
+
+There are three looks, flipped live from the title bar: **Graphite** (the flat dark default),
+**Frosted Glass** (glass with a gradient you can tweak), and **Chevron** (a warm amber, squared
+theme). Click the version number whenever you're curious what's new.
 
 **It updates itself.** Click the version number (or Ctrl + K → "Check for Benchly updates")
 and, when there's a newer build, Benchly downloads it, checks it against the release's

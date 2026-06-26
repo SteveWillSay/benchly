@@ -21,8 +21,9 @@ there if you'd rather have a Start-menu entry and an uninstaller, but it's optio
 
 To see the privileged stuff (SMART wear, BitLocker, TPM, the full port→process map) and to
 run the repair tools and machine-wide tweaks. It works fine without — those specific bits are
-just greyed out until you click **Run as admin** in the title bar. Nothing escalates on its
-own.
+simply **hidden** (not greyed-out and teasing) until you click **Run as admin** in the title
+bar, which relaunches Benchly elevated, reveals everything that was gated, and drops you back
+on the same page. Nothing escalates on its own.
 
 ### Does it work offline?
 
@@ -87,6 +88,20 @@ registry key, needs admin, and is reversible (**Clear** returns it to the Window
 Benchly sees the machine is *already* centrally managed it warns you first, because real
 GPO/MDM would overwrite anything you set locally — so this is meant for standalone PCs without
 Intune.
+
+### What are the different looks, and how do I switch?
+
+There are three, flipped live from the **appearance** button in the title bar (no restart):
+**Graphite** is the flat dark default; **Frosted Glass** is a translucent "smoked glass" skin
+over a gradient you can recolour; **Chevron** is a warm amber, squared theme. Your choice is
+remembered, and you can also boot straight into one with `--theme frost` (or `chevron`).
+
+### I'm not sure what a button does — is there any in-app help?
+
+Yes — just **hover it**. Every interactive piece of Benchly (sidebar pages, title-bar buttons,
+each tweak toggle, and the repair-tool and copy actions) shows a small plain-English tooltip
+saying what it does, including whether a tweak needs a reboot or restarts Explorer. The tips
+also appear on keyboard focus and read as proper tooltips to a screen reader.
 
 ### Can I run it on Windows Server or an older build?
 
