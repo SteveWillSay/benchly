@@ -19,6 +19,9 @@ _dev/*.png
 # Release binaries live on GitHub Releases, not in the tree
 release/**/*.exe
 
+# Internal handoff / approval docs — local only, kept out of the repo
+docs/handoff/
+
 # OS
 Thumbs.db
 desktop.ini
