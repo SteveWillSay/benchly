@@ -802,6 +802,18 @@
           <div id="wuBody"><div class="muted" style="font-size:12.5px">Press Check to read the update history and decode any failures.</div></div>
         </div>
 
+        <div class="card" style="margin-bottom:12px">
+          <h3>Software updates <span class="muted" style="font-weight:400; font-size:12px">· no winget</span>
+            <span class="right"><button class="btn small" id="btnAppVerCheck" data-tip="Reads your installed apps and checks the common ones against their official source for a newer version. No winget, nothing installed — just a heads-up and a download link.">Check</button></span></h3>
+          <p class="muted" style="font-size:12.5px; line-height:1.5; margin-bottom:10px">
+            Reads what's installed locally and cross-references a curated list of common apps against their
+            <strong>official</strong> sources (the vendor's own version endpoint, or that project's GitHub
+            Releases) for a newer version — no winget, nothing installed. When one's behind, you get the
+            version gap and a link to the official download.
+          </p>
+          <div id="appVerBody"><div class="muted" style="font-size:12.5px">Press Check to compare your installed apps against their latest official releases.</div></div>
+        </div>
+
         <div class="grid cols-2" style="margin-bottom:12px">
           <div class="card">
             <h3>Error-code decoder</h3>

@@ -2211,6 +2211,68 @@ $("#btnWuCheck").onclick = async () => {
   $("#wuBody").innerHTML = healthRow + failNote + table;
 };
 
+/* ---- Software updates (no winget — official sources) ---- */
+async function checkAppVersions() {
+  const body = $("#appVerBody");
+  body.innerHTML = `<div class="row"><span class="spin"></span><span class="muted" id="appVerMsg">Reading installed apps…</span></div>`;
+  const r = await api.start_version_check();
+  if (!r.ok) { body.innerHTML = `<div class="muted" style="font-size:12.5px">${esc(r.error)}</div>`; return; }
+  let fails = 0;
+  const poll = async () => {
+    const g = await api.get_version_check(r.job);
+    if (!g.ok) { if (++fails > 8) { body.innerHTML = `<div class="muted" style="font-size:12.5px">Check failed.</div>`; return; } return void setTimeout(poll, 700); }
+    fails = 0;
+    if (!g.done) {
+      const m = $("#appVerMsg");
+      if (m) m.textContent = `Checking ${g.checked}/${g.total || "…"} apps against their official sources…`;
+      return void setTimeout(poll, 600);
+    }
+    renderAppVersions(g.results || []);
+  };
+  poll();
+}
+function renderAppVersions(rows) {
+  const body = $("#appVerBody");
+  if (!rows.length) {
+    body.innerHTML = `<div class="muted" style="font-size:12.5px">None of your installed apps are in the check list yet — it covers a curated set of common apps, checked against their official sources, and grows over time.
+      <span style="display:block; margin-top:8px"><button class="btn ghost small" id="btnAppVerRecheck">Re-check</button></span></div>`;
+    $("#btnAppVerRecheck") && ($("#btnAppVerRecheck").onclick = checkAppVersions);
+    return;
+  }
+  const updates = rows.filter(r => r.status === "update").length;
+  const summary = updates
+    ? `<strong style="color:var(--warn)">${updates} update${updates > 1 ? "s" : ""} available</strong>`
+    : `<span class="muted">Everything checked is up to date</span>`;
+  const head = `<div class="row" style="margin-bottom:10px; align-items:center">
+      <span style="font-size:12.5px">${summary} · ${rows.length} checked</span>
+      <button class="btn ghost small" id="btnAppVerRecheck" style="margin-left:auto">Re-check</button></div>`;
+  const table = `<div class="table-wrap"><table>
+      <thead><tr><th>Application</th><th>Installed</th><th>Latest</th><th></th></tr></thead>
+      <tbody>${rows.map(r => {
+        const action = r.status === "update"
+          ? `<button class="btn ghost small" data-dl="${esc(r.url)}" data-tip="Open ${esc(r.name)}'s official download page in your browser. Benchly never downloads or installs it for you.">Get ${esc(r.latest)}${ico("download", "ic sm")}</button>`
+          : r.status === "current" ? pill("good", "Up to date")
+          : `<span class="muted" style="font-size:11.5px" title="${esc(r.note)}">couldn't check</span>`;
+        const latest = r.status === "update"
+          ? `<span class="mono" style="color:var(--ok)">${esc(r.latest)}</span>`
+          : `<span class="mono">${esc(r.latest || "—")}</span>`;
+        return `<tr>
+          <td class="strong">${esc(r.name)}${r.publisher ? `<div class="muted" style="font-size:11px">${esc(r.publisher)}</div>` : ""}</td>
+          <td class="mono">${esc(r.installed || "—")}</td>
+          <td>${latest}</td>
+          <td style="width:150px">${action}</td></tr>`;
+      }).join("")}</tbody></table></div>`;
+  body.innerHTML = head + table;
+  $("#btnAppVerRecheck") && ($("#btnAppVerRecheck").onclick = checkAppVersions);
+}
+$("#btnAppVerCheck") && ($("#btnAppVerCheck").onclick = checkAppVersions);
+$("#appVerBody") && $("#appVerBody").addEventListener("click", e => {
+  const dl = e.target.closest("[data-dl]");
+  if (!dl) return;
+  api.open_in_browser(dl.dataset.dl);
+  toast("Opening the official download page…", "good", 2500);
+});
+
 /* ---- Gremlin hunters ---- */
 $$("#gremTabs .tab").forEach(t => t.addEventListener("click", () => {
   const which = t.dataset.grem;
@@ -3864,6 +3926,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.14.0", name: "Software updates — without winget", items: [
+    "New Toolbox card: a software update check that doesn't touch winget. It reads what's installed locally and cross-references a curated list of common apps (browsers, IT/dev tools, media, utilities) against their official sources — the vendor's own version endpoint, or that project's GitHub Releases — for a newer version. When one's behind, you get the installed-vs-latest gap and a button to open the official download page in your browser.",
+    "Why no winget: only plain HTTPS “what's the latest version?” lookups go out, each straight to the one vendor — no package-manager behaviour for tight endpoint protection to flag, and no list of your software sent anywhere. It's read-only; nothing is ever downloaded or installed for you. Coverage is the curated set and grows over time; apps it doesn't know about are left out, not guessed at.",
+  ] },
   { v: "2.13.0", name: "Hover tips on every control", items: [
     "Hover almost anything in Benchly and a small plain-English tip now explains what it does — every sidebar page, the title-bar buttons (appearance, run-as-admin, export report, what's-new), each tweak toggle (including whether it needs a reboot or restarts Explorer), and the repair-tool and copy actions that already had hints.",
     "The tip is one consistent, on-brand style across all appearances, appears after a brief pause so it never gets in the way, repositions to stay on screen, and is hidden for people who prefer reduced motion. It reads as a true tooltip to screen readers.",
@@ -4226,6 +4292,7 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "zap", label: "Power, sleep & wake doctor", run: () => { showPage("toolbox"); $("#btnPowerScan").click(); } },
   { cat: "Actions", icon: "refresh", label: "Check for a pending restart", run: () => { showPage("toolbox"); $("#btnRebootCheck")?.click(); } },
   { cat: "Actions", icon: "download", label: "Update doctor (why is Windows Update stuck?)", run: () => { showPage("toolbox"); $("#btnWuCheck")?.click(); } },
+  { cat: "Actions", icon: "download", label: "Check for app updates (no winget)", run: () => { showPage("toolbox"); $("#btnAppVerCheck")?.click(); } },
   { cat: "Actions", icon: "history", label: "Boot-time breakdown", run: () => { showPage("events"); $(`#evTabs [data-ev="boot"]`)?.click(); } },
   { cat: "Actions", icon: "drive", admin: true, label: "Clean up the component store (WinSxS)", run: () => { showPage("toolbox"); $(`[data-run="dism_analyze"]`)?.scrollIntoView({ block: "center" }); } },
   { cat: "Actions", icon: "bug", label: "Gremlin hunters (disk / USB / freeze)", run: () => { showPage("toolbox"); $("#btnGremDisk")?.scrollIntoView({ block: "center" }); } },

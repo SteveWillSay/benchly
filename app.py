@@ -27,10 +27,10 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      firewall, credentials,
                      envaudit, runtimes, audio,
                      errdecode, profiles, filehash, hosts, minidump,
-                     policies, corpagents, corpnet)
+                     policies, corpagents, corpnet, appupdates)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.13.0"
+APP_VERSION = "2.14.0"
 
 
 def resource_path(rel: str) -> str:
@@ -185,6 +185,13 @@ class Api:
 
     def get_update_all_job(self, job_id, offset=0):
         return winget.get_update_all_job(job_id, offset)
+
+    # --- software version check (no winget; official sources) -------------------
+    def start_version_check(self):
+        return appupdates.start_check()
+
+    def get_version_check(self, job_id):
+        return appupdates.get_check(job_id)
 
     # --- phishing & trust triage ------------------------------------------------
     def audit_certs(self):

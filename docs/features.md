@@ -234,6 +234,15 @@ The repair bench:
   result codes **decoded into plain English and what to do**, the last successful scan and
   install, and the health of the services updates rely on. It treats the cause where the
   Update-cache reset treats the symptom.
+- **Software updates (no winget)** — reads what's installed from the registry and cross-references
+  a *curated* list of common apps (browsers, IT and dev tools, media, utilities) against their
+  **official** sources — the vendor's own version endpoint, or that project's GitHub Releases — for
+  a newer version. It's deliberately winget-free: only plain HTTPS "what's the latest version?"
+  lookups go out, each straight to the one vendor, so there's no package-manager behaviour for
+  endpoint protection to trip over. When something's behind you get the installed-vs-latest gap and
+  a button to open the **official download page** in your browser; Benchly never downloads or
+  installs anything itself. Coverage is the curated set (matched against what you actually have) and
+  grows over time — apps it doesn't know about are simply left out, not guessed at.
 - **Configuration baseline** — snapshot installed software, services and startup while the
   machine's healthy, then compare later to see precisely what changed. The **"what changed?"**
   diff also catches everyday Windows settings that have drifted since the snapshot — display
