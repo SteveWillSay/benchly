@@ -70,8 +70,12 @@ def stored_credentials():
 
 def remove_credential(target):
     """Delete a saved credential by its exact target string (confirmed in the UI)."""
-    safe = target.replace('"', '')
-    out = run_ps(f'cmdkey /delete:"{safe}"', timeout=15) or ""
+    # Single-quote + double any embedded quotes (the pattern used elsewhere, e.g.
+    # defender.py / firewall.py). A PowerShell *double*-quoted string still evaluates
+    # $(...), $var and backticks, so a credential named e.g. "$(calc.exe)" would run on
+    # removal; a single-quoted string is taken literally.
+    safe = str(target).replace("'", "''")
+    out = run_ps(f"cmdkey /delete:'{safe}'", timeout=15) or ""
     if "deleted" in out.lower() or "success" in out.lower():
         return {"ok": True, "where": f"Removed saved credential '{target}'."}
     return {"ok": False, "error": "Couldn't remove that credential (it may already be gone)."}

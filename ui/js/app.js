@@ -3926,6 +3926,9 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.14.1", name: "Security hardening", items: [
+    "A security-review patch (no feature changes) hardening a few internal paths. None were remotely exploitable — the bridge is local and the UI is XSS-clean — but they were worth removing: the self-update now refuses any build that has no published checksums, and an installed copy only ever updates from Benchly's official source; the disk-cleanup delete is constrained to folders you actually scanned this session (and never touches system locations); removing a saved credential is escaped so an oddly-named entry can't run anything; and the VirusTotal key is refused rather than ever written in cleartext if encryption fails.",
+  ] },
   { v: "2.14.0", name: "Software updates — without winget", items: [
     "New Toolbox card: a software update check that doesn't touch winget. It reads what's installed locally and cross-references a curated list of common apps (browsers, IT/dev tools, media, utilities) against their official sources — the vendor's own version endpoint, or that project's GitHub Releases — for a newer version. When one's behind, you get the installed-vs-latest gap and a button to open the official download page in your browser.",
     "Why no winget: only plain HTTPS “what's the latest version?” lookups go out, each straight to the one vendor — no package-manager behaviour for tight endpoint protection to flag, and no list of your software sent anywhere. It's read-only; nothing is ever downloaded or installed for you. Coverage is the curated set and grows over time; apps it doesn't know about are left out, not guessed at.",

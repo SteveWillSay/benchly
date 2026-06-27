@@ -167,6 +167,7 @@ def _purge_dir_contents(root, errors):
 def find_large_files(path, min_mb=100, top=40):
     if not os.path.isdir(path):
         return {"ok": False, "error": "Not a folder."}
+    _remember_root(path)
     threshold = min_mb * 1024 * 1024
     _, files = _dir_size_and_files(path)
     sized = []
@@ -189,6 +190,7 @@ _dup_store = JobStore()
 def start_duplicate_scan(path):
     if not os.path.isdir(path):
         return {"ok": False, "error": "Not a folder."}
+    _remember_root(path)
     job_id = _dup_store.start(_dup_run, path=path, groups=[], scanned=0, phase="listing")
     if job_id is None:
         return {"ok": False, "error": "A scan is already running."}
@@ -252,7 +254,66 @@ def _hash(path, chunk=1 << 20):
         return None
 
 
+# ---- delete scoping -------------------------------------------------------------
+# recycle_files is a privileged delete primitive, so it is constrained to paths that
+# descend from a folder the user actually scanned this session (the large-file or
+# duplicate finders record their root below). System / Program Files locations are
+# refused regardless. This bounds the blast radius if any future UI/logic bug were to
+# reach the bridge — today the UI only ever passes back user-chosen scan results.
+_scan_roots = set()
+
+
+def _remember_root(path):
+    try:
+        _scan_roots.add(os.path.realpath(path))
+    except OSError:
+        pass
+
+
+def _protected_roots():
+    roots = []
+    for var in ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
+        v = os.environ.get(var)
+        if v:
+            try:
+                roots.append(os.path.realpath(v))
+            except OSError:
+                pass
+    return roots
+
+
+def _within(child, root):
+    try:
+        return os.path.commonpath([child, root]) == root
+    except ValueError:   # different drive — commonpath raises
+        return False
+
+
+def _deletable(p):
+    """A path may be recycled only if it resolves inside a scanned root and is not a
+    protected system location. realpath() collapses junctions/symlinks, so a reparse
+    point pointing outside a scanned root can't slip through."""
+    if not _scan_roots:
+        return False
+    try:
+        rp = os.path.realpath(p)
+    except OSError:
+        return False
+    if any(rp == pr or _within(rp, pr) for pr in _protected_roots()):
+        return False
+    return any(_within(rp, root) for root in _scan_roots)
+
+
 def recycle_files(paths):
+    if isinstance(paths, str):
+        paths = [paths]
+    paths = [p for p in (paths or []) if p]
+    blocked = [p for p in paths if not _deletable(p)]
+    if blocked:
+        return {"ok": False,
+                "error": "Refused: one or more paths are outside a folder you scanned this "
+                         "session, or are protected system locations. Re-scan the folder first.",
+                "blocked": blocked[:10]}
     n, err = winfs.recycle(paths)
     return {"ok": err is None, "recycled": n, "error": err}
 

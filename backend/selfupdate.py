@@ -54,7 +54,16 @@ def _parse_ver(s):
 
 
 def _repo():
-    return (settings.get("update_repo") or _DEFAULT_REPO).strip().strip("/")
+    # Security: in a shipped (frozen) build, pin to the baked-in repo. The `update_repo`
+    # setting is user-writable, so honouring it in a release would let a local attacker who
+    # can write settings.json repoint the updater at a repo they control (whose own
+    # SHA256SUMS.txt would happily "verify"). The override stays available when running
+    # from source, where it's a dev convenience. A fork that needs its own source rebuilds
+    # with _DEFAULT_REPO changed.
+    override = (settings.get("update_repo") or "").strip().strip("/")
+    if override and not getattr(sys, "frozen", False):
+        return override
+    return _DEFAULT_REPO
 
 
 def check_update(current_version):
@@ -187,7 +196,16 @@ def _run_download(job):
 
     job["stage"] = "verifying"
     expected = _expected_hash(job.get("checksums"), filename)
-    if expected and h.hexdigest().lower() != expected:
+    if not expected:
+        # No published checksum for this asset → cannot prove authenticity → refuse,
+        # rather than staging and running an unverified exe.
+        try:
+            os.remove(dest)
+        except OSError:
+            pass
+        job["error"] = "Couldn't get a published checksum for this download — update cancelled."
+        return
+    if h.hexdigest().lower() != expected:
         try:
             os.remove(dest)
         except OSError:
@@ -196,7 +214,7 @@ def _run_download(job):
         return
 
     _staged.clear()
-    _staged.update({"path": dest, "mode": job["mode"], "target": job["target"], "verified": bool(expected)})
+    _staged.update({"path": dest, "mode": job["mode"], "target": job["target"], "verified": True})
     job["stage"] = "ready"
     job["progress"] = 100
     job["ok"] = True
@@ -215,6 +233,11 @@ def download_update():
     url = info["asset_portable"]
     if not url:
         return {"ok": False, "error": "The latest release has no portable download to update from."}
+    # Refuse to update from a release with no published checksums — otherwise an
+    # unverified exe could be staged and run (see _run_download).
+    if not info.get("asset_checksums"):
+        return {"ok": False,
+                "error": "This release has no SHA256SUMS.txt — refusing to update from an unverified build."}
     job_id = _jobs.start(_run_download, url=url, mode=mode, target=exe,
                          checksums=info.get("asset_checksums"),
                          progress=0, stage="starting", ok=False, error=None,

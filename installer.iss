@@ -2,7 +2,7 @@
 ; Compile with: ISCC.exe installer.iss   (after build_portable.ps1 has produced dist\Benchly.exe)
 
 #define AppName "Benchly"
-#define AppVersion "2.14.0"
+#define AppVersion "2.14.1"
 #define AppPublisher "Benchly"
 #define AppExe "Benchly.exe"
 #ifndef SourceDir

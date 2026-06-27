@@ -75,7 +75,10 @@ def set_value(key: str, value):
         try:
             data[key] = {"_enc": _dpapi_encrypt(str(value))}
         except Exception:
-            data[key] = value   # fall back to plaintext only if DPAPI is unavailable
+            # Never silently downgrade a secret to cleartext — refuse and surface it.
+            return {"ok": False,
+                    "error": "Couldn't encrypt this value with Windows DPAPI, so it was not saved "
+                             "(refusing to store a secret in cleartext)."}
     else:
         data[key] = value
     try:
