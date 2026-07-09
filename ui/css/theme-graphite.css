@@ -1,0 +1,62 @@
+/* ============================================================
+   Benchly — Graphite appearance (the original flat dark theme).
+   Preserved verbatim as an explicit opt-out now that Precision is
+   the default. Selecting "Graphite" in the Appearance menu restores
+   this pixel-for-pixel. Loaded AFTER app.css so these win over the
+   Precision :root, and after this file frost/chevron win over it.
+   ============================================================ */
+
+html[data-theme="graphite"] {
+  /* surfaces — flat, no gradients */
+  --canvas:  #0b0c0e;
+  --surface: #121317;
+  --raised:  #191b20;
+  --overlay: #1e2026;
+
+  /* hairlines — alpha-white so they sit on any surface */
+  --border-1: rgba(255, 255, 255, 0.06);
+  --border-2: rgba(255, 255, 255, 0.10);
+  --border-3: rgba(255, 255, 255, 0.18);
+
+  --text-1: #e8eaed;
+  --text-2: #9aa0a8;
+  --text-3: #868c96;
+
+  /* Benchly brand — warm sunset gradient on brand moments, solid accent for UI */
+  --brand-grad: linear-gradient(45deg, #e9c46a 0%, #f4a261 50%, #e76f51 100%);
+  --accent: #ef8354;
+  --accent-text: #f6a47f;
+  --accent-bg: rgba(239, 131, 84, 0.14);
+  --on-accent: #3a1808;
+
+  /* status — desaturated, dark-tuned */
+  --ok:   #4ade80;  --ok-bg:   rgba(74, 222, 128, 0.10);
+  --warn: #e8b339;  --warn-bg: rgba(232, 179, 57, 0.10);
+  --crit: #f0564f;  --crit-bg: rgba(240, 86, 79, 0.10);
+  --crit-solid: #c93f38;  --crit-solid-hover: #d8473f;
+  --info: #56a8ff;  --info-bg: rgba(86, 168, 255, 0.10);
+  --unk:  #8b919a;  --unk-bg:  rgba(139, 145, 154, 0.10);
+
+  /* chart series */
+  --cpu: #56a8ff;
+  --ram: #a78bfa;
+  --dsk: #e8b339;
+  --net: #45c4b0;
+
+  --r1: 6px;
+  --r2: 10px;
+  --r-pill: 999px;
+
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* structural aliases (mirror Precision so any new component CSS is theme-safe) */
+  --panel:   var(--surface);
+  --panel-2: var(--raised);
+  --rule:    var(--border-1);
+  --rule-2:  var(--border-2);
+  --tick:    var(--text-3);
+
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", Consolas, monospace;
+}

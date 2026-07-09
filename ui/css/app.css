@@ -5,55 +5,83 @@
    ============================================================ */
 
 :root {
-  /* surfaces — flat, no gradients */
-  --canvas:  #0b0c0e;
-  --surface: #121317;
-  --raised:  #191b20;
-  --overlay: #1e2026;
+  /* ============================================================
+     Precision — the default design language (v2.15).
+     Editorial / instrument: hairline rules, squared corners, a cool
+     blue-grey neutral ramp, and ONE user-selectable accent (see the
+     [data-accent] blocks below). Colour is reserved for meaning.
+     Graphite / Frost / Chevron override these via html[data-theme].
+     ============================================================ */
+  /* surfaces — flat, cool ink */
+  --canvas:  #0c0e13;
+  --surface: #12151c;
+  --raised:  #0f1218;
+  --overlay: #161a22;
 
-  /* hairlines — alpha-white so they sit on any surface */
-  --border-1: rgba(255, 255, 255, 0.06);
-  --border-2: rgba(255, 255, 255, 0.10);
-  --border-3: rgba(255, 255, 255, 0.18);
+  /* hairlines — solid steel; the structural grammar of the whole UI */
+  --border-1: #242b38;
+  --border-2: #333b4a;
+  --border-3: #3d4658;
 
-  /* text tiers — text-3 lifted from #62666d to clear WCAG AA (≈4.5:1) on the card
-     surfaces it's used on (section headers, hints), where the old value was ~3.4:1 */
-  --text-1: #e8eaed;
-  --text-2: #9aa0a8;
-  --text-3: #868c96;
+  /* text tiers — cool ramp; text-3 kept AA-safe (~4.5:1) for body-size use */
+  --text-1: #eef1f6;
+  --text-2: #9aa5b6;
+  --text-3: #727c8c;
 
-  /* Benchly brand — warm sunset gradient on brand moments, solid accent for UI */
-  --brand-grad: linear-gradient(45deg, #e9c46a 0%, #f4a261 50%, #e76f51 100%);
-  --accent: #ef8354;
-  --accent-text: #f6a47f;
-  --accent-bg: rgba(239, 131, 84, 0.14);
-  --on-accent: #3a1808;
+  /* accent — IRIS by default; the picker swaps it via [data-accent] */
+  --brand-grad: linear-gradient(45deg, #5d61f2 0%, #8286f8 100%);
+  --accent: #5d61f2;
+  --accent-text: #8286f8;
+  --accent-bg: rgba(93, 97, 242, 0.14);
+  --on-accent: #ffffff;
 
   /* status — desaturated, dark-tuned */
-  --ok:   #4ade80;  --ok-bg:   rgba(74, 222, 128, 0.10);
-  --warn: #e8b339;  --warn-bg: rgba(232, 179, 57, 0.10);
-  --crit: #f0564f;  --crit-bg: rgba(240, 86, 79, 0.10);
-  --crit-solid: #c93f38;  --crit-solid-hover: #d8473f;  /* solid danger button */
-  --info: #56a8ff;  --info-bg: rgba(86, 168, 255, 0.10);
-  --unk:  #8b919a;  --unk-bg:  rgba(139, 145, 154, 0.10);
+  --ok:   #38cf8b;  --ok-bg:   rgba(56, 207, 139, 0.12);
+  --warn: #e6a13c;  --warn-bg: rgba(230, 161, 60, 0.12);
+  --crit: #f2555a;  --crit-bg: rgba(242, 85, 90, 0.12);
+  --crit-solid: #cf3f44;  --crit-solid-hover: #e0484d;  /* solid danger button */
+  --info: #5d9bf2;  --info-bg: rgba(93, 155, 242, 0.12);
+  --unk:  #7c8798;  --unk-bg:  rgba(124, 135, 152, 0.12);
 
   /* chart series */
-  --cpu: #56a8ff;
-  --ram: #a78bfa;
-  --dsk: #e8b339;
-  --net: #45c4b0;
+  --cpu: #5d9bf2;
+  --ram: #8286f8;
+  --dsk: #e6a13c;
+  --net: #38cf8b;
 
-  --r1: 6px;       /* controls, chips, inputs */
-  --r2: 10px;      /* cards, panels, modals */
-  --r-pill: 999px; /* fully-rounded pills, toggles */
+  --r1: 2px;       /* squared — controls, chips, inputs */
+  --r2: 2px;       /* squared — cards, panels, modals */
+  --r-pill: 999px; /* real pills / toggles only */
 
-  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  /* overlays get a hairline ring, not a blur */
+  --shadow-overlay: 0 0 0 1px var(--border-2);
 
-  /* dual-typeface rhythm: condensed display vs rounded body (typeui) */
+  /* structural aliases — let Precision component CSS read like an instrument
+     panel while every legacy token name keeps working unchanged */
+  --panel:   var(--surface);
+  --panel-2: var(--raised);
+  --rule:    var(--border-1);
+  --rule-2:  var(--border-2);
+  --tick:    var(--text-3);
+
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   --mono: "Cascadia Mono", Consolas, monospace;
 }
+
+/* ===== user-selectable accent (Precision only; theme files set their own,
+   and — loaded after this file — win under graphite/frost/chevron) ===== */
+html[data-accent="coral"] { --accent:#ef8354; --accent-text:#f6a47f; --accent-bg:rgba(239,131,84,.14); --on-accent:#2a1206; --brand-grad:linear-gradient(45deg,#f0a35f,#ef8354); }
+html[data-accent="amber"] { --accent:#d99a3c; --accent-text:#e8b25a; --accent-bg:rgba(217,154,60,.15); --on-accent:#241704; --brand-grad:linear-gradient(45deg,#e8b25a,#d99a3c); }
+html[data-accent="teal"]  { --accent:#2bb6a0; --accent-text:#4fd0bb; --accent-bg:rgba(43,182,160,.15); --on-accent:#04201b; --brand-grad:linear-gradient(45deg,#3fcbb4,#2bb6a0); }
+
+/* Precision flattening (base only): content cards don't float on hover, and the
+   update bar drops its brand glow. Graphite/Frost/Chevron keep their own look. */
+:root:not([data-theme]) .card.lift:hover { box-shadow: 0 0 0 1px var(--border-3); transform: none; }
+:root:not([data-theme]) .upd-fill { box-shadow: none; }
+
+/* accent-picker swatch dot */
+.acc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

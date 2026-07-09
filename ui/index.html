@@ -5,6 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Benchly</title>
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/theme-graphite.css">
 <link rel="stylesheet" href="css/theme-frosted-glass.css">
 <link rel="stylesheet" href="css/theme-chevron.css">
 </head>
@@ -1231,10 +1232,20 @@
 
 <div id="appearance-pop" hidden>
   <div class="pop-title">Appearance</div>
-  <div class="seg" id="themeSeg" style="width:100%; margin-bottom:4px">
-    <button data-theme-choice="graphite" style="flex:1; justify-content:center">Graphite</button>
-    <button data-theme-choice="frost" style="flex:1; justify-content:center">Frosted Glass</button>
-    <button data-theme-choice="chevron" style="flex:1; justify-content:center">Chevron</button>
+  <div class="seg" id="themeSeg" style="width:100%; margin-bottom:4px; flex-wrap:wrap; gap:2px">
+    <button data-theme-choice="precision" style="flex:1 1 46%; justify-content:center; min-width:72px">Precision</button>
+    <button data-theme-choice="graphite" style="flex:1 1 46%; justify-content:center; min-width:72px">Graphite</button>
+    <button data-theme-choice="frost" style="flex:1 1 46%; justify-content:center; min-width:72px">Frosted Glass</button>
+    <button data-theme-choice="chevron" style="flex:1 1 46%; justify-content:center; min-width:72px">Chevron</button>
+  </div>
+  <div id="accentPicker" style="display:none">
+    <div class="pop-label">Accent</div>
+    <div class="seg" id="accentSeg" style="width:100%; flex-wrap:wrap; gap:2px">
+      <button data-accent-choice="iris"  style="flex:1 1 46%; justify-content:center; min-width:64px"><span class="acc-dot" style="background:#5d61f2"></span>Iris</button>
+      <button data-accent-choice="coral" style="flex:1 1 46%; justify-content:center; min-width:64px"><span class="acc-dot" style="background:#ef8354"></span>Coral</button>
+      <button data-accent-choice="amber" style="flex:1 1 46%; justify-content:center; min-width:64px"><span class="acc-dot" style="background:#d99a3c"></span>Amber</button>
+      <button data-accent-choice="teal"  style="flex:1 1 46%; justify-content:center; min-width:64px"><span class="acc-dot" style="background:#2bb6a0"></span>Teal</button>
+    </div>
   </div>
   <div id="bgPicker" style="display:none">
     <div class="pop-label">Background</div>

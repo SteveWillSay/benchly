@@ -204,10 +204,20 @@ const mixHex = (a, b, t) => {
   return `#${[m(r1, r2), m(g1, g2), m(b1, b2)].map(v => v.toString(16).padStart(2, "0")).join("")}`;
 };
 function applyTheme(name) {
-  // "icloud" kept as a back-compat alias for the renamed Frosted Glass theme
+  // "icloud" kept as a back-compat alias for the renamed Frosted Glass theme.
+  // Precision is the no-attribute base; graphite/frost/chevron are attribute-scoped.
   if (name === "frost" || name === "icloud") document.documentElement.dataset.theme = "frost";
   else if (name === "chevron") document.documentElement.dataset.theme = "chevron";
-  else delete document.documentElement.dataset.theme;
+  else if (name === "graphite") document.documentElement.dataset.theme = "graphite";
+  else delete document.documentElement.dataset.theme;   // precision = base
+  // Mirror synchronously so the flash-guard can paint the saved theme before first frame.
+  try { localStorage.setItem("benchly.theme", name || "precision"); } catch (_) { /* private mode */ }
+}
+function applyAccent(name) {
+  // Iris is the base accent; coral/amber/teal are attribute-scoped (Precision only).
+  if (name === "coral" || name === "amber" || name === "teal") document.documentElement.dataset.accent = name;
+  else delete document.documentElement.dataset.accent;
+  try { localStorage.setItem("benchly.accent", name || "iris"); } catch (_) { /* private mode */ }
 }
 function applyBackground(c) {
   const root = document.documentElement.style;
@@ -216,9 +226,17 @@ function applyBackground(c) {
   root.setProperty("--ic-bg3", c[2]);
   root.setProperty("--ic-glow", hexRgb(c[0]).join(", "));
 }
-// Synchronous launch-flag theme to avoid a flash (#…,frost).
+// Synchronous flash-guard — paint the saved theme + accent BEFORE first frame, so a
+// graphite/frost/chevron saver (or a non-Iris accent) never flashes the Precision default.
+// boot() reconciles against the real setting after; localStorage is just the fast mirror.
+try {
+  const st = localStorage.getItem("benchly.theme"); if (st && st !== "precision") applyTheme(st);
+  const sa = localStorage.getItem("benchly.accent"); if (sa && sa !== "iris") applyAccent(sa);
+} catch (_) { /* private mode → one-time reconcile flash, unavoidable */ }
+// A --theme launch flag still wins over the saved mirror.
 if (location.hash.includes("frost") || location.hash.includes("icloud")) applyTheme("frost");
 else if (location.hash.includes("chevron")) applyTheme("chevron");
+else if (location.hash.includes("graphite")) applyTheme("graphite");
 
 function renderSwatches(selected) {
   $("#bgSwatches").innerHTML = BG_PRESETS.map((p, i) =>
@@ -226,9 +244,14 @@ function renderSwatches(selected) {
        style="background:linear-gradient(160deg, ${p.c[0]}, ${p.c[2]})"></button>`).join("");
 }
 function syncAppearanceUI() {
-  const theme = document.documentElement.dataset.theme || "graphite";
+  const theme = document.documentElement.dataset.theme || "precision";
   $$("#themeSeg button").forEach(b => b.classList.toggle("on", b.dataset.themeChoice === theme));
   $("#bgPicker").style.display = theme === "frost" ? "" : "none";   // gradient picker is frost-only
+  // accent picker is Precision-only (graphite/frost/chevron define their own accent)
+  const accent = document.documentElement.dataset.accent || "iris";
+  const ap = $("#accentPicker");
+  if (ap) ap.style.display = theme === "precision" ? "" : "none";
+  $$("#accentSeg button").forEach(b => b.classList.toggle("on", b.dataset.accentChoice === accent));
 }
 $("#btnTheme").onclick = () => {
   const pop = $("#appearance-pop");
@@ -244,6 +267,12 @@ $$("#themeSeg button").forEach(b => b.addEventListener("click", async () => {
   applyTheme(next);
   syncAppearanceUI();
   await api.set_setting("theme", next);
+}));
+$$("#accentSeg button").forEach(b => b.addEventListener("click", async () => {
+  const next = b.dataset.accentChoice;
+  applyAccent(next);
+  syncAppearanceUI();
+  await api.set_setting("accent", next);
 }));
 let loadedBgIndex = 0;
 $("#bgSwatches").addEventListener("click", async e => {
@@ -267,9 +296,10 @@ $("#bgApplyCustom").onclick = async () => {
 /* ================= boot ================= */
 let isAdmin = false;
 async function boot() {
-  if (!/frost|icloud|chevron/.test(location.hash)) {   // no --theme flag → honour the saved choice
-    try { applyTheme((await api.get_setting("theme")) || "graphite"); } catch { /* default */ }
+  if (!/frost|icloud|chevron|graphite/.test(location.hash)) {   // no --theme flag → honour the saved choice
+    try { applyTheme((await api.get_setting("theme")) || "precision"); } catch { /* default */ }
   }
+  try { applyAccent((await api.get_setting("accent")) || "iris"); } catch { /* default iris */ }
   try {
     const savedBg = (await api.get_setting("frost_bg")) || (await api.get_setting("icloud_bg"));
     if (Array.isArray(savedBg) && savedBg.length === 3) {
@@ -3926,6 +3956,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.15.0", name: "New look — Precision (Phase 1)", items: [
+    "Benchly has a new default appearance, “Precision” — an editorial, instrument-panel design language: hairline rules and a strict grid instead of soft cards and shadows, squared corners, a cool blue-grey palette, and colour reserved for meaning. It's the first phase of a bigger redesign; a task-first Home screen, grouped navigation and smarter diagnostics follow in the next releases.",
+    "Pick your own accent — Iris (default), Coral, Amber or Teal — from the Appearance menu. Prefer the old look? “Graphite” is still there, pixel-for-pixel, one click away in the same menu; Frosted Glass and Chevron are unchanged. Your choice is remembered and now paints instantly on launch with no flash.",
+  ] },
   { v: "2.14.1", name: "Security hardening", items: [
     "A security-review patch (no feature changes) hardening a few internal paths. None were remotely exploitable — the bridge is local and the UI is XSS-clean — but they were worth removing: the self-update now refuses any build that has no published checksums, and an installed copy only ever updates from Benchly's official source; the disk-cleanup delete is constrained to folders you actually scanned this session (and never touches system locations); removing a saved credential is escaped so an oddly-named entry can't run anything; and the VirusTotal key is refused rather than ever written in cleartext if encryption fails.",
   ] },
