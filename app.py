@@ -27,10 +27,10 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      firewall, credentials,
                      envaudit, runtimes, audio,
                      errdecode, profiles, filehash, hosts, minidump,
-                     policies, corpagents, corpnet, appupdates)
+                     policies, corpagents, corpnet, appupdates, appxremnants)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.15.0"
+APP_VERSION = "2.15.1"
 
 
 def resource_path(rel: str) -> str:
@@ -662,6 +662,16 @@ class Api:
 
     def remove_appx(self, full_names):
         return debloat.remove_appx(full_names)
+
+    # --- AppX / Store-app remnants ----------------------------------------------
+    def scan_appx_remnants(self):
+        return appxremnants.scan()
+
+    def remove_remnant_folders(self, paths):
+        return appxremnants.remove_folders(paths)
+
+    def remove_appx_registration(self, full_names):
+        return appxremnants.remove_registration(full_names)
 
     def get_tweaks(self):
         return tweaks.get_tweaks()

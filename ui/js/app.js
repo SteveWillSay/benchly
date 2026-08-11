@@ -3503,7 +3503,8 @@ $$("#cleanTabs .tab").forEach(t => t.addEventListener("click", () => {
   const which = t.dataset.clean;
   $$("#cleanTabs .tab").forEach(x => x.classList.toggle("active", x === t));
   for (const [k, id] of [["junk", "cleanTabJunk"], ["large", "cleanTabLarge"],
-                         ["debloat", "cleanTabDebloat"], ["tweaks", "cleanTabTweaks"], ["repair", "cleanTabRepair"]])
+                         ["debloat", "cleanTabDebloat"], ["remnants", "cleanTabRemnants"],
+                         ["tweaks", "cleanTabTweaks"], ["repair", "cleanTabRepair"]])
     $("#" + id).style.display = which === k ? "" : "none";
   if (which === "debloat" && !cleanLoaded.debloat) { cleanLoaded.debloat = true; loadDebloat(); }
   if (which === "tweaks" && !cleanLoaded.tweaks) { cleanLoaded.tweaks = true; loadTweaks(); }
@@ -3912,6 +3913,69 @@ async function loadDebloat() {
   };
 }
 
+/* ---- Store-app (AppX) remnants ---- */
+$("#btnRemnantsScan") && ($("#btnRemnantsScan").onclick = scanRemnants);
+async function scanRemnants() {
+  const body = $("#remnantsBody");
+  body.innerHTML = `<div class="row"><span class="spin"></span><span class="muted">Scanning installed packages and per-user data folders…</span></div>`;
+  const r = await api.scan_appx_remnants();
+  if (!r || !r.ok) { body.innerHTML = `<div class="muted" style="font-size:12.5px">${esc((r && r.error) || "Scan failed.")}</div>`; return; }
+  renderRemnants(r);
+}
+function renderRemnants(r) {
+  const body = $("#remnantsBody");
+  const data = r.orphan_data || [], broken = r.broken || [];
+  let html = `<div class="row" style="margin-bottom:12px; align-items:center">
+    <span style="font-size:12.5px">${data.length} orphaned data folder${data.length !== 1 ? "s" : ""} · <b>${fmtBytes(r.reclaimable || 0)}</b> reclaimable · ${broken.length} broken registration${broken.length !== 1 ? "s" : ""}</span>
+    <button class="btn ghost small" id="btnRemnantsRescan" style="margin-left:auto">Re-scan</button></div>`;
+
+  if (data.length) {
+    html += `<div class="drawer-sec">Orphaned app-data folders <span class="muted" style="font-weight:400; font-size:11px">— app uninstalled, its data left behind</span></div>`;
+    html += data.map(d => `<label class="pick-row"><input type="checkbox" data-remnant="${esc(d.path)}">
+        <span class="p-name">${esc(d.friendly)}
+          <span class="muted" style="font-size:11px"> · ${fmtBytes(d.size)}${d.modified ? ` · last used ${esc(d.modified)}` : ""}</span>
+          <span class="mono" style="display:block; font-size:10.5px; opacity:.65">${esc(d.name)}</span></span>
+        <button class="btn ghost small" data-reveal="${esc(d.path)}">Reveal</button></label>`).join("");
+    html += `<div class="row mt"><button class="btn danger" id="btnRemnantsRemove">Remove selected → Recycle Bin</button>
+      <span class="muted" id="remnantsStatus" style="font-size:12px"></span></div>`;
+  }
+
+  if (broken.length) {
+    html += `<div class="drawer-sec" style="margin-top:16px">Broken package registrations <span class="muted" style="font-weight:400; font-size:11px">— Windows lists it, but it isn't really installed</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Package</th><th>Problem</th><th></th></tr></thead><tbody>` +
+      broken.map(b => `<tr>
+        <td class="strong">${esc(b.name)}<div class="muted mono" style="font-size:10.5px">${esc(b.family || b.full_name || "")}</div></td>
+        <td>${esc(b.reason)}</td>
+        <td style="width:150px">${b.full_name ? `<button class="btn ghost small admin-only" data-clearreg="${esc(b.full_name)}">Clear registration</button>${!r.is_admin ? `<span class="muted" style="font-size:10.5px">needs admin</span>` : ""}` : ""}</td></tr>`).join("") +
+      `</tbody></table></div>`;
+  }
+
+  if (!data.length && !broken.length)
+    html += `<div class="muted" style="font-size:12.5px">No Store-app remnants found — nothing left behind.</div>`;
+  if (r.is_admin === false)
+    html += `<div class="muted" style="font-size:11px; margin-top:12px">Run as admin to scan all users' packages and to clear broken registrations.</div>`;
+
+  body.innerHTML = html;
+  $("#btnRemnantsRescan") && ($("#btnRemnantsRescan").onclick = scanRemnants);
+  $("#btnRemnantsRemove") && ($("#btnRemnantsRemove").onclick = async () => {
+    const paths = [...body.querySelectorAll("[data-remnant]:checked")].map(c => c.dataset.remnant);
+    if (!paths.length) { toast("Select at least one folder", "warn"); return; }
+    if (!await confirmModal("Remove data folders?", `Move ${paths.length} orphaned app-data folder(s) to the Recycle Bin? They belong to apps that are no longer installed — and you can restore them from the Recycle Bin if needed.`, "Remove", "Only folders under %LOCALAPPDATA%\\Packages are touched; removal is reversible.")) return;
+    $("#remnantsStatus").innerHTML = `<span class="spin"></span>`;
+    const res = await api.remove_remnant_folders(paths);
+    toast(res.ok ? `Moved ${res.recycled} folder(s) to the Recycle Bin` : (res.error || "Failed"), res.ok ? "good" : "bad");
+    scanRemnants();
+  });
+  body.querySelectorAll("[data-reveal]").forEach(b => b.onclick = () => api.open_path(b.dataset.reveal));
+  body.querySelectorAll("[data-clearreg]").forEach(b => b.onclick = async () => {
+    if (!await confirmModal("Clear registration?", "Clear this broken package registration with Remove-AppxPackage? The package isn't really installed — this just removes the leftover entry Windows keeps.", "Clear", "Runs Remove-AppxPackage for this package.")) return;
+    b.disabled = true; b.textContent = "Clearing…";
+    const res = await api.remove_appx_registration(b.dataset.clearreg);
+    toast(res.removed ? "Registration cleared" : ((res.errors && res.errors[0]) || "Failed"), res.removed ? "good" : "bad");
+    scanRemnants();
+  });
+}
+
 async function loadTweaks() {
   const r = await api.get_tweaks();
   const cats = ["Performance", "Gaming", "Network & power", "Privacy", "Interface", "Ads & noise"];
@@ -3956,6 +4020,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.15.1", name: "Find old Store-app remnants", items: [
+    "New Cleanup tab, “App remnants” — finds the leftovers that uninstalled or half-removed Store / UWP (AppX) apps leave behind: orphaned per-user data folders (with the space they're using) and broken package registrations Windows still lists as installed when they really aren't.",
+    "Read-first, as always: it only reports until you choose. Orphaned data folders can be sent to the Recycle Bin (reversible, and scoped so only folders under your Packages directory are ever touched); a broken registration can be cleared with Remove-AppxPackage. Browser/IE AppContainer sandbox folders are filtered out so they're never mistaken for remnants.",
+  ] },
   { v: "2.15.0", name: "New look — Precision (Phase 1)", items: [
     "Benchly has a new default appearance, “Precision” — an editorial, instrument-panel design language: hairline rules and a strict grid instead of soft cards and shadows, squared corners, a cool blue-grey palette, and colour reserved for meaning. It's the first phase of a bigger redesign; a task-first Home screen, grouped navigation and smarter diagnostics follow in the next releases.",
     "Pick your own accent — Iris (default), Coral, Amber or Teal — from the Appearance menu. Prefer the old look? “Graphite” is still there, pixel-for-pixel, one click away in the same menu; Frosted Glass and Chevron are unchanged. Your choice is remembered and now paints instantly on launch with no flash.",
@@ -4347,6 +4415,7 @@ const PALETTE_ITEMS = [
   { cat: "Actions", icon: "shield", label: "Browser hijack scan", run: () => { showPage("security"); $(`#secTabs [data-sec="hijack"]`).click(); } },
   { cat: "Actions", icon: "shield", label: "Remote-access / scam check", run: () => { showPage("security"); $(`#secTabs [data-sec="remote"]`).click(); } },
   { cat: "Actions", icon: "broom", label: "Scan for junk files", run: () => { showPage("cleanup"); $("#btnJunkScan").click(); } },
+  { cat: "Actions", icon: "broom", label: "Find Store-app (AppX) remnants", run: () => { showPage("cleanup"); $(`#cleanTabs [data-clean="remnants"]`).click(); } },
   { cat: "Actions", icon: "shield", admin: true, label: "Create a restore point", run: () => { showPage("toolbox"); $("#btnRpCreate").click(); } },
   { cat: "Actions", icon: "aid", label: "Guided Fix-It runbooks", run: () => showPage("fixit") },
   { cat: "Actions", icon: "history", label: "What's new (changelog)", run: openChangelog },

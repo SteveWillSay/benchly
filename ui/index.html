@@ -1080,6 +1080,7 @@
           <button class="tab active" data-clean="junk">Junk files</button>
           <button class="tab" data-clean="large">Large &amp; duplicate</button>
           <button class="tab" data-clean="debloat">Debloat apps</button>
+          <button class="tab" data-clean="remnants">App remnants</button>
           <button class="tab" data-clean="tweaks">Tweaks</button>
           <button class="tab" data-clean="repair">Repair</button>
         </div>
@@ -1110,6 +1111,14 @@
             <h3>Remove pre-installed apps <span class="right muted" style="font-size:11px">per-user only · re-installable from the Store</span></h3>
             <p class="muted" style="font-size:12px; margin-bottom:10px">Tip: create a restore point in the Toolbox first. Recommended-bloat is pre-ticked; review before removing.</p>
             <div id="debloatBody"><div class="skel-block"><div class="skel"></div><div class="skel" style="width:70%"></div></div></div>
+          </div>
+        </div>
+
+        <div id="cleanTabRemnants" style="display:none">
+          <div class="card">
+            <h3>Store-app (AppX) remnants <span class="right muted" style="font-size:11px">read-first · removals go to the Recycle Bin</span></h3>
+            <p class="muted" style="font-size:12px; margin-bottom:10px">Finds leftovers from uninstalled or half-removed Store / UWP apps: orphaned per-user data folders (reclaimable space) and broken package registrations Windows still lists. Nothing is removed until you choose.</p>
+            <div id="remnantsBody"><button class="btn" id="btnRemnantsScan">Scan for remnants</button></div>
           </div>
         </div>
 
