@@ -91,10 +91,13 @@ Intune.
 
 ### What are the different looks, and how do I switch?
 
-There are three, flipped live from the **appearance** button in the title bar (no restart):
-**Graphite** is the flat dark default; **Frosted Glass** is a translucent "smoked glass" skin
-over a gradient you can recolour; **Chevron** is a warm amber, squared theme. Your choice is
-remembered, and you can also boot straight into one with `--theme frost` (or `chevron`).
+There are four, flipped live from the **appearance** button in the title bar (no restart).
+**Precision** is the default — an editorial, instrument-panel design (hairline rules, squared
+corners, cool blue-grey) with a **selectable accent** (Iris, Coral, Amber or Teal). **Graphite**
+is the original flat-dark theme, kept pixel-for-pixel for anyone who preferred it. **Frosted
+Glass** is a translucent "smoked glass" skin over a gradient you can recolour, and **Chevron** is
+a warm amber, all-lowercase theme. Your choice (and accent) is remembered, and you can boot
+straight into one with `--theme graphite` (or `frost` / `chevron`).
 
 ### I'm not sure what a button does — is there any in-app help?
 

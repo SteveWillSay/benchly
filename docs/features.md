@@ -302,6 +302,13 @@ friendly buttons, plain language, nothing that needs explaining over the phone.
   finder. Deletions go to the Recycle Bin, so they're undoable.
 - **Debloat** — curated, reversible removal of the preinstalled junk; the obvious bloat comes
   pre-ticked, and system packages are never touched.
+- **App remnants** — finds the leftovers uninstalled or half-removed **Store / UWP (AppX)** apps
+  leave behind: orphaned per-user data folders under `%LOCALAPPDATA%\Packages` (with the space
+  each is using), and broken package registrations Windows still lists but whose files are gone.
+  Read-first — the data folders go to the Recycle Bin (reversible, and scoped so only folders
+  under your `Packages` directory are ever touched), a broken registration is cleared with
+  `Remove-AppxPackage`. Browser/IE AppContainer sandbox folders are filtered out so they're never
+  mistaken for remnants.
 - **Shell & cache repair** — one-click fixes for the cosmetic Windows breakages: blank or
   wrong icons, broken thumbnails, garbled fonts, a dead Microsoft Store, or a Start search
   that's stopped finding anything. It rebuilds the relevant caches and restarts the shell —

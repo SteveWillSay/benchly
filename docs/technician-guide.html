@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchly — Technician's Guide</title>
+<style>
+  :root{
+    --canvas:#f3f5f8; --panel:#ffffff; --rule:#e0e5ee; --rule-2:#ccd3df;
+    --t1:#0f1420; --t2:#4e5867; --t3:#6b7688;
+    --accent:#4a4de6; --accent-2:#3d40d6; --accent-bg:rgba(74,77,230,.08);
+    --ok:#0f9c68; --warn:#b9760f; --crit:#d63b41;
+    --code-bg:#eef1f6;
+    --sans:"Segoe UI Variable Text","Segoe UI",-apple-system,system-ui,sans-serif;
+    --mono:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--canvas:#0c0e13;--panel:#12151c;--rule:#242b38;--rule-2:#333b4a;
+      --t1:#eef1f6;--t2:#9aa5b6;--t3:#727c8c;--accent:#8286f8;--accent-2:#5d61f2;
+      --accent-bg:rgba(93,97,242,.14);--ok:#38cf8b;--warn:#e6a13c;--crit:#f2555a;--code-bg:#0f1218;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--t1);font-family:var(--sans);
+    font-size:15px;line-height:1.62;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  code,kbd{font-family:var(--mono);font-size:.86em;background:var(--code-bg);
+    border:1px solid var(--rule);border-radius:3px;padding:1px 5px}
+  pre{background:var(--code-bg);border:1px solid var(--rule);border-radius:4px;
+    padding:14px 16px;overflow-x:auto} pre code{background:none;border:0;padding:0}
+
+  .top{background:var(--panel);border-bottom:1px solid var(--rule);padding:26px 0}
+  .top .in{max-width:1120px;margin:0 auto;padding:0 28px;display:flex;align-items:center;gap:14px}
+  .mk{width:38px;height:38px;border-radius:4px;background:var(--accent);color:#fff;flex:none;
+    display:grid;place-items:center}
+  .mk svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  .top h1{margin:0;font-size:22px;font-weight:680;letter-spacing:-.01em}
+  .top .sub{color:var(--t3);font-size:12.5px;font-family:var(--mono);letter-spacing:.04em;text-transform:uppercase}
+
+  .wrap{max-width:1120px;margin:0 auto;padding:0 28px;display:grid;
+    grid-template-columns:238px 1fr;gap:44px}
+  .toc{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;
+    padding:28px 0;font-size:13px}
+  .toc .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--t3);padding:0 0 8px}
+  .toc ul{list-style:none;margin:0;padding:0} .toc li{margin:0}
+  .toc a{display:block;color:var(--t2);padding:5px 10px;border-left:2px solid var(--rule);line-height:1.35}
+  .toc a:hover{color:var(--t1);border-left-color:var(--rule-2);text-decoration:none;background:var(--accent-bg)}
+
+  .doc{padding:32px 0 80px;min-width:0;max-width:76ch}
+  .doc h2{font-size:22px;font-weight:680;letter-spacing:-.02em;margin:38px 0 4px;
+    padding-top:14px;border-top:1px solid var(--rule);scroll-margin-top:16px}
+  .doc h2:first-of-type{border-top:0;margin-top:6px}
+  .doc h3{font-size:16px;font-weight:660;margin:22px 0 6px;color:var(--t1)}
+  .doc p{margin:10px 0} .doc ul,.doc ol{margin:10px 0;padding-left:22px} .doc li{margin:5px 0}
+  .doc strong{color:var(--t1);font-weight:640}
+  .doc em{color:var(--t2)}
+  .doc hr{border:0;border-top:1px solid var(--rule);margin:34px 0}
+  .doc blockquote{margin:14px 0;padding:2px 16px;border-left:3px solid var(--accent);color:var(--t2)}
+  .doc table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;
+    display:block;overflow-x:auto}
+  .doc th,.doc td{border:1px solid var(--rule);padding:8px 12px;text-align:left;vertical-align:top}
+  .doc th{background:var(--code-bg);font-weight:640;font-family:var(--mono);font-size:11px;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--t3)}
+
+  .foot{max-width:1120px;margin:0 auto;padding:24px 28px 60px;color:var(--t3);font-size:12px;
+    font-family:var(--mono);letter-spacing:.03em;border-top:1px solid var(--rule)}
+
+  @media (max-width:860px){.wrap{grid-template-columns:1fr;gap:0}.toc{display:none}}
+  @media print{
+    body{background:#fff;color:#000;font-size:11pt}
+    .toc,.top{display:none} .wrap{display:block;max-width:none;padding:0}
+    .doc{max-width:none;padding:0} .doc h2{border-top:1px solid #ccc}
+    a{color:#000;text-decoration:none} pre,code,kbd,.doc th{background:#f4f4f4}
+  }
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <span class="mk"><svg viewBox="0 0 24 24"><path d="M4 13l5 5 5-5M9 18V5"/></svg></span>
+  <div><h1>Benchly — Technician's Guide</h1>
+  <div class="sub">Every screen, every button · what needs admin · read-first by design</div></div>
+</div></header>
+<div class="wrap">
+  <nav class="toc"><div class="lbl">Contents</div><div class="toc">
+<ul>
+<li><a href="#1-the-two-rules-benchly-runs-on">1. The two rules Benchly runs on</a></li>
+<li><a href="#2-getting-it-running">2. Getting it running</a></li>
+<li><a href="#3-navigation-appearance">3. Navigation &amp; appearance</a></li>
+<li><a href="#4-dashboard">4. Dashboard</a></li>
+<li><a href="#5-system">5. System</a></li>
+<li><a href="#6-storage">6. Storage</a></li>
+<li><a href="#7-network">7. Network</a></li>
+<li><a href="#8-processes">8. Processes</a></li>
+<li><a href="#9-software">9. Software</a></li>
+<li><a href="#10-devices">10. Devices</a></li>
+<li><a href="#11-security">11. Security</a></li>
+<li><a href="#12-health-audit">12. Health audit</a></li>
+<li><a href="#13-event-log">13. Event log</a></li>
+<li><a href="#14-toolbox">14. Toolbox</a></li>
+<li><a href="#15-fix-it">15. Fix-It</a></li>
+<li><a href="#16-cleanup">16. Cleanup</a></li>
+<li><a href="#17-helper">17. Helper</a></li>
+<li><a href="#18-fleet">18. Fleet</a></li>
+<li><a href="#19-workplace">19. Workplace</a></li>
+<li><a href="#20-export-report">20. Export Report</a></li>
+<li><a href="#21-what-needs-administrator-rights">21. What needs administrator rights</a></li>
+<li><a href="#22-the-safety-model-read-before-pressing-anything-destructive">22. The safety model (read before pressing anything destructive)</a></li>
+</ul>
+</div>
+</nav>
+  <main class="doc"><p>The full walkthrough: every screen, what each tab and button does, and what needs
+administrator rights. Written for the person with the machine on the bench — hand it to a
+junior, or keep it open while you work. For the highlights, the <a href="../README.md">README</a> has
+those; for the exact "what changes / what leaves the machine" detail, see
+<a href="privacy-and-safety.md">privacy-and-safety.md</a>.</p>
+<hr />
+<h2 id="1-the-two-rules-benchly-runs-on">1. The two rules Benchly runs on</h2>
+<p>Everything below rests on two promises, because Benchly is built to run on machines you don't
+own:</p>
+<ol>
+<li><strong>Every change is spelled out before it happens.</strong> A repair tool names the exact paths and
+   services it will touch. A tweak shows the precise registry key it writes. A destructive
+   action lists what it will remove <em>before</em> you confirm — and most of it is reversible.</li>
+<li><strong>Nothing leaves the machine quietly.</strong> By default nothing leaves at all. The handful of
+   network features (VirusTotal, domain lookup, update check…) are named where you use them and
+   send the bare minimum — a file's SHA-256, never the file itself.</li>
+</ol>
+<p>No telemetry, no account, no background service. Benchly does nothing on its own; everything
+that happens is something you clicked.</p>
+<h2 id="2-getting-it-running">2. Getting it running</h2>
+<ul>
+<li><strong>Portable</strong> — <code>Benchly-x.y.z-portable.exe</code> is one file. Run it off a desktop, a share or a
+  USB stick; it leaves nothing behind but its settings in <code>%APPDATA%\Benchly</code>.</li>
+<li><strong>Installer</strong> — <code>Benchly-Setup-x.y.z.exe</code> adds a Start-menu entry and a clean uninstaller.</li>
+<li>Runs on <strong>Windows 10 / 11 (64-bit)</strong> on the WebView2 runtime (already present on current
+  builds; a stripped LTSC image gets prompted to install it once).</li>
+</ul>
+<h3 id="the-window-at-a-glance">The window at a glance</h3>
+<ul>
+<li><strong>Title bar</strong> shows the machine name, OS, uptime, and a <strong>session badge</strong>: <strong>Standard</strong> or
+  <strong>Elevated</strong>.</li>
+<li><strong>Run as admin</strong> (title bar) relaunches Benchly elevated and drops you back on the same page.</li>
+<li><strong>⊘ Appearance</strong> (title bar) switches the look and accent — see §3.</li>
+<li><strong>Export report</strong> (title bar) builds a client-ready report — see §21.</li>
+<li>The <strong>version number</strong> (bottom-left) opens "What's new"; a dot means there's an unread entry.</li>
+</ul>
+<h3 id="standard-vs-elevated-the-hide-until-elevated-model">Standard vs. elevated — the hide-until-elevated model</h3>
+<p>Benchly runs fine as a standard user, but Windows keeps some things behind admin rights: SMART
+drive wear, BitLocker/TPM/Secure Boot detail, the full port→process map, the repair tools, and
+machine-wide tweaks. <strong>Until you elevate, those features are <em>hidden</em> — not greyed-out and
+teasing.</strong> So the standard view only ever shows what you can actually use. Click <strong>Run as
+admin</strong> to reveal the rest. Nothing ever escalates on its own. Throughout this guide, <em>(admin)</em>
+marks something that appears or works only when elevated.</p>
+<h2 id="3-navigation-appearance">3. Navigation &amp; appearance</h2>
+<table>
+<thead>
+<tr>
+<th>How</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Left rail</strong></td>
+<td>Every page is one click.</td>
+</tr>
+<tr>
+<td><strong>Number keys 1–9</strong></td>
+<td>Jump to the first nine pages; <strong>0</strong> lands on the Toolbox.</td>
+</tr>
+<tr>
+<td><strong>Ctrl + K</strong></td>
+<td>The command palette — fuzzy-search every page <em>and</em> action by name, then Enter.</td>
+</tr>
+<tr>
+<td><strong>/</strong></td>
+<td>Focus the current page's filter box · <strong>Esc</strong> clears it.</td>
+</tr>
+<tr>
+<td><strong>Hover anything</strong></td>
+<td>Every control has a plain-English tooltip explaining it before you click.</td>
+</tr>
+<tr>
+<td><strong>Click-to-copy</strong></td>
+<td>Serials, MACs, IPs, hashes — click to copy.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Appearance (⊘ in the title bar).</strong> Four themes, switched live: <strong>Precision</strong> (the default —
+an editorial, instrument-panel look with a <strong>pick-your-own accent</strong>: Iris, Coral, Amber or
+Teal), <strong>Graphite</strong> (the original flat-dark theme, kept pixel-for-pixel), <strong>Frosted Glass</strong>
+(glass over a gradient you can recolour), and <strong>Chevron</strong> (warm amber, all-lowercase). Your
+theme and accent are remembered. You can also boot straight into one with <code>--theme graphite</code>
+(or <code>frost</code> / <code>chevron</code>) and onto a page with <code>--page &lt;name&gt;</code>.</p>
+<hr />
+<h2 id="4-dashboard">4. Dashboard</h2>
+<p>Your ten-second glance — the stuff you check before you've sat down.</p>
+<ul>
+<li><strong>Live vitals</strong> — CPU, RAM, disk I/O and network, each on a one-second sparkline (the loop
+  pauses when the window's hidden).</li>
+<li><strong>Status pills</strong> (top) — uptime, C: free, memory, antivirus, disks, updates, pending-reboot.</li>
+<li><strong>Health ring</strong> — the same score the Health Audit computes, with a grade; <strong>Details ›</strong> jumps
+  to Health audit.</li>
+<li><strong>Logical cores</strong> — every thread's load at a glance.</li>
+<li><strong>Top processes</strong> — what's eating CPU/RAM now; <strong>All ›</strong> jumps to Processes.</li>
+<li><strong>At a glance / Volumes</strong> — machine summary; click a volume bar to drop into the space analyzer.</li>
+</ul>
+<h2 id="5-system">5. System</h2>
+<p>The deep inventory — everything the machine actually <em>is</em>. Make/model/serial, OS edition and
+build, CPU with live clocks, <strong>every RAM module</strong> on its own row (slot, size, speed, part
+number), GPUs, monitor EDID, motherboard, BIOS/UEFI, Secure Boot, TPM.</p>
+<ul>
+<li><strong>Live sensors</strong> <em>(fuller with admin)</em> — GPU temp/load/VRAM/power, disk temperatures, ACPI
+  thermal zones, CPU core temps when a LibreHardwareMonitor bridge is running (it says so
+  honestly when one isn't).</li>
+<li><strong>GPU stability &amp; throttle</strong> — <strong>Check</strong> runs live clocks, the <em>reason</em> the GPU is throttling
+  now, and a 30-day history of driver resets (TDRs). The honest "is my overclock stable?"</li>
+<li><strong>Display refresh</strong> — flags a monitor left below its best refresh rate (the "144 Hz panel
+  parked at 60").</li>
+<li><strong>Virtualization</strong> — WSL distros + memory cap, ballooning WSL/Docker <code>.vhdx</code> files (with an
+  optional non-destructive compact), Hyper-V switches, hardware-virtualization state.</li>
+<li><strong>Battery &amp; power efficiency</strong> <em>(the energy trace needs admin)</em> — wear, cycle count, and a
+  <code>powercfg /energy</code> trace naming what's hurting efficiency.</li>
+<li><strong>Environment &amp; PATH</strong> — flags every PATH entry pointing at a missing folder, a duplicate, or
+  a stray quote; <strong>Clean</strong> removes the broken/duplicate entries (prior value backed up first).</li>
+<li><strong>Installed runtimes</strong> — the .NET / VC++ / DirectX a program quietly needs, in one place.</li>
+</ul>
+<h2 id="6-storage">6. Storage</h2>
+<ul>
+<li><strong>Physical disks</strong> — model, bus, and <strong>real SMART health</strong>: temperature, wear, power-on hours
+  <em>(wear and hours need admin)</em>.</li>
+<li><strong>SMART attributes</strong> <em>(on demand)</em> — the raw self-monitoring counters, reallocated/pending/
+  uncorrectable sectors flagged. SATA/ATA mostly; NVMe rarely exposes them.</li>
+<li><strong>Drive health forecast</strong> — <strong>trends</strong> wear and creeping read/write errors over time and scores
+  each drive's risk, so you swap a dying disk before it takes the data. A small history lives in
+  <code>%APPDATA%\Benchly\history</code>.</li>
+<li><strong>Advanced storage health</strong> <em>(some fields admin)</em> — whether TRIM is running, Storage Spaces
+  pool health, reliability counters, shadow-copy space in use, the filesystem dirty bit.</li>
+<li><strong>Volumes + space analyzer</strong> — capacity and file system per volume. Click <strong>analyze</strong> for a
+  <strong>treemap</strong> (folders sized by disk use and tinted by content type), a <strong>File types</strong> by-
+  extension view, and a <strong>List</strong> view with reveal-in-Explorer on every row.</li>
+</ul>
+<h2 id="7-network">7. Network</h2>
+<p>Adapter and Wi-Fi detail, <strong>Show public IP</strong> on request, quick-target chips for gateway/DNS.</p>
+<ul>
+<li><strong>Tools</strong> (each logs to a copyable console): <strong>ping · traceroute · DNS lookup · port test ·
+  active connections · flush DNS</strong>, plus a WAN <strong>speed test</strong> (Cloudflare).</li>
+<li><strong>Bufferbloat test</strong> — <strong>Run</strong> measures latency idle vs. saturated and grades the gap (why a
+  call stutters when someone starts a download).</li>
+<li><strong>Domain &amp; website lookup</strong> — type any domain/URL, <strong>Look up</strong> returns a trust verdict:
+  WHOIS/RDAP (registrar, age, expiry, abuse contact), DNS with SPF/DMARC, the resolved IP's host
+  and country, a live TLS certificate read, and optional VirusTotal reputation. Only the domain
+  name leaves the machine.</li>
+<li><strong>URL / redirect unmasker</strong> — expands a shortened link hop-by-hop to show where it really
+  lands, <strong>without running the page's scripts</strong>.</li>
+<li><strong>Wi-Fi analyzer</strong> — nearby networks with signal (%/dBm), band, and 2.4 GHz channel congestion.</li>
+<li><strong>LAN toolkit</strong> — subnet scanner (ping sweep + ARP + reverse DNS + vendor lookup), saved-
+  machine Wake-on-LAN, DHCP/DNS health.</li>
+<li><strong>Sharing &amp; firewall</strong> — spot a connection left on <strong>Public</strong> and flip it to <strong>Private</strong> in a
+  click; the firewall's per-profile state and enabled inbound <em>allow</em> rules (anything running
+  from a user-writable folder is flagged; a rule can be disabled, confirmed and reversible);
+  mapped network drives and Credential Manager entries (<strong>names/types only — passwords are never
+  read</strong>); the DNS resolver cache and the Winsock/LSP catalog (third-party layered providers
+  flagged).</li>
+</ul>
+<h2 id="8-processes">8. Processes</h2>
+<p>A live table you can sort by any column and <strong>filter</strong> as you type, with <strong>end-task on hover</strong>.
+Click a row for a Process-Explorer-style drawer: loaded modules, open handles, the network
+connections it owns, and the full command line. <strong>Pause</strong> freezes the refresh for reading.</p>
+<h2 id="9-software">9. Software</h2>
+<p>Installed apps (read straight from the registry), in tabs:</p>
+<ul>
+<li><strong>Installed</strong> — every app with version, publisher, install date, size.</li>
+<li><strong>Startup</strong> — Run-key and Startup-folder entries with on/off state and an estimated boot impact.</li>
+<li><strong>Services</strong> — running first, then automatic-but-stopped.</li>
+<li><strong>Hotfixes</strong> — installed updates (falls back to the Windows Update history when QFE is empty).</li>
+<li><strong>Scheduled tasks</strong> — non-Microsoft tasks, failures first.</li>
+<li><strong>Browser extensions</strong> — across Chrome/Edge/Brave/Firefox.</li>
+<li><strong>Pending updates</strong> — what Windows Update has queued.</li>
+<li><strong>App updates</strong> — <strong>Check</strong> finds newer versions of your installed apps via <strong>winget</strong> and
+  updates them individually or all at once, with live output. (For machines where winget is
+  blocked, use <strong>Cleanup → App remnants</strong>' sibling: the winget-free <strong>Software updates</strong> check in
+  the Toolbox — §17 — which checks official sources instead.)</li>
+</ul>
+<h2 id="10-devices">10. Devices</h2>
+<ul>
+<li><strong>Problem devices</strong> — the yellow-bang list, with Configuration-Manager error codes decoded
+  into plain English.</li>
+<li><strong>Driver audit</strong> — third-party drivers, old/duplicate flagged.</li>
+<li><strong>USB device history</strong> — everything ever plugged in, serials and all.</li>
+<li><strong>Printer doctor</strong> — catches "offline" printers, spots one that grabbed a new DHCP IP (it
+  pings to check), flags duplicate drivers; <strong>bring back online</strong> or <strong>print a test page</strong>.</li>
+<li><strong>Audio device doctor</strong> — playback/recording endpoints with state, the two audio services, and
+  a one-click <strong>restart</strong> of them.</li>
+</ul>
+<h2 id="11-security">11. Security</h2>
+<p>The trust hub, in tabs:</p>
+<ul>
+<li><strong>Overview</strong> — every registered antivirus via Security Center (so a third-party AV shows
+  active, not "nothing's protecting this PC"), plus firewall / BitLocker / UAC / Secure Boot /
+  TPM at a glance.</li>
+<li><strong>Autoruns</strong> — the full autostart map (Run keys, Winlogon, IFEO, services, scheduled tasks,
+  WMI consumers…), each target signature-checked, unsigned entries in dodgy paths floated up.
+  One-click <strong>VirusTotal</strong> on any of them (hash only).</li>
+<li><strong>Browser hijack</strong> — hosts-file tampering, system proxy/PAC, and per-browser homepage and
+  default-search hijacks.</li>
+<li><strong>Remote access</strong> — installed/running remote-access tools and the local admin accounts worth
+  reviewing after a suspected scam.</li>
+<li><strong>Root certificates</strong> — audits the trusted-root store for interception/adware roots and
+  unrecognised self-signed CAs, with weak-key/old-signature notes. Runs on open; <strong>Re-scan</strong> to
+  refresh.</li>
+<li><strong>Listening ports</strong> — every port the machine accepts connections on, the process behind it, and
+  whether it's signed; unsigned listeners on a network interface are flagged. <em>(The full
+  process map is richest with admin.)</em></li>
+<li><strong>Persistence &amp; exclusions</strong> <em>(some reads admin)</em> — the hiding spots a plain autoruns view
+  misses: WMI event subscriptions, services/tasks running from suspicious places or encoded
+  PowerShell, the <strong>Defender exclusion list</strong>, and what's run recently (Prefetch). Ranked
+  context, never a verdict — nothing is auto-removed.</li>
+<li><strong>Hardening</strong> — a scorecard of high-value checks (LLMNR, SMBv1, AutoRun, NLA, PowerShell
+  logging, Guest account, PUA protection…) scored out of 100, each with a reversible one-click
+  fix that spells out what it changes <em>(applying needs admin)</em>. Alongside it, the key <strong>Attack
+  Surface Reduction</strong> rules can be set to <strong>Audit</strong> (log-only) then <strong>Block</strong>.</li>
+<li><strong>Email headers</strong> — paste raw headers, <strong>Analyze</strong> rebuilds the delivery path, finds the
+  originating IP, reads SPF/DKIM/DMARC and points out the classic spoofing tells. All local.</li>
+<li><strong>VirusTotal</strong> — hash a local file or paste a hash; the file never leaves, only its SHA-256.</li>
+</ul>
+<h2 id="12-health-audit">12. Health audit</h2>
+<p>Fourteen weighted checks across <strong>Security / Maintenance / Resources</strong>, rolled into a score out
+of 100 and a grade. A pass earns full marks, a warning half, a fail nothing; anything that
+can't run (no admin, no battery) is left out rather than counted against you. Each failure has a
+one-click jump to the right Windows setting. <strong>Refresh</strong> re-runs it.</p>
+<h2 id="13-event-log">13. Event log</h2>
+<ul>
+<li><strong>Triage summary</strong> — events grouped by source and explained in plain English ("your disk
+  reported three bad sectors", not "Event ID 7"), with remediation links.</li>
+<li><strong>Raw log</strong> — with level filters and a time-range selector.</li>
+<li><strong>Crashes &amp; BSODs</strong> — bugchecks with the Stop code named, dirty shutdowns, app crashes grouped
+  by faulting module, plus the minidump suspects.</li>
+<li><strong>Reliability timeline</strong> — Windows' own stability index charted against crashes and updates.</li>
+<li><strong>Boot time</strong> <em>(the detailed breakdown needs admin)</em> — how long recent boots took, the apps/
+  drivers/services Windows blamed, Fast Startup state, and a trend.</li>
+</ul>
+<h2 id="14-toolbox">14. Toolbox</h2>
+<p>The repair bench.</p>
+<ul>
+<li><strong>Restore point</strong> — <strong>Create restore point</strong> <em>(admin)</em> before making changes; <strong>Open System
+  Restore</strong>.</li>
+<li><strong>Backup posture</strong> — <strong>Check</strong>: a red/amber/green audit of OneDrive backup, File History,
+  restore points and system image. Audits; never backs up.</li>
+<li><strong>Pending restart</strong> — <strong>Check</strong> reads every signal Windows leaves when a reboot is owed (and
+  why updates keep failing); <strong>Restart now</strong> <em>(with a warning)</em> when ready.</li>
+<li><strong>Update doctor</strong> — <strong>Check</strong> shows recent Windows Update history with the cryptic <code>0x800f…</code>
+  codes decoded, the last successful scan/install, and the health of the services updates rely on.</li>
+<li><strong>Software updates (no winget)</strong> — <strong>Scan</strong> reads installed apps and checks a curated list of
+  common apps against their <strong>official</strong> sources (vendor endpoints / GitHub Releases) for a newer
+  version — no winget, nothing installed. <strong>Get x.y.z</strong> opens the vendor's official download page.</li>
+<li><strong>Error-code decoder</strong> — paste any Windows status code (<code>0x8007…</code>, an NTSTATUS, a Stop code, a
+  decimal) for plain English.</li>
+<li><strong>User profile health</strong> — <strong>Check</strong> reads ProfileList for corrupted (<code>.bak</code>) and temporary
+  profiles. Read-only.</li>
+<li><strong>What's locking this file?</strong> — enter a path; <strong>Find lockers</strong> lists the processes holding an
+  open handle.</li>
+<li><strong>File hash</strong> — <strong>Pick a file</strong> for MD5/SHA-1/SHA-256, computed locally.</li>
+<li><strong>Hosts file</strong> — <strong>View</strong> the active mappings, non-default ones flagged. Read-only.</li>
+<li><strong>Performance snapshot</strong> — <strong>Capture 30s snapshot</strong>: the top CPU/memory/disk offenders + system
+  pressure, ready to <strong>Copy</strong> into a ticket.</li>
+<li><strong>Power, sleep &amp; wake doctor</strong> — <strong>Check</strong>: plain-English answers to "why won't it sleep",
+  "what woke it at 3 AM", "what's armed to wake it"; reversible toggles to disarm a wake device
+  or a wake-capable task.</li>
+<li><strong>Gremlin hunters</strong> — <em>Disk / CPU culprit</em> (what's hammering it when "nothing" is), <em>USB drops</em>
+  (devices that keep reconnecting), and <em>Mark the freeze</em> (hit it the instant something hiccups
+  and Benchly scoops up the logs around that moment).</li>
+<li><strong>Repair tools</strong> <em>(admin)</em> — SFC, DISM scan/repair, chkdsk, winsock reset, Windows Update cache
+  reset, full network reset, component-store (WinSxS) cleanup, re-register Store &amp; built-in apps
+  — each streams its output live and spells out exactly what it touches.</li>
+<li>Plus a <strong>memory diagnostic</strong> launcher and a paste-ready <strong>ticket summary</strong>.</li>
+</ul>
+<h2 id="15-fix-it">15. Fix-It</h2>
+<p>Symptom-first runbooks — <em>no internet, no sound, Windows Update stuck, can't print, running
+slow</em> — that chain the right diagnostics together and offer safe, confirm-first fixes as they
+go. There's also <strong>Recover from a scam</strong>: one guided, read-only pass after a remote-access
+incident that checks remote-access tools, persistence, Defender exclusions and admin accounts,
+then hands you an ordered checklist. It only ever flags things — it never deletes anything.</p>
+<h2 id="16-cleanup">16. Cleanup</h2>
+<p>Tabs: <strong>Junk files · Large &amp; duplicate · Debloat apps · App remnants · Tweaks · Repair.</strong></p>
+<ul>
+<li><strong>Junk files</strong> — <strong>Scan</strong> measures and clears temp files, caches, Update leftovers, crash dumps
+  and the Recycle Bin. File-scoped; won't follow junctions.</li>
+<li><strong>Large &amp; duplicate</strong> — the biggest files over a threshold, plus a byte-for-byte duplicate
+  finder. Deletions go to the <strong>Recycle Bin</strong> (undoable).</li>
+<li><strong>Debloat apps</strong> <em>(per-user)</em> — curated, reversible removal of preinstalled Store apps; obvious
+  bloat is pre-ticked; system packages are never touched.</li>
+<li><strong>App remnants</strong> — <strong>Scan for remnants</strong> finds the leftovers uninstalled/half-removed <strong>Store /
+  UWP (AppX)</strong> apps leave behind: <strong>orphaned per-user data folders</strong> (<code>%LOCALAPPDATA%\Packages</code>,
+  with the space each uses) and <strong>broken package registrations</strong> Windows still lists but whose
+  files are gone. <strong>Remove selected → Recycle Bin</strong> is reversible and scoped so only folders under
+  your <code>Packages</code> directory are ever touched; <strong>Reveal</strong> opens one in Explorer; <strong>Clear
+  registration</strong> <em>(admin)</em> clears a ghost package with <code>Remove-AppxPackage</code>. Browser/IE
+  AppContainer sandbox folders are filtered out so they're never mistaken for remnants.</li>
+<li><strong>Tweaks</strong> — a shelf of documented, reversible toggles across Performance / Gaming / Network &amp;
+  power / Privacy / Interface / Ads &amp; noise, plus one-click <strong>power plans</strong>. Each toggle shows the
+  exact registry key it writes; flip it off to restore the Windows default. Some interface tweaks
+  offer <strong>Restart Explorer to apply</strong>. <em>(Machine-scope tweaks need admin and are hidden until
+  elevated.)</em></li>
+<li><strong>Repair</strong> — the cosmetic-breakage fixes (blank icons, dead Store, broken Start search); it
+  rebuilds caches and restarts the shell without touching your files.</li>
+</ul>
+<h2 id="17-helper">17. Helper</h2>
+<p>The page for when <em>you're</em> the family's IT person — big friendly buttons, plain language.</p>
+<ul>
+<li><strong>Text my tech person</strong> — a plain-English summary of what looks wrong, ready to paste.</li>
+<li><strong>Calm this computer down</strong> — silences ads, widgets, tips and Start suggestions in one click
+  (all reversible from Cleanup → Tweaks).</li>
+<li><strong>Make it normal again</strong> — instant, reversible text-size presets.</li>
+<li><strong>Camera &amp; microphone doctor</strong> — the "works everywhere but Zoom" fix: checks the privacy
+  permission and which app holds the device; allow a blocked app in a click.</li>
+<li><strong>BitLocker recovery key</strong> <em>(reveal needs admin)</em> — shows which drives are encrypted and reveals
+  the key so you can save it before a repair demands it. Never logged, cached or sent anywhere.</li>
+<li><strong>Rescue my photos &amp; documents</strong> — copies Desktop/Documents/Pictures onto a drive you plug in.
+  It only ever <strong>copies</strong>, never moves — a failing source disk is never written to.</li>
+<li><strong>Is this a scam?</strong> — paste a suspicious email or link for a simple red/amber/green read.</li>
+</ul>
+<h2 id="18-fleet">18. Fleet</h2>
+<p>For more than one machine: compare exported report JSONs side by side to spot drift, and pull
+<strong>remote snapshots over WinRM</strong> (credentials you type, passed through the environment for that
+one call and <strong>never written to disk</strong>).</p>
+<h2 id="19-workplace">19. Workplace</h2>
+<p>The corporate / small-business page, in four tabs — three read-only, one that configures.</p>
+<ul>
+<li><strong>Posture</strong> <em>(some fields admin)</em> — activation &amp; licensing (read via CIM, no slmgr pop-ups),
+  identity &amp; domain join (<code>dsregcmd</code>: Entra-joined / hybrid / AD / workgroup, plus SSO/PRT and
+  tenant), Group Policy results, and clock/time-sync with a one-click <strong>resync</strong>.</li>
+<li><strong>Applied policies</strong> — every Group Policy / MDM setting actually in force, grouped by area, each
+  with its registry key, type and value. The receipts for what your management pushed.</li>
+<li><strong>Corporate IT</strong> — the management/security agents present and their state (SCCM, Intune, MDM
+  enrolment, Defender for Endpoint, third-party EDR, VPN/ZTNA, backup) plus how Windows Update is
+  managed (WSUS / Update for Business), the proxy and the managed network.</li>
+<li><strong>Managed baseline</strong> <em>(applying needs admin)</em> — for a <em>standalone</em> PC, set the policies an admin
+  would push via GPO/Intune: Windows Update deferrals, a BitLocker startup PIN, telemetry, auto-
+  lock, UAC. Each is opt-in, shows the exact key, and is reversible (<strong>Clear</strong> returns it to the
+  Windows default). Warns if the machine is already centrally managed.</li>
+</ul>
+<h2 id="20-export-report">20. Export Report</h2>
+<p><strong>Export report</strong> (title bar) builds a clean, standalone <strong>HTML</strong> report and a <strong>PDF</strong> in the
+background with stage-by-stage progress, plus a machine-readable <strong>JSON twin</strong> saved alongside.
+Hand the HTML or PDF to a client; keep the JSON — it's what Fleet compares.</p>
+<hr />
+<h2 id="21-what-needs-administrator-rights">21. What needs administrator rights</h2>
+<p>Run everything as a standard user first; elevate only when you need one of these (they stay
+hidden until you do):</p>
+<ul>
+<li><strong>Reads:</strong> SMART wear &amp; power-on hours, TPM / Secure Boot / BitLocker detail, advanced storage
+  health, the full listening-port→process map, the Defender exclusion list, recent-execution
+  (Prefetch), the detailed boot breakdown, live power/energy trace.</li>
+<li><strong>Actions:</strong> the Toolbox repair tools, machine-scope tweaks and hardening/ASR fixes, removing a
+  Defender exclusion, creating a restore point, clearing a broken AppX registration, revealing the
+  BitLocker key, the Workplace managed baseline, and app updates that install machine-wide.</li>
+</ul>
+<p>Use <strong>Run as admin</strong> in the title bar; Benchly relaunches elevated and returns you to the same
+page. It never escalates on its own.</p>
+<h2 id="22-the-safety-model-read-before-pressing-anything-destructive">22. The safety model (read before pressing anything destructive)</h2>
+<ul>
+<li><strong>Read-first.</strong> Most of Benchly is read-only; the parts that change Windows show the change
+  first.</li>
+<li><strong>Reversible.</strong> Tweaks restore the Windows default when toggled off; file deletions go to the
+  Recycle Bin; the AppX-remnant and cleanup removals are Recycle-Bin and path-scoped.</li>
+<li><strong>Named egress.</strong> Nothing leaves by default. VirusTotal gets a hash; a domain lookup the domain
+  name; a remote snapshot the credentials you typed (never stored). The email and URL tools read
+  and resolve — they never run anything.</li>
+<li><strong>Secrets.</strong> The VirusTotal API key is DPAPI-encrypted at rest; the BitLocker recovery key is
+  only ever shown to you, never logged or sent.</li>
+</ul>
+<p>If a button changes something and <em>doesn't</em> tell you where — that's a bug. The full line-by-line
+version is in <a href="privacy-and-safety.md">privacy-and-safety.md</a>.</p></main>
+</div>
+<div class="foot">Benchly technician's guide · pairs with the in-app tooltips and docs/features.md</div>
+</body>
+</html>

@@ -86,10 +86,12 @@ winsock, Windows Update reset) live, snapshots a **baseline** so you can diff "b
 & wake doctor** and a set of **gremlin hunters** for the intermittent stuff (what woke it at
 3 AM, what's secretly hammering the disk, the freeze you can mark the instant it happens).
 **Fix-It** walks you through guided runbooks for the everyday complaints. **Cleanup** clears
-junk, hunts down big and duplicate files, debloats the preinstalled cruft, repairs the
-cosmetic Windows breakages (blank icons, dead Store, broken Start search), and gives you a
-shelf of documented, reversible **Windows tweaks**. **Software** will even update your
-installed apps through winget.
+junk, hunts down big and duplicate files, debloats the preinstalled cruft, finds the
+**remnants old Store/UWP apps leave behind** (orphaned per-user data folders and broken
+package registrations Windows still lists), repairs the cosmetic Windows breakages (blank
+icons, dead Store, broken Start search), and gives you a shelf of documented, reversible
+**Windows tweaks**. **Software** will even update your installed apps — via winget, or via a
+**winget-free check** against each vendor's official source for locked-down machines.
 
 **Look after the not-so-technical.** The **Helper** page is for when you're the family's IT
 person: big friendly buttons that text you a plain-English health summary, calm a noisy PC
@@ -197,9 +199,12 @@ Anything you'd otherwise be retyping — serials, MACs, IPs, hashes — is click
 if you're ever unsure what a button, toggle or page does, just hover it: **every interactive
 piece has a plain-English tooltip** explaining itself before you click.
 
-There are three looks, flipped live from the title bar: **Graphite** (the flat dark default),
-**Frosted Glass** (glass with a gradient you can tweak), and **Chevron** (a warm amber, squared
-theme). Click the version number whenever you're curious what's new.
+Four looks, flipped live from the title bar. **Precision** is the default — an editorial,
+instrument-panel design (hairline rules and a strict grid instead of soft cards, squared corners,
+a cool blue-grey palette) with a **pick-your-own accent**: Iris, Coral, Amber or Teal. Prefer the
+classic? **Graphite** is the original flat-dark theme, kept pixel-for-pixel and one click away.
+There's also **Frosted Glass** (glass over a gradient you can recolour) and **Chevron** (warm
+amber, all-lowercase). Click the version number whenever you're curious what's new.
 
 **It updates itself.** Click the version number (or Ctrl + K → "Check for Benchly updates")
 and, when there's a newer build, Benchly downloads it, checks it against the release's
@@ -242,5 +247,6 @@ bench — but the notes above are the honest shape of how it's put together.
 
 The usual ones — *is it safe on a client's PC?*, *why does it want admin?*, *does it work
 offline?*, *where does my data live?* — are answered like a human in
-**[docs/faq.md](docs/faq.md)**. And every release is logged in
-**[CHANGELOG.md](CHANGELOG.md)**.
+**[docs/faq.md](docs/faq.md)**. Want the full walkthrough — every screen, every button, what
+each one does and what needs admin? That's the **[technician's guide](docs/technician-guide.md)**.
+And every release is logged in **[CHANGELOG.md](CHANGELOG.md)**.

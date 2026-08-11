@@ -152,10 +152,12 @@ written to disk).
 
 ## 5. Make it yours
 
-Click the **appearance** button in the title bar to switch themes live — **Graphite** (the flat
-dark default), **Frosted Glass** (a smoked-glass skin over a gradient you can recolour), or
-**Chevron** (warm amber, squared). Your choice sticks. You can also boot straight into one with
-`--theme frost` on the command line.
+Click the **appearance** button in the title bar to switch themes live. **Precision** is the
+default — an editorial, instrument-panel look with a **pick-your-own accent** (Iris, Coral, Amber
+or Teal). Prefer the classic flat-dark look? **Graphite** is kept pixel-for-pixel, one click away.
+There's also **Frosted Glass** (a smoked-glass skin over a gradient you can recolour) and
+**Chevron** (warm amber, all-lowercase). Your choice — and accent — sticks. You can also boot
+straight into one with `--theme graphite` (or `frost` / `chevron`) on the command line.
 
 ## 6. Keeping Benchly current
 
