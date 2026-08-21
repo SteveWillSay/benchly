@@ -4020,6 +4020,10 @@ $("#btnRestartExplorer").onclick = async () => {
 
 /* ================= in-app changelog ================= */
 const CHANGELOG = [
+  { v: "2.15.2", name: "Security hardening", items: [
+    "A security-review patch, with no feature changes. A few things Benchly does as an administrator — compacting a virtual disk, the battery and energy reports, and the self-updater's log — wrote their working files to predictable names in your temp folder. Anything else running as you could have claimed those names in advance to redirect the write somewhere it shouldn't go, or, in the worst case, swapped the compact script for its own commands in the moment before Windows ran it as an administrator. Those files now get unpredictable names that Benchly creates exclusively for itself, and are always cleaned up afterwards.",
+    "Pillow, an image library, was listed as something Benchly needs to run. It never was — only a build-time script that redraws the app icon uses it, and it was never part of the shipped app. It has been moved to the developer tooling list and updated, so the version you run has one less thing in it.",
+  ] },
   { v: "2.15.1", name: "Find old Store-app remnants", items: [
     "New Cleanup tab, “App remnants” — finds the leftovers that uninstalled or half-removed Store / UWP (AppX) apps leave behind: orphaned per-user data folders (with the space they're using) and broken package registrations Windows still lists as installed when they really aren't.",
     "Read-first, as always: it only reports until you choose. Orphaned data folders can be sent to the Recycle Bin (reversible, and scoped so only folders under your Packages directory are ever touched); a broken registration can be cleared with Remove-AppxPackage. Browser/IE AppContainer sandbox folders are filtered out so they're never mistaken for remnants.",

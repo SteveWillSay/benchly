@@ -220,11 +220,12 @@ def battery_report():
     if not has_batt:
         return {"ok": True, "has_battery": False,
                 "message": "No battery — this looks like a desktop or a PC without one."}
-    out = os.path.join(tempfile.gettempdir(), "benchly-battery.xml")
     from .ps import run_ps
-    run_ps(f'powercfg /batteryreport /xml /output "{out}" 2>&1', timeout=30)
+    fd, out = tempfile.mkstemp(prefix="benchly_battery_", suffix=".xml")  # O_EXCL, we own it
+    os.close(fd)
     design = full = cycles = None
     try:
+        run_ps(f'powercfg /batteryreport /xml /output "{out}" 2>&1', timeout=30)
         import xml.etree.ElementTree as ET
         txt = open(out, encoding="utf-8", errors="replace").read()
         txt = re.sub(r'\sxmlns="[^"]+"', "", txt, count=1)   # drop the default namespace
@@ -237,6 +238,11 @@ def battery_report():
             break
     except Exception:
         pass
+    finally:
+        try:
+            os.remove(out)
+        except OSError:
+            pass
     wear = round((1 - full / design) * 100, 1) if (design and full and design > 0) else None
     return {"ok": True, "has_battery": True, "design_mwh": design, "full_mwh": full,
             "cycles": cycles, "wear_pct": wear}
@@ -251,14 +257,13 @@ def energy_report(duration=30):
         return {"ok": True, "needs_admin": True,
                 "note": "The energy efficiency trace needs admin — use Run as admin, then try again."}
     from .ps import run_ps
-    out = os.path.join(tempfile.gettempdir(), "benchly-energy.html")
-    txt = run_ps(f'powercfg /energy /output "{out}" /duration {int(duration)} 2>&1 | Out-String',
-                 timeout=int(duration) + 30) or ""
-    def _n(label):
-        m = re.search(rf"(\d+)\s+{label}", txt)
-        return int(m.group(1)) if m else None
+    fd, out = tempfile.mkstemp(prefix="benchly_energy_", suffix=".html")  # O_EXCL, we own it
+    os.close(fd)
+    txt = ""
     issues = []
     try:
+        txt = run_ps(f'powercfg /energy /output "{out}" /duration {int(duration)} 2>&1 | Out-String',
+                     timeout=int(duration) + 30) or ""
         html = open(out, encoding="utf-8", errors="replace").read()
         for cls, level in (("errorName", "error"), ("warnName", "warning")):
             for mm in re.finditer(rf'class="{cls}">(.*?)</td>', html, re.S):
@@ -267,6 +272,14 @@ def energy_report(duration=30):
                     issues.append({"level": level, "text": t[:160]})
     except Exception:
         pass
+    finally:
+        try:
+            os.remove(out)
+        except OSError:
+            pass
+    def _n(label):
+        m = re.search(rf"(\d+)\s+{label}", txt)
+        return int(m.group(1)) if m else None
     return {"ok": True, "duration": int(duration),
             "errors": _n("Errors"), "warnings": _n("Warnings"), "info": _n("Informational"),
             "issues": issues[:25]}

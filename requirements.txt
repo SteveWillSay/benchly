@@ -6,10 +6,10 @@
 # --- Runtime ---
 pywebview==6.2.1
 psutil==7.2.2
-pillow==12.2.0
 
 # --- Build (portable exe via build_portable.ps1) ---
 pyinstaller==6.21.0
 
 # --- Dev / security tooling ---
+pillow==12.3.0     # dev-only: _dev/make_icon.py regenerates the icon; never imported at runtime
 pip-audit==2.10.1

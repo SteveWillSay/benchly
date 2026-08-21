@@ -4,6 +4,34 @@ Every release of Benchly, newest first. Dates are when each build was cut.
 Versioning is semantic-ish: minor versions add features, patch versions fix and polish.
 The same notes show up in the app — click the version number in the corner for "What's new".
 
+## [2.15.2] — 2026-08-21
+
+### Fixed
+- **Security: working files for privileged operations no longer live at guessable paths**
+  (audit issues #8, #9). Three code paths wrote to a fixed name in `%TEMP%` while running
+  elevated. Anything else running as the same user could stake out those names in advance and
+  redirect the elevated write via a junction — or, in the worst case, swap the file's contents
+  between it being written and being used:
+  - `virt.py` wrote the **diskpart script** behind *Compact a virtual disk* to
+    `%TEMP%\benchly-compact.txt` and then ran it as admin — so winning that race meant
+    attacker-chosen diskpart commands with admin rights. It now uses `tempfile.mkstemp()`
+    (`O_EXCL`, unpredictable name) and is removed in a `finally`, so it no longer leaks on the
+    error path either.
+  - `power.py`'s battery and energy reports wrote powercfg's output to fixed `%TEMP%` names.
+    Same fix. A useful side effect: the battery XML the app parses is now always a file it
+    created itself rather than one that could have been planted.
+  - The self-updater's log moved off `%TEMP%\benchly-update.log` to
+    `%APPDATA%\Benchly\update.log`, and refuses to follow a symlink or junction sitting at that
+    path — that mode can be relaunched elevated via UAC.
+- **Pillow is no longer listed as a runtime dependency** (audit issue #7). It is only used by
+  the dev-time icon generator (`_dev/make_icon.py`) and was never imported by the app or bundled
+  into a build, but it sat in the Runtime block of `requirements.txt` pinned to a version with
+  known image-parsing CVEs. Moved to the dev tooling section and bumped to 12.3.0.
+
+### Notes
+- No feature or UI changes. Authenticode signing of releases (issue #3) remains an open
+  follow-up.
+
 ## [2.15.1] — 2026-07-09
 
 ### Added

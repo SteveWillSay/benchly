@@ -30,7 +30,7 @@ from backend import (metrics, sysinfo, storage, network, security, software, eve
                      policies, corpagents, corpnet, appupdates, appxremnants)
 
 APP_NAME = "Benchly"
-APP_VERSION = "2.15.1"
+APP_VERSION = "2.15.2"
 
 
 def resource_path(rel: str) -> str:
@@ -782,17 +782,26 @@ def _apply_update_mode():
     """Relaunched as `--apply-update <new_exe> <target>` (possibly elevated via UAC) to
     finish a self-update: wait for the old instance to release the exe, copy the freshly
     downloaded build over it, and relaunch. Runs instead of the UI. Logs to
-    %TEMP%\\benchly-update.log so a failed swap can be diagnosed in the field."""
+    %APPDATA%\\Benchly\\update.log so a failed swap can be diagnosed in the field."""
     if "--apply-update" not in sys.argv:
         return False
     import time
     import shutil
-    import tempfile
     args = sys.argv[sys.argv.index("--apply-update") + 1:][:2]
-    logp = os.path.join(tempfile.gettempdir(), "benchly-update.log")
+    # This mode can be relaunched elevated via UAC, so it must not append to a guessable
+    # path: a junction pre-planted at a fixed %TEMP% name would redirect an elevated
+    # create/append. Keep the log in Benchly's own per-user dir, and refuse to follow a
+    # link if one is sitting at the final path anyway.
+    logp = os.path.join(settings.APP_DIR, "update.log")
+    try:
+        os.makedirs(settings.APP_DIR, exist_ok=True)
+    except OSError:
+        pass
 
     def log(msg):
         try:
+            if os.path.islink(logp) or os.path.isjunction(logp):
+                return
             with open(logp, "a", encoding="mbcs", errors="replace") as f:
                 f.write(msg + "\n")
         except Exception:

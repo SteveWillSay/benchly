@@ -95,16 +95,23 @@ def compact_vhdx(path):
     import subprocess
     import tempfile
     from .ps import CREATE_NO_WINDOW
-    tmp = os.path.join(tempfile.gettempdir(), "benchly-compact.txt")
+    # diskpart runs this script elevated, so the path it reads must not be guessable: a
+    # fixed %TEMP% name lets a lower-integrity process pre-plant a junction (elevated
+    # write) or swap the file before diskpart opens it (elevated diskpart commands).
+    fd, tmp = tempfile.mkstemp(prefix="benchly_compact_", suffix=".txt")  # O_EXCL, we own it
     try:
-        with open(tmp, "w", encoding="ascii") as f:
+        with os.fdopen(fd, "w", encoding="ascii") as f:
             f.write(script)
         r = subprocess.run(["diskpart", "/s", tmp], capture_output=True, timeout=600,
                            creationflags=CREATE_NO_WINDOW)
-        os.remove(tmp)
         out = r.stdout.decode("mbcs", errors="replace")
         if "DiskPart successfully" in out or r.returncode == 0:
             return {"ok": True, "detail": "Compacted. WSL must be shut down (wsl --shutdown) for it to free much."}
         return {"ok": False, "error": "diskpart couldn't compact it (make sure WSL is shut down first)."}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
