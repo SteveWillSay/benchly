@@ -61,19 +61,29 @@ The frontend has no build step — `ui/` ships as-is and gets bundled in via `--
    - `ui/js/app.js` → a fresh entry at the top of the `CHANGELOG` array (that's the in-app
      "What's new")
 2. **Update `CHANGELOG.md`** with the same notes.
-3. **Build** both binaries (above) and **actually launch the portable exe** to confirm it
+3. **Refresh the docs & screenshots.** Any feature or behaviour change ships with its docs
+   updated in the *same* release — never as a later catch-up. Touch whichever apply: `README.md`,
+   `docs/features.md`, `docs/faq.md`, `docs/getting-started.md`, `docs/technician-guide.md`
+   (regenerate `technician-guide.html`), and `assets/screens/*.png` when the UI changed.
+4. **Build** both binaries (above) and **actually launch the portable exe** to confirm it
    boots — don't skip this.
-4. **Stage the release folder and checksums:**
+5. **Stage the release folder and checksums:**
    ```powershell
    $rel = "release\v<version>"
    New-Item -ItemType Directory -Force $rel | Out-Null
    Copy-Item dist\Benchly.exe "$rel\Benchly-<version>-portable.exe"
    Copy-Item dist_installer\Benchly-Setup-<version>.exe $rel
-   Get-ChildItem $rel -File -Exclude SHA256SUMS.txt |
-     ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
+   Get-ChildItem $rel -File -Filter *.exe |
+     ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
      Out-File "$rel\SHA256SUMS.txt" -Encoding ascii
    ```
-5. **Commit, *then* tag, then push** — in that order. The tag has to point at the finished
+   Use `-Filter *.exe`, **not** `-Exclude SHA256SUMS.txt`. With a non-wildcard `-Path` and no
+   `-Recurse`, `-Exclude` matches nothing at all and the pipeline yields zero files — so you get
+   an **empty** `SHA256SUMS.txt` and a green "Successful compile" with no hint anything is wrong.
+   Always check the file has a line per binary before you publish: the updater refuses any
+   release whose asset has no matching checksum, so an empty file breaks self-update for
+   everyone on the previous version.
+6. **Commit, *then* tag, then push** — in that order. The tag has to point at the finished
    release commit, and the repo's tag-protection rule won't let you move or delete a tag
    once it's pushed, so a tag placed on the wrong commit is a mess to unpick.
    ```powershell
@@ -86,7 +96,7 @@ The frontend has no build step — `ui/` ships as-is and gets bundled in via `--
    Write the commit message into a throwaway file and use `git commit -F`. **Don't** pass a
    multi-line message inline with `git commit -m` in PowerShell — `&`, `->` and embedded
    double-quotes get mangled by the shell and the commit fails (or worse, half-succeeds).
-6. **Publish the GitHub release** with the binaries **and `SHA256SUMS.txt`** attached —
+7. **Publish the GitHub release** with the binaries **and `SHA256SUMS.txt`** attached —
    the in-app updater verifies downloads against that checksum file, so don't skip it:
    ```powershell
    gh release create v<version> `
